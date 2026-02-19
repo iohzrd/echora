@@ -1,0 +1,595 @@
+use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::auth::User;
+use crate::link_preview::LinkPreviewData;
+use crate::models::{Channel, ChannelType, LinkPreview, Message, Reaction, ReplyPreview};
+use crate::shared::AppError;
+
+pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
+    let channel_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM channels")
+        .fetch_one(pool)
+        .await?;
+
+    if channel_count == 0 {
+        let channels = [
+            (Uuid::now_v7(), "general", "text"),
+            (Uuid::now_v7(), "random", "text"),
+            (Uuid::now_v7(), "announcements", "text"),
+            (Uuid::now_v7(), "General Voice", "voice"),
+        ];
+
+        for (id, name, channel_type) in &channels {
+            sqlx::query("INSERT INTO channels (id, name, channel_type) VALUES ($1, $2, $3)")
+                .bind(id.to_string())
+                .bind(name)
+                .bind(channel_type)
+                .execute(pool)
+                .await?;
+        }
+
+        tracing::info!("Seeded {} default channels", channels.len());
+    }
+
+    Ok(())
+}
+
+pub async fn get_channels(pool: &PgPool) -> Result<Vec<Channel>, AppError> {
+    let rows: Vec<(String, String, String)> =
+        sqlx::query_as("SELECT id, name, channel_type FROM channels")
+            .fetch_all(pool)
+            .await?;
+
+    let channels = rows
+        .into_iter()
+        .map(|(id, name, channel_type)| Channel {
+            id: Uuid::parse_str(&id).expect("invalid UUID in channels table"),
+            name,
+            channel_type: match channel_type.as_str() {
+                "voice" => ChannelType::Voice,
+                _ => ChannelType::Text,
+            },
+        })
+        .collect();
+
+    Ok(channels)
+}
+
+pub async fn get_messages(
+    pool: &PgPool,
+    channel_id: Uuid,
+    limit: i64,
+    before: Option<DateTime<Utc>>,
+    requesting_user_id: Uuid,
+) -> Result<Vec<Message>, AppError> {
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        String,
+        String,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+        Option<String>,
+    )> = if let Some(before_ts) = before {
+        sqlx::query_as(
+            "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+             FROM messages WHERE channel_id = $1 AND created_at < $2
+             ORDER BY created_at DESC LIMIT $3",
+        )
+        .bind(channel_id.to_string())
+        .bind(before_ts)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?
+    } else {
+        sqlx::query_as(
+            "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+             FROM messages WHERE channel_id = $1
+             ORDER BY created_at DESC LIMIT $2",
+        )
+        .bind(channel_id.to_string())
+        .bind(limit)
+        .fetch_all(pool)
+        .await?
+    };
+
+    let mut messages: Vec<Message> = rows
+        .into_iter()
+        .map(
+            |(id, content, author, author_id, channel_id, timestamp, edited_at, reply_to_id)| {
+                Message {
+                    id: Uuid::parse_str(&id).expect("invalid UUID in messages table"),
+                    content,
+                    author,
+                    author_id: Uuid::parse_str(&author_id).expect("invalid UUID in messages table"),
+                    channel_id: Uuid::parse_str(&channel_id)
+                        .expect("invalid UUID in messages table"),
+                    timestamp,
+                    edited_at,
+                    reply_to_id: reply_to_id
+                        .as_deref()
+                        .and_then(|id| Uuid::parse_str(id).ok()),
+                    reply_to: None,
+                    reactions: None,
+                    link_previews: None,
+                }
+            },
+        )
+        .collect();
+
+    // Reverse so messages are returned in chronological order (oldest first)
+    messages.reverse();
+
+    // Batch-fetch reply previews
+    let reply_ids: Vec<String> = messages
+        .iter()
+        .filter_map(|m| m.reply_to_id.map(|id| id.to_string()))
+        .collect();
+
+    if !reply_ids.is_empty() {
+        let previews = get_reply_previews(pool, &reply_ids).await?;
+        for msg in &mut messages {
+            if let Some(reply_id) = msg.reply_to_id {
+                msg.reply_to = previews.get(&reply_id).cloned();
+            }
+        }
+    }
+
+    // Batch-fetch reactions
+    let message_ids: Vec<String> = messages.iter().map(|m| m.id.to_string()).collect();
+    if !message_ids.is_empty() {
+        let reactions_map =
+            get_reactions_for_messages(pool, &message_ids, requesting_user_id).await?;
+        for msg in &mut messages {
+            if let Some(reactions) = reactions_map.get(&msg.id)
+                && !reactions.is_empty()
+            {
+                msg.reactions = Some(reactions.clone());
+            }
+        }
+    }
+
+    // Batch-fetch link previews
+    if !message_ids.is_empty() {
+        let previews_map = get_link_previews_for_messages(pool, &message_ids).await?;
+        for msg in &mut messages {
+            if let Some(previews) = previews_map.get(&msg.id)
+                && !previews.is_empty()
+            {
+                msg.link_previews = Some(previews.clone());
+            }
+        }
+    }
+
+    Ok(messages)
+}
+
+pub async fn get_message_by_id(
+    pool: &PgPool,
+    message_id: Uuid,
+) -> Result<Option<Message>, AppError> {
+    let row: Option<(
+        String,
+        String,
+        String,
+        String,
+        String,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+        Option<String>,
+    )> = sqlx::query_as(
+        "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+             FROM messages WHERE id = $1",
+    )
+    .bind(message_id.to_string())
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(
+        |(id, content, author, author_id, channel_id, timestamp, edited_at, reply_to_id)| Message {
+            id: Uuid::parse_str(&id).expect("invalid UUID in messages table"),
+            content,
+            author,
+            author_id: Uuid::parse_str(&author_id).expect("invalid UUID in messages table"),
+            channel_id: Uuid::parse_str(&channel_id).expect("invalid UUID in messages table"),
+            timestamp,
+            edited_at,
+            reply_to_id: reply_to_id
+                .as_deref()
+                .and_then(|id| Uuid::parse_str(id).ok()),
+            reply_to: None,
+            reactions: None,
+            link_previews: None,
+        },
+    ))
+}
+
+pub async fn update_message(
+    pool: &PgPool,
+    message_id: Uuid,
+    content: &str,
+) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE messages SET content = $1, edited_at = $2 WHERE id = $3")
+        .bind(content)
+        .bind(Utc::now())
+        .bind(message_id.to_string())
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("Message not found"));
+    }
+
+    Ok(())
+}
+
+pub async fn delete_message(pool: &PgPool, message_id: Uuid) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM messages WHERE id = $1")
+        .bind(message_id.to_string())
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("Message not found"));
+    }
+
+    Ok(())
+}
+
+pub async fn create_channel(
+    pool: &PgPool,
+    channel: &Channel,
+    created_by: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO channels (id, name, channel_type, created_by, created_at)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(channel.id.to_string())
+    .bind(&channel.name)
+    .bind(match channel.channel_type {
+        ChannelType::Text => "text",
+        ChannelType::Voice => "voice",
+    })
+    .bind(created_by.to_string())
+    .bind(Utc::now())
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn update_channel(pool: &PgPool, channel_id: Uuid, name: &str) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE channels SET name = $1 WHERE id = $2")
+        .bind(name)
+        .bind(channel_id.to_string())
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("Channel not found"));
+    }
+
+    Ok(())
+}
+
+pub async fn delete_channel(pool: &PgPool, channel_id: Uuid) -> Result<(), AppError> {
+    // Delete link preview junctions, reactions, then messages (FK constraints)
+    sqlx::query(
+        "DELETE FROM message_link_previews WHERE message_id IN (SELECT id FROM messages WHERE channel_id = $1)",
+    )
+    .bind(channel_id.to_string())
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        "DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = $1)",
+    )
+    .bind(channel_id.to_string())
+    .execute(pool)
+    .await?;
+
+    sqlx::query("DELETE FROM messages WHERE channel_id = $1")
+        .bind(channel_id.to_string())
+        .execute(pool)
+        .await?;
+
+    let result = sqlx::query("DELETE FROM channels WHERE id = $1")
+        .bind(channel_id.to_string())
+        .execute(pool)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("Channel not found"));
+    }
+
+    Ok(())
+}
+
+pub async fn create_message(
+    pool: &PgPool,
+    message: &Message,
+    author_id: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO messages (id, content, author_id, author_username, channel_id, created_at, reply_to_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(message.id.to_string())
+    .bind(&message.content)
+    .bind(author_id.to_string())
+    .bind(&message.author)
+    .bind(message.channel_id.to_string())
+    .bind(message.timestamp)
+    .bind(message.reply_to_id.map(|id| id.to_string()))
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO users (id, username, email, password_hash, created_at)
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(user.id.to_string())
+    .bind(&user.username)
+    .bind(&user.email)
+    .bind(&user.password_hash)
+    .bind(user.created_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, AppError> {
+    let row: Option<(String, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT id, username, email, password_hash, created_at FROM users WHERE username = $1",
+    )
+    .bind(username)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(
+        row.map(|(id, username, email, password_hash, created_at)| User {
+            id: Uuid::parse_str(&id).expect("invalid UUID in users table"),
+            username,
+            email,
+            password_hash,
+            created_at,
+        }),
+    )
+}
+
+pub async fn get_reply_previews(
+    pool: &PgPool,
+    reply_ids: &[String],
+) -> Result<std::collections::HashMap<Uuid, ReplyPreview>, AppError> {
+    use std::collections::HashMap;
+
+    let mut previews = HashMap::new();
+
+    // Fetch reply previews in a batch using ANY
+    let rows: Vec<(String, String, String)> =
+        sqlx::query_as("SELECT id, author_username, content FROM messages WHERE id = ANY($1)")
+            .bind(reply_ids)
+            .fetch_all(pool)
+            .await?;
+
+    for (id, author, content) in rows {
+        let uuid = Uuid::parse_str(&id).expect("invalid UUID in messages table");
+        previews.insert(
+            uuid,
+            ReplyPreview {
+                id: uuid,
+                author,
+                content: if content.len() > 200 {
+                    format!("{}...", &content[..200])
+                } else {
+                    content
+                },
+            },
+        );
+    }
+
+    Ok(previews)
+}
+
+pub async fn get_reactions_for_messages(
+    pool: &PgPool,
+    message_ids: &[String],
+    requesting_user_id: Uuid,
+) -> Result<std::collections::HashMap<Uuid, Vec<Reaction>>, AppError> {
+    use std::collections::HashMap;
+
+    let rows: Vec<(String, String, i64, bool)> = sqlx::query_as(
+        "SELECT r.message_id, r.emoji, COUNT(*) as count,
+                BOOL_OR(r.user_id = $2) as reacted
+         FROM reactions r
+         WHERE r.message_id = ANY($1)
+         GROUP BY r.message_id, r.emoji
+         ORDER BY MIN(r.created_at)",
+    )
+    .bind(message_ids)
+    .bind(requesting_user_id.to_string())
+    .fetch_all(pool)
+    .await?;
+
+    let mut reactions_map: HashMap<Uuid, Vec<Reaction>> = HashMap::new();
+
+    for (message_id, emoji, count, reacted) in rows {
+        let uuid = Uuid::parse_str(&message_id).expect("invalid UUID");
+        reactions_map.entry(uuid).or_default().push(Reaction {
+            emoji,
+            count,
+            reacted,
+        });
+    }
+
+    Ok(reactions_map)
+}
+
+pub async fn add_reaction(
+    pool: &PgPool,
+    message_id: Uuid,
+    user_id: Uuid,
+    emoji: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO reactions (message_id, user_id, emoji) VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(message_id.to_string())
+    .bind(user_id.to_string())
+    .bind(emoji)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn remove_reaction(
+    pool: &PgPool,
+    message_id: Uuid,
+    user_id: Uuid,
+    emoji: &str,
+) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3")
+        .bind(message_id.to_string())
+        .bind(user_id.to_string())
+        .bind(emoji)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn get_reply_preview(
+    pool: &PgPool,
+    message_id: Uuid,
+) -> Result<Option<ReplyPreview>, AppError> {
+    let row: Option<(String, String, String)> =
+        sqlx::query_as("SELECT id, author_username, content FROM messages WHERE id = $1")
+            .bind(message_id.to_string())
+            .fetch_optional(pool)
+            .await?;
+
+    Ok(row.map(|(id, author, content)| ReplyPreview {
+        id: Uuid::parse_str(&id).expect("invalid UUID"),
+        author,
+        content: if content.len() > 200 {
+            format!("{}...", &content[..200])
+        } else {
+            content
+        },
+    }))
+}
+
+pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
+    let row: Option<(String, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1",
+    )
+    .bind(email)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(
+        row.map(|(id, username, email, password_hash, created_at)| User {
+            id: Uuid::parse_str(&id).expect("invalid UUID in users table"),
+            username,
+            email,
+            password_hash,
+            created_at,
+        }),
+    )
+}
+
+/// Insert or update a link preview (deduped by URL), return its ID
+pub async fn upsert_link_preview(pool: &PgPool, data: &LinkPreviewData) -> Result<Uuid, AppError> {
+    let id = Uuid::now_v7();
+    let row: (String,) = sqlx::query_as(
+        "INSERT INTO link_previews (id, url, title, description, image_url, site_name)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (url) DO UPDATE SET
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           image_url = EXCLUDED.image_url,
+           site_name = EXCLUDED.site_name,
+           fetched_at = NOW()
+         RETURNING id",
+    )
+    .bind(id.to_string())
+    .bind(&data.url)
+    .bind(&data.title)
+    .bind(&data.description)
+    .bind(&data.image_url)
+    .bind(&data.site_name)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(Uuid::parse_str(&row.0).expect("invalid UUID"))
+}
+
+/// Link a preview to a message via the junction table
+pub async fn attach_preview_to_message(
+    pool: &PgPool,
+    message_id: Uuid,
+    preview_id: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO message_link_previews (message_id, preview_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(message_id.to_string())
+    .bind(preview_id.to_string())
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+/// Batch-fetch link previews for a set of messages
+pub async fn get_link_previews_for_messages(
+    pool: &PgPool,
+    message_ids: &[String],
+) -> Result<std::collections::HashMap<Uuid, Vec<LinkPreview>>, AppError> {
+    use std::collections::HashMap;
+
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )> = sqlx::query_as(
+        "SELECT mlp.message_id, lp.id, lp.url, lp.title, lp.description, lp.image_url, lp.site_name
+         FROM message_link_previews mlp
+         JOIN link_previews lp ON lp.id = mlp.preview_id
+         WHERE mlp.message_id = ANY($1)",
+    )
+    .bind(message_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut previews_map: HashMap<Uuid, Vec<LinkPreview>> = HashMap::new();
+
+    for (message_id, id, url, title, description, image_url, site_name) in rows {
+        let msg_uuid = Uuid::parse_str(&message_id).expect("invalid UUID");
+        previews_map.entry(msg_uuid).or_default().push(LinkPreview {
+            id: Uuid::parse_str(&id).expect("invalid UUID"),
+            url,
+            title,
+            description,
+            image_url,
+            site_name,
+        });
+    }
+
+    Ok(previews_map)
+}

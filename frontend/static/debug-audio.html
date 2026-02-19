@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Audio Debug</h1>
+
+    <button onclick="testLocalAudio()">Test Local Audio (Should hear yourself)</button>
+    <button onclick="testPeerConnection()">Test Peer Connection</button>
+    <button onclick="checkAudioElements()">Check Audio Elements</button>
+
+    <div id="debug-output" class="debug"></div>
+
+    <audio id="localAudio" autoplay muted></audio>
+    <audio id="remoteAudio" autoplay></audio>
+
+    <script>
+        let localStream = null;
+        let peerConnection = null;
+        let remoteStream = null;
+
+        function log(message, isError = false) {
+            const output = document.getElementById('debug-output');
+            const div = document.createElement('div');
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            div.className = isError ? 'error' : 'success';
+            output.appendChild(div);
+            console.log(message);
+        }
+
+        async function testLocalAudio() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                const localAudio = document.getElementById('localAudio');
+                localAudio.srcObject = localStream;
+                localAudio.muted = false; // Unmute to hear yourself
+
+                log('Local audio stream created successfully');
+                log(`Audio tracks: ${localStream.getAudioTracks().length}`);
+
+                // Check if audio is flowing
+                const audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(localStream);
+                const analyser = audioContext.createAnalyser();
+                source.connect(analyser);
+
+                const checkLevel = () => {
+                    const bufferLength = analyser.frequencyBinCount;
+                    const dataArray = new Uint8Array(bufferLength);
+                    analyser.getByteFrequencyData(dataArray);
+                    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+
+                    if (average > 5) {
+                        log(`Audio detected: level ${average.toFixed(1)}`);
+                    }
+                };
+
+                setInterval(checkLevel, 1000);
+
+            } catch (error) {
+                log(`Failed to get local audio: ${error.message}`, true);
+            }
+        }
+
+        async function testPeerConnection() {
+            if (!localStream) {
+                log('Please test local audio first', true);
+                return;
+            }
+
+            try {
+                // Create peer connection
+                peerConnection = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+
+                // Add local stream
+                localStream.getTracks().forEach(track => {
+                    const sender = peerConnection.addTrack(track, localStream);
+                    log(`Added track: ${track.kind}`);
+                });
+
+                // Handle remote stream
+                peerConnection.ontrack = (event) => {
+                    log('Received remote track');
+                    remoteStream = event.streams[0];
+
+                    const remoteAudio = document.getElementById('remoteAudio');
+                    remoteAudio.srcObject = remoteStream;
+
+                    log('Remote audio element updated');
+
+                    // Check remote audio levels
+                    const audioContext = new AudioContext();
+                    const source = audioContext.createMediaStreamSource(remoteStream);
+                    const analyser = audioContext.createAnalyser();
+                    source.connect(analyser);
+
+                    const checkRemoteLevel = () => {
+                        const bufferLength = analyser.frequencyBinCount;
+                        const dataArray = new Uint8Array(bufferLength);
+                        analyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+
+                        if (average > 5) {
+                            log(`Remote audio detected: level ${average.toFixed(1)}`);
+                        }
+                    };
+
+                    setInterval(checkRemoteLevel, 1000);
+                };
+
+                // ICE candidate handling
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        log('ICE candidate generated');
+                    }
+                };
+
+                // Connection state monitoring
+                peerConnection.onconnectionstatechange = () => {
+                    log(`Connection state: ${peerConnection.connectionState}`);
+                };
+
+                // Create loopback connection (for testing)
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                log('Created offer');
+
+                // Simulate remote peer accepting offer
+                await peerConnection.setRemoteDescription(offer);
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                log('Created answer');
+
+            } catch (error) {
+                log(`Peer connection failed: ${error.message}`, true);
+            }
+        }
+
+        function checkAudioElements() {
+            const localAudio = document.getElementById('localAudio');
+            const remoteAudio = document.getElementById('remoteAudio');
+
+            log(`Local audio element:`);
+            log(`  - srcObject: ${localAudio.srcObject ? 'SET' : 'NULL'}`);
+            log(`  - muted: ${localAudio.muted}`);
+            log(`  - volume: ${localAudio.volume}`);
+            log(`  - paused: ${localAudio.paused}`);
+
+            log(`Remote audio element:`);
+            log(`  - srcObject: ${remoteAudio.srcObject ? 'SET' : 'NULL'}`);
+            log(`  - muted: ${remoteAudio.muted}`);
+            log(`  - volume: ${remoteAudio.volume}`);
+            log(`  - paused: ${remoteAudio.paused}`);
+
+            // Check for common audio issues
+            if (localAudio.srcObject && localAudio.srcObject.getAudioTracks().length === 0) {
+                log('Local stream has no audio tracks!', true);
+            }
+
+            if (remoteAudio.srcObject && remoteAudio.srcObject.getAudioTracks().length === 0) {
+                log('Remote stream has no audio tracks!', true);
+            }
+        }
+
+        // Auto-check browser capabilities
+        window.addEventListener('load', () => {
+            log('Browser WebRTC support:');
+            log(`  - getUserMedia: ${!!navigator.mediaDevices?.getUserMedia}`);
+            log(`  - RTCPeerConnection: ${!!window.RTCPeerConnection}`);
+            log(`  - AudioContext: ${!!window.AudioContext}`);
+        });
+    </script>
+</body>
+</html>

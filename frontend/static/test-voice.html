@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Echora Voice Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .user-box { border: 1px solid #ccc; padding: 10px; margin: 10px; width: 300px; float: left; }
+        .controls { margin: 10px 0; }
+        button { margin: 5px; padding: 5px 10px; }
+        .status { color: green; }
+        .error { color: red; }
+        .speaking { background-color: #90EE90; }
+    </style>
+</head>
+<body>
+    <h1>Echora WebRTC Voice Test</h1>
+
+    <div class="user-box" id="user1">
+        <h3>User 1</h3>
+        <div class="controls">
+            <button onclick="registerUser('user1', 'user1@test.com', 'password123', 1)">Register</button>
+            <button onclick="loginUser('user1', 'password123', 1)">Login</button>
+            <button onclick="joinVoice(1)">Join Voice</button>
+            <button onclick="leaveVoice(1)">Leave Voice</button>
+            <button onclick="toggleMute(1)">Toggle Mute</button>
+        </div>
+        <div id="status1"></div>
+        <audio id="audio1" autoplay></audio>
+    </div>
+
+    <div class="user-box" id="user2">
+        <h3>User 2</h3>
+        <div class="controls">
+            <button onclick="registerUser('user2', 'user2@test.com', 'password123', 2)">Register</button>
+            <button onclick="loginUser('user2', 'password123', 2)">Login</button>
+            <button onclick="joinVoice(2)">Join Voice</button>
+            <button onclick="leaveVoice(2)">Leave Voice</button>
+            <button onclick="toggleMute(2)">Toggle Mute</button>
+        </div>
+        <div id="status2"></div>
+        <audio id="audio2" autoplay></audio>
+    </div>
+
+    <div style="clear: both;">
+        <h3>Test Instructions:</h3>
+        <ol>
+            <li>Register both users</li>
+            <li>Login both users</li>
+            <li>Join voice for both users</li>
+            <li>Speak into microphone - should see speaking indicators</li>
+            <li>Test mute/unmute functionality</li>
+        </ol>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:3000/api';
+        const WS_BASE = 'ws://127.0.0.1:3000';
+
+        let users = {
+            1: { token: null, userId: null, voiceWs: null, peerConnection: null, localStream: null },
+            2: { token: null, userId: null, voiceWs: null, peerConnection: null, localStream: null }
+        };
+
+        async function registerUser(username, email, password, userNum) {
+            try {
+                const response = await fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                const data = await response.json();
+                users[userNum].token = data.token;
+                users[userNum].userId = data.user.id;
+
+                updateStatus(userNum, `Registered as ${username}`, false);
+            } catch (error) {
+                updateStatus(userNum, `Registration failed: ${error.message}`, true);
+            }
+        }
+
+        async function loginUser(username, password, userNum) {
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+                users[userNum].token = data.token;
+                users[userNum].userId = data.user.id;
+
+                updateStatus(userNum, `Logged in as ${username}`, false);
+            } catch (error) {
+                updateStatus(userNum, `Login failed: ${error.message}`, true);
+            }
+        }
+
+        async function joinVoice(userNum) {
+            const user = users[userNum];
+            if (!user.token) {
+                updateStatus(userNum, 'Please login first', true);
+                return;
+            }
+
+            try {
+                // Get user media
+                user.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Connect to voice WebSocket
+                user.voiceWs = new WebSocket(`${WS_BASE}/voice-ws`);
+
+                user.voiceWs.onopen = () => {
+                    // Send join message
+                    user.voiceWs.send(JSON.stringify({
+                        type: 'join_channel',
+                        channel_id: '019964f2-3c39-74f0-bb8f-748b0bfed396', // Voice channel ID
+                        user_id: user.userId,
+                        username: `user${userNum}`
+                    }));
+                    updateStatus(userNum, 'Joined voice channel', false);
+                };
+
+                user.voiceWs.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    handleVoiceMessage(userNum, message);
+                };
+
+                // Setup speaking detection
+                setupSpeakingDetection(userNum);
+
+            } catch (error) {
+                updateStatus(userNum, `Failed to join voice: ${error.message}`, true);
+            }
+        }
+
+        function setupSpeakingDetection(userNum) {
+            const user = users[userNum];
+            if (!user.localStream) return;
+
+            const audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(user.localStream);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 512;
+            source.connect(analyser);
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            let lastSpeaking = false;
+
+            function checkAudioLevel() {
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                const isSpeaking = average > 30; // Threshold
+
+                if (isSpeaking !== lastSpeaking) {
+                    lastSpeaking = isSpeaking;
+
+                    // Visual indicator
+                    const userBox = document.getElementById(`user${userNum}`);
+                    if (isSpeaking) {
+                        userBox.classList.add('speaking');
+                    } else {
+                        userBox.classList.remove('speaking');
+                    }
+
+                    // Send speaking status
+                    if (user.voiceWs && user.voiceWs.readyState === WebSocket.OPEN) {
+                        fetch(`${API_BASE}/voice/channels/019964f2-3c39-74f0-bb8f-748b0bfed396/speaking`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${user.token}`
+                            },
+                            body: JSON.stringify({ is_speaking: isSpeaking })
+                        });
+                    }
+                }
+
+                requestAnimationFrame(checkAudioLevel);
+            }
+
+            checkAudioLevel();
+        }
+
+        function handleVoiceMessage(userNum, message) {
+            console.log(`User ${userNum} received:`, message);
+
+            switch (message.type) {
+                case 'user_joined':
+                    if (message.user_id !== users[userNum].userId) {
+                        updateStatus(userNum, `${message.username} joined voice`, false);
+                        // Setup peer connection for the other user
+                        setupPeerConnection(userNum, message.user_id);
+                    }
+                    break;
+
+                case 'speaking':
+                    updateStatus(userNum, `${message.user_id} is ${message.is_speaking ? 'speaking' : 'silent'}`, false);
+                    break;
+
+                case 'web_rtc_offer':
+                case 'web_rtc_answer':
+                case 'ice_candidate':
+                    // Handle WebRTC signaling
+                    handleWebRTCSignaling(userNum, message);
+                    break;
+            }
+        }
+
+        async function setupPeerConnection(userNum, targetUserId) {
+            const user = users[userNum];
+
+            user.peerConnection = new RTCPeerConnection({
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            });
+
+            // Add local stream
+            if (user.localStream) {
+                user.localStream.getTracks().forEach(track => {
+                    user.peerConnection.addTrack(track, user.localStream);
+                });
+            }
+
+            // Handle remote stream
+            user.peerConnection.ontrack = (event) => {
+                const audio = document.getElementById(`audio${userNum}`);
+                audio.srcObject = event.streams[0];
+                updateStatus(userNum, 'Receiving audio from peer', false);
+            };
+
+            // Handle ICE candidates
+            user.peerConnection.onicecandidate = (event) => {
+                if (event.candidate && user.voiceWs) {
+                    user.voiceWs.send(JSON.stringify({
+                        type: 'ice_candidate',
+                        candidate: JSON.stringify(event.candidate),
+                        target_user_id: targetUserId
+                    }));
+                }
+            };
+
+            // Create offer
+            const offer = await user.peerConnection.createOffer();
+            await user.peerConnection.setLocalDescription(offer);
+
+            user.voiceWs.send(JSON.stringify({
+                type: 'web_rtc_offer',
+                sdp: offer.sdp,
+                target_user_id: targetUserId
+            }));
+        }
+
+        async function handleWebRTCSignaling(userNum, message) {
+            const user = users[userNum];
+            if (!user.peerConnection) return;
+
+            try {
+                switch (message.type) {
+                    case 'web_rtc_offer':
+                        await user.peerConnection.setRemoteDescription({
+                            type: 'offer',
+                            sdp: message.sdp
+                        });
+
+                        const answer = await user.peerConnection.createAnswer();
+                        await user.peerConnection.setLocalDescription(answer);
+
+                        user.voiceWs.send(JSON.stringify({
+                            type: 'web_rtc_answer',
+                            sdp: answer.sdp,
+                            target_user_id: message.user_id
+                        }));
+                        break;
+
+                    case 'web_rtc_answer':
+                        await user.peerConnection.setRemoteDescription({
+                            type: 'answer',
+                            sdp: message.sdp
+                        });
+                        break;
+
+                    case 'ice_candidate':
+                        const candidate = JSON.parse(message.candidate);
+                        await user.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                        break;
+                }
+            } catch (error) {
+                updateStatus(userNum, `WebRTC error: ${error.message}`, true);
+            }
+        }
+
+        function leaveVoice(userNum) {
+            const user = users[userNum];
+
+            if (user.voiceWs) {
+                user.voiceWs.close();
+                user.voiceWs = null;
+            }
+
+            if (user.peerConnection) {
+                user.peerConnection.close();
+                user.peerConnection = null;
+            }
+
+            if (user.localStream) {
+                user.localStream.getTracks().forEach(track => track.stop());
+                user.localStream = null;
+            }
+
+            document.getElementById(`user${userNum}`).classList.remove('speaking');
+            updateStatus(userNum, 'Left voice channel', false);
+        }
+
+        function toggleMute(userNum) {
+            const user = users[userNum];
+            if (user.localStream) {
+                const audioTrack = user.localStream.getAudioTracks()[0];
+                audioTrack.enabled = !audioTrack.enabled;
+                updateStatus(userNum, `Microphone ${audioTrack.enabled ? 'unmuted' : 'muted'}`, false);
+            }
+        }
+
+        function updateStatus(userNum, message, isError) {
+            const statusEl = document.getElementById(`status${userNum}`);
+            statusEl.textContent = message;
+            statusEl.className = isError ? 'error' : 'status';
+        }
+    </script>
+</body>
+</html>
