@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+import { getApiBase } from './config';
+import { getActiveServer, updateServer, isTauri, appFetch } from './serverManager';
 
 export interface User {
   id: string;
@@ -27,29 +27,28 @@ export interface LoginRequest {
 export const user = writable<User | null>(null);
 export const token = writable<string | null>(null);
 
-class AuthService {
-  private static tokenKey = 'echora_token';
+const TOKEN_KEY = 'echora_token';
 
+class AuthService {
   static async init(): Promise<void> {
-    const savedToken = localStorage.getItem(this.tokenKey);
+    const savedToken = this.getToken();
     if (savedToken) {
       token.set(savedToken);
       await this.getCurrentUser();
     }
   }
 
-  static async register(data: RegisterRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/register`, {
+  private static async authRequest(endpoint: string, data: RegisterRequest | LoginRequest, fallbackError: string): Promise<AuthResponse> {
+    const apiBase = getApiBase();
+    const response = await appFetch(`${apiBase}/auth/${endpoint}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.error || 'Registration failed');
+      throw new Error(error.error || fallbackError);
     }
 
     const authResponse: AuthResponse = await response.json();
@@ -57,23 +56,12 @@ class AuthService {
     return authResponse;
   }
 
-  static async login(data: LoginRequest): Promise<AuthResponse> {
-    const response = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
+  static register(data: RegisterRequest): Promise<AuthResponse> {
+    return this.authRequest('register', data, 'Registration failed');
+  }
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
-    }
-
-    const authResponse: AuthResponse = await response.json();
-    this.setAuth(authResponse);
-    return authResponse;
+  static login(data: LoginRequest): Promise<AuthResponse> {
+    return this.authRequest('login', data, 'Login failed');
   }
 
   static async getCurrentUser(): Promise<User | null> {
@@ -81,7 +69,8 @@ class AuthService {
     if (!currentToken) return null;
 
     try {
-      const response = await fetch(`${API_BASE}/auth/me`, {
+      const apiBase = getApiBase();
+      const response = await appFetch(`${apiBase}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${currentToken}`,
         },
@@ -102,13 +91,24 @@ class AuthService {
   }
 
   static logout() {
-    localStorage.removeItem(this.tokenKey);
+    if (isTauri) {
+      const server = getActiveServer();
+      if (server) {
+        updateServer(server.id, { token: undefined, userId: undefined, username: undefined });
+      }
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
     token.set(null);
     user.set(null);
   }
 
   static getToken(): string | null {
-    return localStorage.getItem(this.tokenKey);
+    if (isTauri) {
+      const server = getActiveServer();
+      return server?.token ?? null;
+    }
+    return localStorage.getItem(TOKEN_KEY);
   }
 
   static getAuthHeaders(): Record<string, string> {
@@ -119,7 +119,18 @@ class AuthService {
   }
 
   private static setAuth(authResponse: AuthResponse) {
-    localStorage.setItem(this.tokenKey, authResponse.token);
+    if (isTauri) {
+      const server = getActiveServer();
+      if (server) {
+        updateServer(server.id, {
+          token: authResponse.token,
+          userId: authResponse.user.id,
+          username: authResponse.user.username,
+        });
+      }
+    } else {
+      localStorage.setItem(TOKEN_KEY, authResponse.token);
+    }
     token.set(authResponse.token);
     user.set(authResponse.user);
   }

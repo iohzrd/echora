@@ -64,22 +64,22 @@
   }
 
   .auth-content {
-    background-color: #36393f;
-    border-radius: 8px;
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-lg);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
   }
 
   .auth-toggle {
     padding: 16px 32px;
     text-align: center;
-    color: #72767d;
+    color: var(--text-muted);
     font-size: 14px;
   }
 
   .toggle-btn {
     background: none;
     border: none;
-    color: #5865f2;
+    color: var(--brand-primary);
     cursor: pointer;
     text-decoration: none;
     margin-left: 4px;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Channel, VoiceState } from "../api";
+  import { getInitial } from "../utils";
 
   export let channels: Channel[] = [];
   export let selectedChannelId: string = "";
@@ -28,37 +29,48 @@
   let editingChannelId: string | null = null;
   let editChannelName = "";
 
-  function handleCreateKeydown(event: KeyboardEvent) {
+  function formKeydown(event: KeyboardEvent, onSubmit: () => void, onCancel: () => void) {
     if (event.key === "Enter") {
       event.preventDefault();
+      onSubmit();
+    } else if (event.key === "Escape") {
+      onCancel();
+    }
+  }
+
+  function handleCreateKeydown(event: KeyboardEvent) {
+    formKeydown(event, () => {
       if (newChannelName.trim() && showCreateChannel) {
         onCreateChannel(newChannelName.trim(), showCreateChannel);
         newChannelName = "";
         showCreateChannel = null;
       }
-    } else if (event.key === "Escape") {
+    }, () => {
       showCreateChannel = null;
       newChannelName = "";
-    }
+    });
   }
 
   function handleEditKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
+    formKeydown(event, () => {
       if (editingChannelId && editChannelName.trim()) {
         onUpdateChannel(editingChannelId, editChannelName.trim());
         editingChannelId = null;
         editChannelName = "";
       }
-    } else if (event.key === "Escape") {
+    }, () => {
       editingChannelId = null;
       editChannelName = "";
-    }
+    });
   }
 
   function startEdit(channel: Channel) {
     editingChannelId = channel.id;
     editChannelName = channel.name;
+  }
+
+  function toggleCreateForm(type: "text" | "voice") {
+    showCreateChannel = showCreateChannel === type ? null : type;
   }
 </script>
 
@@ -66,8 +78,7 @@
   <span>Text Channels</span>
   <button
     class="create-channel-btn"
-    on:click={() =>
-      (showCreateChannel = showCreateChannel === "text" ? null : "text")}
+    on:click={() => toggleCreateForm("text")}
     title="Create Text Channel">+</button
   >
 </div>
@@ -127,8 +138,7 @@
   <span>Voice Channels</span>
   <button
     class="create-channel-btn"
-    on:click={() =>
-      (showCreateChannel = showCreateChannel === "voice" ? null : "voice")}
+    on:click={() => toggleCreateForm("voice")}
     title="Create Voice Channel">+</button
   >
 </div>
@@ -219,7 +229,7 @@
       </div>
     {/if}
 
-    {#if voiceStates.filter((vs) => vs.channel_id === channel.id).length > 0}
+    {#if voiceStates.some((vs) => vs.channel_id === channel.id)}
       <div class="voice-users">
         {#each voiceStates.filter((vs) => vs.channel_id === channel.id) as voiceState}
           <div
@@ -237,7 +247,7 @@
             tabindex={voiceState.is_screen_sharing ? 0 : -1}
           >
             <div class="user-avatar">
-              {voiceState.username.charAt(0).toUpperCase()}
+              {getInitial(voiceState.username)}
             </div>
             <span class="username">{voiceState.username}</span>
             {#if voiceState.is_muted}

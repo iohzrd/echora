@@ -15,31 +15,6 @@
       return;
     }
 
-    const trimmedUsername = username.trim();
-    if (trimmedUsername.length > 32) {
-      error = "Username must be 32 characters or fewer";
-      return;
-    }
-    if (!/^[a-zA-Z0-9_-]+$/.test(trimmedUsername)) {
-      error = "Username can only contain letters, numbers, underscores, and hyphens";
-      return;
-    }
-
-    const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail.includes("@") || !trimmedEmail.includes(".")) {
-      error = "Please enter a valid email address";
-      return;
-    }
-
-    if (password.length < 8) {
-      error = "Password must be at least 8 characters";
-      return;
-    }
-    if (password.length > 128) {
-      error = "Password must be 128 characters or fewer";
-      return;
-    }
-
     loading = true;
     error = "";
 
@@ -57,13 +32,6 @@
       loading = false;
     }
   }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      handleSubmit();
-    }
-  }
 </script>
 
 <div class="auth-form">
@@ -78,7 +46,6 @@
         bind:value={username}
         placeholder="Enter your username"
         disabled={loading}
-        on:keydown={handleKeydown}
       />
     </div>
 
@@ -90,7 +57,6 @@
         bind:value={email}
         placeholder="Enter your email"
         disabled={loading}
-        on:keydown={handleKeydown}
       />
     </div>
 
@@ -102,7 +68,6 @@
         bind:value={password}
         placeholder="Enter your password"
         disabled={loading}
-        on:keydown={handleKeydown}
       />
     </div>
 
@@ -117,86 +82,3 @@
     </button>
   </form>
 </div>
-
-<style>
-  .auth-form {
-    background-color: #36393f;
-    padding: 32px;
-    border-radius: 8px;
-    width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
-  }
-
-  h2 {
-    color: #ffffff;
-    font-size: 24px;
-    font-weight: 600;
-    margin-bottom: 20px;
-    text-align: center;
-  }
-
-  .form-group {
-    margin-bottom: 20px;
-  }
-
-  label {
-    display: block;
-    color: #b9bbbe;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-    letter-spacing: 0.02em;
-  }
-
-  input {
-    width: 100%;
-    background-color: #202225;
-    border: 1px solid #202225;
-    border-radius: 3px;
-    padding: 10px;
-    font-size: 16px;
-    color: #dcddde;
-    transition: border-color 0.15s ease;
-  }
-
-  input:focus {
-    outline: none;
-    border-color: #5865f2;
-  }
-
-  input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .error-message {
-    color: #ed4245;
-    font-size: 14px;
-    margin-bottom: 20px;
-    text-align: center;
-  }
-
-  .submit-btn {
-    width: 100%;
-    background-color: #5865f2;
-    color: #ffffff;
-    border: none;
-    border-radius: 3px;
-    padding: 12px;
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.15s ease;
-  }
-
-  .submit-btn:hover:not(:disabled) {
-    background-color: #4752c4;
-  }
-
-  .submit-btn:disabled {
-    background-color: #4752c4;
-    cursor: not-allowed;
-  }
-</style>

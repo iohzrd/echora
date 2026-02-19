@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { UserPresence } from "../api";
+  import { getInitial } from "../utils";
 
   export let onlineUsers: UserPresence[] = [];
 </script>
@@ -12,7 +13,7 @@
     <div class="online-user">
       <div class="online-dot"></div>
       <div class="user-avatar small">
-        {u.username.charAt(0).toUpperCase()}
+        {getInitial(u.username)}
       </div>
       <span class="online-username">{u.username}</span>
     </div>

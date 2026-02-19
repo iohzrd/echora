@@ -13,7 +13,6 @@ use crate::models::AppState;
 type HmacSha256 = Hmac<Sha256>;
 
 const MAX_BODY_SIZE: usize = 256 * 1024; // 256KB
-const FETCH_TIMEOUT_SECS: u64 = 5;
 const MAX_URLS_PER_MESSAGE: usize = 5;
 
 #[derive(Debug, Clone)]
@@ -114,12 +113,7 @@ async fn fetch_preview(url: &str) -> Result<LinkPreviewData, String> {
         return Err("URL failed safety check".to_string());
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(FETCH_TIMEOUT_SECS))
-        .redirect(reqwest::redirect::Policy::limited(3))
-        .user_agent("EchoraBot/1.0")
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = crate::shared::http::create_http_client(5).map_err(|e| e.to_string())?;
 
     let response = client
         .get(url)
@@ -186,13 +180,7 @@ fn parse_og_tags(html: &str, url: &str) -> LinkPreviewData {
     let description = meta_content("property", "og:description")
         .or_else(|| meta_content("name", "twitter:description"))
         .or_else(|| meta_content("name", "description"))
-        .map(|d| {
-            if d.len() > 300 {
-                format!("{}...", &d[..300])
-            } else {
-                d
-            }
-        });
+        .map(|d| crate::shared::truncate_string(&d, 300));
 
     // Image: og:image -> twitter:image
     let image_url = meta_content("property", "og:image")
@@ -260,7 +248,10 @@ pub fn spawn_preview_fetch(
     }
 
     tokio::spawn(async move {
-        let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+        let Ok(jwt_secret) = std::str::from_utf8(crate::auth::jwt_secret()) else {
+            error!("JWT_SECRET is not valid UTF-8");
+            return;
+        };
         let mut previews = Vec::new();
 
         for url in &urls {
@@ -268,7 +259,7 @@ pub fn spawn_preview_fetch(
                 Ok(mut data) => {
                     // Sign image URL for proxy if present
                     if let Some(ref img_url) = data.image_url {
-                        let (encoded, sig) = sign_image_url(img_url, &jwt_secret);
+                        let (encoded, sig) = sign_image_url(img_url, jwt_secret);
                         data.image_url = Some(format!("/api/proxy/image?url={encoded}&sig={sig}"));
                     }
 
@@ -308,18 +299,15 @@ pub fn spawn_preview_fetch(
         }
 
         if !previews.is_empty() {
-            let broadcast_msg = serde_json::json!({
-                "type": "link_preview_ready",
-                "data": {
+            state.broadcast_channel(
+                channel_id,
+                "link_preview_ready",
+                serde_json::json!({
                     "message_id": message_id,
                     "channel_id": channel_id,
                     "link_previews": previews,
-                }
-            });
-
-            if let Some(tx) = state.channel_broadcasts.get(&channel_id) {
-                let _ = tx.send(broadcast_msg.to_string());
-            }
+                }),
+            );
         }
     });
 }

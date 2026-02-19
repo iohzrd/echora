@@ -1,3 +1,4 @@
+import { browser } from "$app/environment";
 import { Marked } from "marked";
 import { markedHighlight } from "marked-highlight";
 import DOMPurify from "dompurify";
@@ -128,9 +129,11 @@ export function renderMarkdown(content: string): string {
 }
 
 // Configure DOMPurify to add target="_blank" and rel="noopener noreferrer" to links
-DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-  if (node.tagName === "A") {
-    node.setAttribute("target", "_blank");
-    node.setAttribute("rel", "noopener noreferrer");
-  }
-});
+if (browser) {
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (node.tagName === "A") {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+}

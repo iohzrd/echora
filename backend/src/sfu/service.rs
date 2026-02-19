@@ -233,11 +233,11 @@ impl SfuService {
 
         self.channel_connections
             .entry(channel_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(transport_id.clone());
         self.user_connections
             .entry((channel_id, user_id))
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(transport_id.clone());
 
         Ok(TransportOptions {
@@ -416,98 +416,6 @@ impl SfuService {
             );
             let _ = self.close_connection(&transport_id).await;
         }
-    }
-
-    pub async fn pause_producer(
-        &self,
-        channel_id: Uuid,
-        user_id: Uuid,
-        kind: MediaKind,
-    ) -> Result<()> {
-        let producer_ids: Vec<String> =
-            if let Some(transport_ids) = self.user_connections.get(&(channel_id, user_id)) {
-                transport_ids
-                    .value()
-                    .iter()
-                    .filter_map(|transport_id| self.connections.get(transport_id))
-                    .flat_map(|conn| {
-                        conn.producers
-                            .iter()
-                            .map(|e| e.id.clone())
-                            .collect::<Vec<_>>()
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-
-        let producer_id = producer_ids
-            .iter()
-            .find_map(|pid| {
-                self.producers.get(pid).and_then(|producer| {
-                    if producer.kind() == kind {
-                        Some(pid.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .ok_or_else(|| anyhow::anyhow!("Producer not found for user"))?;
-
-        let producer = self
-            .producers
-            .get(&producer_id)
-            .ok_or_else(|| anyhow::anyhow!("Producer not found"))?;
-
-        producer.pause().await?;
-        tracing::info!("Producer {} paused", producer_id);
-        Ok(())
-    }
-
-    pub async fn resume_producer(
-        &self,
-        channel_id: Uuid,
-        user_id: Uuid,
-        kind: MediaKind,
-    ) -> Result<()> {
-        let producer_ids: Vec<String> =
-            if let Some(transport_ids) = self.user_connections.get(&(channel_id, user_id)) {
-                transport_ids
-                    .value()
-                    .iter()
-                    .filter_map(|transport_id| self.connections.get(transport_id))
-                    .flat_map(|conn| {
-                        conn.producers
-                            .iter()
-                            .map(|e| e.id.clone())
-                            .collect::<Vec<_>>()
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-
-        let producer_id = producer_ids
-            .iter()
-            .find_map(|pid| {
-                self.producers.get(pid).and_then(|producer| {
-                    if producer.kind() == kind {
-                        Some(pid.clone())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .ok_or_else(|| anyhow::anyhow!("Producer not found for user"))?;
-
-        let producer = self
-            .producers
-            .get(&producer_id)
-            .ok_or_else(|| anyhow::anyhow!("Producer not found"))?;
-
-        producer.resume().await?;
-        tracing::info!("Producer {} resumed", producer_id);
-        Ok(())
     }
 
     pub async fn close_connection(&self, transport_id: &str) -> Result<(Uuid, Uuid)> {

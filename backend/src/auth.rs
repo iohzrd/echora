@@ -10,10 +10,16 @@ use uuid::Uuid;
 
 use crate::shared::AppError;
 
-fn jwt_secret() -> Vec<u8> {
-    std::env::var("JWT_SECRET")
-        .expect("JWT_SECRET must be set")
-        .into_bytes()
+use std::sync::OnceLock;
+
+static JWT_SECRET: OnceLock<Vec<u8>> = OnceLock::new();
+
+pub fn jwt_secret() -> &'static [u8] {
+    JWT_SECRET.get_or_init(|| {
+        std::env::var("JWT_SECRET")
+            .expect("JWT_SECRET must be set")
+            .into_bytes()
+    })
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,6 +66,15 @@ pub struct UserInfo {
 
 pub struct AuthUser(pub Claims);
 
+impl AuthUser {
+    pub fn user_id(&self) -> Result<Uuid, AppError> {
+        self.0
+            .sub
+            .parse()
+            .map_err(|_| AppError::bad_request("Invalid user ID"))
+    }
+}
+
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
@@ -74,7 +89,7 @@ where
 
         let token_data = decode::<Claims>(
             bearer.token(),
-            &DecodingKey::from_secret(&jwt_secret()),
+            &DecodingKey::from_secret(jwt_secret()),
             &Validation::default(),
         )
         .map_err(|_| AppError::authentication("Invalid token"))?;
@@ -86,7 +101,7 @@ where
 pub fn create_jwt(user_id: Uuid, username: &str) -> Result<String, AppError> {
     let expiration = Utc::now()
         .checked_add_signed(Duration::days(7))
-        .expect("valid timestamp")
+        .ok_or_else(|| AppError::internal("Failed to compute token expiration"))?
         .timestamp();
 
     let claims = Claims {
@@ -98,7 +113,7 @@ pub fn create_jwt(user_id: Uuid, username: &str) -> Result<String, AppError> {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(&jwt_secret()),
+        &EncodingKey::from_secret(jwt_secret()),
     )
     .map_err(|e| AppError::internal(format!("Failed to create JWT: {}", e)))
 }
@@ -106,7 +121,7 @@ pub fn create_jwt(user_id: Uuid, username: &str) -> Result<String, AppError> {
 pub fn decode_jwt(token: &str) -> Result<Claims, AppError> {
     let token_data = decode::<Claims>(
         token,
-        &DecodingKey::from_secret(&jwt_secret()),
+        &DecodingKey::from_secret(jwt_secret()),
         &Validation::default(),
     )
     .map_err(|_| AppError::authentication("Invalid token"))?;

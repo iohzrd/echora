@@ -12,6 +12,15 @@
   import { voiceManager } from "../lib/voice";
   import { getChannelProducers } from "../lib/mediasoup";
   import AuthService, { user } from "../lib/auth";
+  import {
+    isTauri,
+    activeServer,
+    servers,
+    addServer,
+    removeServer,
+    setActiveServer,
+    type EchoraServer,
+  } from "../lib/serverManager";
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
 
@@ -20,6 +29,10 @@
   import MessageList from "../lib/components/MessageList.svelte";
   import MessageInput from "../lib/components/MessageInput.svelte";
   import ScreenShareViewer from "../lib/components/ScreenShareViewer.svelte";
+  import ServerSidebar from "../lib/components/ServerSidebar.svelte";
+  import AddServerDialog from "../lib/components/AddServerDialog.svelte";
+  import LoginForm from "../lib/components/LoginForm.svelte";
+  import RegisterForm from "../lib/components/RegisterForm.svelte";
 
   let selectedChannelId = "";
   let selectedChannelName = "";
@@ -30,6 +43,7 @@
   let speakingUsers: Set<string> = new Set();
   let onlineUsers: UserPresence[] = [];
   let wsManager = new WebSocketManager();
+  voiceManager.setWebSocketManager(wsManager);
   let hasMoreMessages = true;
   let loadingMore = false;
   let messageList: MessageList;
@@ -59,6 +73,11 @@
   // Mobile sidebar state
   let sidebarOpen = false;
 
+  // Server management state (Tauri only)
+  let showAddServerDialog = false;
+  let needsServerAuth = false; // Tauri: server added but not authenticated
+  let tauriAuthIsLogin = true; // Toggle login/register in inline auth
+
   // Typing indicator state
   let typingUsers: Map<
     string,
@@ -68,10 +87,303 @@
   const TYPING_DEBOUNCE_MS = 3000;
   const TYPING_DISPLAY_MS = 5000;
 
-  onMount(async () => {
+  function updateSpeaking(userId: string, speaking: boolean) {
+    if (speaking) {
+      speakingUsers.add(userId);
+    } else {
+      speakingUsers.delete(userId);
+    }
+    speakingUsers = new Set(speakingUsers);
+  }
+
+  function syncVoiceState() {
+    currentVoiceChannel = voiceManager.currentChannel;
+    isMuted = voiceManager.isMutedState;
+    isDeafened = voiceManager.isDeafenedState;
+    isScreenSharing = voiceManager.isScreenSharingState;
+  }
+
+  function updateMessageReaction(
+    msgId: string,
+    emoji: string,
+    userId: string,
+    add: boolean,
+  ) {
+    messages = messages.map((m) => {
+      if (m.id !== msgId) return m;
+      let reactions = m.reactions ? [...m.reactions] : [];
+      const existing = reactions.find((r) => r.emoji === emoji);
+      if (add) {
+        if (existing) {
+          existing.count += 1;
+          if (userId === $user?.id) existing.reacted = true;
+        } else {
+          reactions.push({
+            emoji,
+            count: 1,
+            reacted: userId === $user?.id,
+          });
+        }
+      } else if (existing) {
+        existing.count -= 1;
+        if (userId === $user?.id) existing.reacted = false;
+        if (existing.count <= 0) {
+          reactions = reactions.filter((r) => r.emoji !== emoji);
+        }
+      }
+      return {
+        ...m,
+        reactions: reactions.length > 0 ? reactions : undefined,
+      };
+    });
+  }
+
+  function setupWsHandlers() {
+    wsManager.onMessage((data) => {
+      if (
+        data.type === "message" &&
+        data.data.channel_id === selectedChannelId
+      ) {
+        messages = [...messages, data.data];
+        // Clear typing indicator for this user
+        const authorId = data.data.author_id;
+        if (authorId && typingUsers.has(authorId)) {
+          clearTimeout(typingUsers.get(authorId)!.timeout);
+          typingUsers.delete(authorId);
+          typingUsers = new Map(typingUsers);
+        }
+        requestAnimationFrame(() => messageList?.scrollToBottomIfNear());
+      }
+
+      // Channel CRUD events
+      if (data.type === "channel_created") {
+        channels = [...channels, data.data];
+      }
+      if (data.type === "channel_updated") {
+        channels = channels.map((c) =>
+          c.id === data.data.id ? data.data : c,
+        );
+        if (selectedChannelId === data.data.id) {
+          selectedChannelName = data.data.name;
+        }
+      }
+      if (data.type === "channel_deleted") {
+        channels = channels.filter((c) => c.id !== data.data.id);
+        if (selectedChannelId === data.data.id) {
+          const firstText = channels.find((c) => c.channel_type === "text");
+          if (firstText) {
+            selectChannel(firstText.id, firstText.name);
+          } else {
+            selectedChannelId = "";
+            selectedChannelName = "";
+            messages = [];
+          }
+        }
+      }
+
+      // Online presence events
+      if (data.type === "user_online") {
+        if (!onlineUsers.find((u) => u.user_id === data.data.user_id)) {
+          onlineUsers = [...onlineUsers, data.data];
+        }
+      }
+      if (data.type === "user_offline") {
+        onlineUsers = onlineUsers.filter(
+          (u) => u.user_id !== data.data.user_id,
+        );
+      }
+
+      // Message edit/delete events
+      if (
+        data.type === "message_edited" &&
+        data.data.channel_id === selectedChannelId
+      ) {
+        messages = messages.map((m) =>
+          m.id === data.data.id ? data.data : m,
+        );
+      }
+      if (
+        data.type === "message_deleted" &&
+        data.data.channel_id === selectedChannelId
+      ) {
+        messages = messages.filter((m) => m.id !== data.data.id);
+      }
+
+      // Reaction events
+      if (data.type === "reaction_added" && selectedChannelId) {
+        updateMessageReaction(data.data.message_id, data.data.emoji, data.data.user_id, true);
+      }
+      if (data.type === "reaction_removed" && selectedChannelId) {
+        updateMessageReaction(data.data.message_id, data.data.emoji, data.data.user_id, false);
+      }
+
+      // Link preview events
+      if (
+        data.type === "link_preview_ready" &&
+        data.data.channel_id === selectedChannelId
+      ) {
+        const msgId = data.data.message_id;
+        const previews = data.data.link_previews;
+        messages = messages.map((m) => {
+          if (m.id !== msgId) return m;
+          return { ...m, link_previews: previews };
+        });
+      }
+
+      // Voice state events (global broadcast)
+      if (data.type === "voice_user_joined") {
+        voiceStates = [
+          ...voiceStates.filter((vs) => vs.user_id !== data.data.user_id),
+          data.data,
+        ];
+      }
+
+      // Consume new producers as they're created (replaces fragile timeout)
+      if (
+        data.type === "new_producer" &&
+        data.data.channel_id === currentVoiceChannel &&
+        data.data.user_id !== $user?.id &&
+        data.data.label !== "screen"
+      ) {
+        voiceManager.consumeProducer(
+          data.data.producer_id,
+          data.data.user_id,
+          data.data.label,
+        );
+      }
+      if (data.type === "voice_user_left") {
+        voiceStates = voiceStates.filter(
+          (vs) =>
+            !(
+              vs.user_id === data.data.user_id &&
+              vs.channel_id === data.data.channel_id
+            ),
+        );
+        // Clean up audio elements for the departed user
+        voiceManager.removeUserAudio(data.data.user_id);
+      }
+      if (data.type === "voice_state_updated") {
+        voiceStates = voiceStates.map((vs) =>
+          vs.user_id === data.data.user_id &&
+          vs.channel_id === data.data.channel_id
+            ? data.data
+            : vs,
+        );
+      }
+      if (data.type === "voice_speaking") {
+        updateSpeaking(data.data.user_id, data.data.is_speaking);
+      }
+
+      // Screen share events
+      if (data.type === "screen_share_updated") {
+        voiceStates = voiceStates.map((vs) =>
+          vs.user_id === data.data.user_id &&
+          vs.channel_id === data.data.channel_id
+            ? { ...vs, is_screen_sharing: data.data.is_screen_sharing }
+            : vs,
+        );
+
+        // If the user we're watching stopped sharing, go back to chat
+        if (
+          !data.data.is_screen_sharing &&
+          watchingScreenUserId === data.data.user_id
+        ) {
+          stopWatching();
+        }
+      }
+
+      // Typing indicator events
+      if (
+        data.type === "typing" &&
+        data.data.channel_id === selectedChannelId
+      ) {
+        const userId = data.data.user_id;
+        if (userId === $user?.id) return;
+
+        const existing = typingUsers.get(userId);
+        if (existing) clearTimeout(existing.timeout);
+
+        const timeout = setTimeout(() => {
+          typingUsers.delete(userId);
+          typingUsers = new Map(typingUsers);
+        }, TYPING_DISPLAY_MS);
+
+        typingUsers.set(userId, { username: data.data.username, timeout });
+        typingUsers = new Map(typingUsers);
+      }
+    });
+  }
+
+  function setupVoiceHandlers() {
+    voiceManager.onVoiceStatesChange((states) => {
+      if (states.length > 0) {
+        const channelId = states[0].channel_id;
+        voiceStates = [
+          ...voiceStates.filter((vs) => vs.channel_id !== channelId),
+          ...states,
+        ];
+      }
+    });
+
+    voiceManager.onSpeakingChange(updateSpeaking);
+    voiceManager.onStateChange(syncVoiceState);
+
+    voiceManager.onScreenTrack((track, userId) => {
+      if (track.kind === "video") {
+        if (screenVideoElement) {
+          screenVideoElement.srcObject = new MediaStream([track]);
+          screenVideoElement
+            .play()
+            .catch((e) =>
+              console.warn("Screen video autoplay prevented:", e),
+            );
+        }
+      } else if (track.kind === "audio") {
+        if (screenAudioElement) {
+          screenAudioElement.srcObject = null;
+          screenAudioElement.remove();
+        }
+        screenAudioElement = document.createElement("audio");
+        screenAudioElement.autoplay = true;
+        screenAudioElement.volume = 1.0;
+        screenAudioElement.srcObject = new MediaStream([track]);
+        document.body.appendChild(screenAudioElement);
+        screenAudioElement
+          .play()
+          .catch((e) => console.warn("Screen audio autoplay prevented:", e));
+      }
+    });
+  }
+
+  /** Connect to the active server: auth check, WS connect, load data. */
+  async function connectToServer() {
+    // Reset state for new server connection
+    channels = [];
+    messages = [];
+    voiceStates = [];
+    speakingUsers = new Set();
+    onlineUsers = [];
+    selectedChannelId = "";
+    selectedChannelName = "";
+    backendVersion = "";
+    needsServerAuth = false;
+    typingUsers.forEach((u) => clearTimeout(u.timeout));
+    typingUsers = new Map();
+
+    // In Tauri mode, we need an active server before we can do anything
+    if (isTauri && !$activeServer) {
+      showAddServerDialog = true;
+      return;
+    }
+
     await AuthService.init();
 
     if (!$user) {
+      if (isTauri) {
+        // Show inline login/register for this server
+        needsServerAuth = true;
+        return;
+      }
       goto("/auth");
       return;
     }
@@ -79,285 +391,18 @@
     try {
       channels = await API.getChannels();
 
+      wsManager = new WebSocketManager();
+      voiceManager.setWebSocketManager(wsManager);
+      setupWsHandlers();
+
       await wsManager.connect();
-      wsManager.onMessage((data) => {
-        if (
-          data.type === "message" &&
-          data.data.channel_id === selectedChannelId
-        ) {
-          messages = [...messages, data.data];
-          // Clear typing indicator for this user
-          const authorId = data.data.author_id;
-          if (authorId && typingUsers.has(authorId)) {
-            clearTimeout(typingUsers.get(authorId)!.timeout);
-            typingUsers.delete(authorId);
-            typingUsers = new Map(typingUsers);
-          }
-          requestAnimationFrame(() => messageList?.scrollToBottomIfNear());
-        }
 
-        // Channel CRUD events
-        if (data.type === "channel_created") {
-          channels = [...channels, data.data];
-        }
-        if (data.type === "channel_updated") {
-          channels = channels.map((c) =>
-            c.id === data.data.id ? data.data : c,
-          );
-          if (selectedChannelId === data.data.id) {
-            selectedChannelName = data.data.name;
-          }
-        }
-        if (data.type === "channel_deleted") {
-          channels = channels.filter((c) => c.id !== data.data.id);
-          if (selectedChannelId === data.data.id) {
-            const firstText = channels.find((c) => c.channel_type === "text");
-            if (firstText) {
-              selectChannel(firstText.id, firstText.name);
-            } else {
-              selectedChannelId = "";
-              selectedChannelName = "";
-              messages = [];
-            }
-          }
-        }
+      syncVoiceState();
 
-        // Online presence events
-        if (data.type === "user_online") {
-          if (!onlineUsers.find((u) => u.user_id === data.data.user_id)) {
-            onlineUsers = [...onlineUsers, data.data];
-          }
-        }
-        if (data.type === "user_offline") {
-          onlineUsers = onlineUsers.filter(
-            (u) => u.user_id !== data.data.user_id,
-          );
-        }
-
-        // Message edit/delete events
-        if (
-          data.type === "message_edited" &&
-          data.data.channel_id === selectedChannelId
-        ) {
-          messages = messages.map((m) =>
-            m.id === data.data.id ? data.data : m,
-          );
-        }
-        if (
-          data.type === "message_deleted" &&
-          data.data.channel_id === selectedChannelId
-        ) {
-          messages = messages.filter((m) => m.id !== data.data.id);
-        }
-
-        // Reaction events
-        if (
-          data.type === "reaction_added" &&
-          selectedChannelId
-        ) {
-          const msgId = data.data.message_id;
-          messages = messages.map((m) => {
-            if (m.id !== msgId) return m;
-            const reactions = m.reactions ? [...m.reactions] : [];
-            const existing = reactions.find((r) => r.emoji === data.data.emoji);
-            if (existing) {
-              existing.count += 1;
-              if (data.data.user_id === $user?.id) existing.reacted = true;
-            } else {
-              reactions.push({
-                emoji: data.data.emoji,
-                count: 1,
-                reacted: data.data.user_id === $user?.id,
-              });
-            }
-            return { ...m, reactions };
-          });
-        }
-        if (
-          data.type === "reaction_removed" &&
-          selectedChannelId
-        ) {
-          const msgId = data.data.message_id;
-          messages = messages.map((m) => {
-            if (m.id !== msgId) return m;
-            let reactions = m.reactions ? [...m.reactions] : [];
-            const existing = reactions.find((r) => r.emoji === data.data.emoji);
-            if (existing) {
-              existing.count -= 1;
-              if (data.data.user_id === $user?.id) existing.reacted = false;
-              if (existing.count <= 0) {
-                reactions = reactions.filter((r) => r.emoji !== data.data.emoji);
-              }
-            }
-            return { ...m, reactions: reactions.length > 0 ? reactions : undefined };
-          });
-        }
-
-        // Link preview events
-        if (
-          data.type === "link_preview_ready" &&
-          data.data.channel_id === selectedChannelId
-        ) {
-          const msgId = data.data.message_id;
-          const previews = data.data.link_previews;
-          messages = messages.map((m) => {
-            if (m.id !== msgId) return m;
-            return { ...m, link_previews: previews };
-          });
-        }
-
-        // Voice state events (global broadcast)
-        if (data.type === "voice_user_joined") {
-          voiceStates = [
-            ...voiceStates.filter((vs) => vs.user_id !== data.data.user_id),
-            data.data,
-          ];
-        }
-
-        // Consume new producers as they're created (replaces fragile timeout)
-        if (
-          data.type === "new_producer" &&
-          data.data.channel_id === currentVoiceChannel &&
-          data.data.user_id !== $user?.id &&
-          data.data.label !== "screen"
-        ) {
-          voiceManager.consumeProducer(
-            data.data.producer_id,
-            data.data.user_id,
-            data.data.label,
-          );
-        }
-        if (data.type === "voice_user_left") {
-          voiceStates = voiceStates.filter(
-            (vs) =>
-              !(
-                vs.user_id === data.data.user_id &&
-                vs.channel_id === data.data.channel_id
-              ),
-          );
-          // Clean up audio elements for the departed user
-          voiceManager.removeUserAudio(data.data.user_id);
-        }
-        if (data.type === "voice_state_updated") {
-          voiceStates = voiceStates.map((vs) =>
-            vs.user_id === data.data.user_id &&
-            vs.channel_id === data.data.channel_id
-              ? data.data
-              : vs,
-          );
-        }
-        if (data.type === "voice_speaking") {
-          if (data.data.is_speaking) {
-            speakingUsers.add(data.data.user_id);
-          } else {
-            speakingUsers.delete(data.data.user_id);
-          }
-          speakingUsers = new Set(speakingUsers);
-        }
-
-        // Screen share events
-        if (data.type === "screen_share_updated") {
-          voiceStates = voiceStates.map((vs) =>
-            vs.user_id === data.data.user_id &&
-            vs.channel_id === data.data.channel_id
-              ? { ...vs, is_screen_sharing: data.data.is_screen_sharing }
-              : vs,
-          );
-
-          // If the user we're watching stopped sharing, go back to chat
-          if (
-            !data.data.is_screen_sharing &&
-            watchingScreenUserId === data.data.user_id
-          ) {
-            stopWatching();
-          }
-        }
-
-        // Typing indicator events
-        if (
-          data.type === "typing" &&
-          data.data.channel_id === selectedChannelId
-        ) {
-          const userId = data.data.user_id;
-          if (userId === $user?.id) return;
-
-          const existing = typingUsers.get(userId);
-          if (existing) clearTimeout(existing.timeout);
-
-          const timeout = setTimeout(() => {
-            typingUsers.delete(userId);
-            typingUsers = new Map(typingUsers);
-          }, TYPING_DISPLAY_MS);
-
-          typingUsers.set(userId, { username: data.data.username, timeout });
-          typingUsers = new Map(typingUsers);
-        }
-      });
-
-      // Setup voice manager
-      voiceManager.onVoiceStatesChange((states) => {
-        if (states.length > 0) {
-          const channelId = states[0].channel_id;
-          voiceStates = [
-            ...voiceStates.filter((vs) => vs.channel_id !== channelId),
-            ...states,
-          ];
-        }
-      });
-
-      voiceManager.onSpeakingChange((userId, isSpeaking) => {
-        if (isSpeaking) {
-          speakingUsers.add(userId);
-        } else {
-          speakingUsers.delete(userId);
-        }
-        speakingUsers = new Set(speakingUsers);
-      });
-
-      voiceManager.onStateChange(() => {
-        currentVoiceChannel = voiceManager.currentChannel;
-        isMuted = voiceManager.isMutedState;
-        isDeafened = voiceManager.isDeafenedState;
-        isScreenSharing = voiceManager.isScreenSharingState;
-      });
-
-      voiceManager.onScreenTrack((track, userId) => {
-        if (track.kind === "video") {
-          if (screenVideoElement) {
-            screenVideoElement.srcObject = new MediaStream([track]);
-            screenVideoElement
-              .play()
-              .catch((e) =>
-                console.warn("Screen video autoplay prevented:", e),
-              );
-          }
-        } else if (track.kind === "audio") {
-          if (screenAudioElement) {
-            screenAudioElement.srcObject = null;
-            screenAudioElement.remove();
-          }
-          screenAudioElement = document.createElement("audio");
-          screenAudioElement.autoplay = true;
-          screenAudioElement.volume = 1.0;
-          screenAudioElement.srcObject = new MediaStream([track]);
-          document.body.appendChild(screenAudioElement);
-          screenAudioElement
-            .play()
-            .catch((e) => console.warn("Screen audio autoplay prevented:", e));
-        }
-      });
-
-      currentVoiceChannel = voiceManager.currentChannel;
-      isMuted = voiceManager.isMutedState;
-      isDeafened = voiceManager.isDeafenedState;
-      isScreenSharing = voiceManager.isScreenSharingState;
-
-      // Fetch online users and voice states
       onlineUsers = await API.getOnlineUsers();
       voiceStates = await API.getAllVoiceStates();
       backendVersion = await API.getBackendVersion();
 
-      // Select first text channel after WebSocket is connected
       if (channels.length > 0) {
         const firstTextChannel = channels.find(
           (c) => c.channel_type === "text",
@@ -373,36 +418,76 @@
         goto("/auth");
       }
     }
+  }
+
+  onMount(async () => {
+    setupVoiceHandlers();
+    await connectToServer();
   });
 
   onDestroy(() => {
     wsManager.disconnect();
   });
 
-  // Channel CRUD handlers
-  async function handleCreateChannel(name: string, type: "text" | "voice") {
+  async function tryAction(action: () => Promise<unknown>, context: string) {
     try {
-      await API.createChannel(name, type);
+      await action();
     } catch (error) {
-      console.error("Failed to create channel:", error);
+      console.error(`Failed to ${context}:`, error);
     }
   }
 
-  async function handleUpdateChannel(channelId: string, name: string) {
-    try {
-      await API.updateChannel(channelId, name);
-    } catch (error) {
-      console.error("Failed to update channel:", error);
+  // Server management (Tauri only)
+  async function handleSelectServer(server: EchoraServer) {
+    if ($activeServer?.id === server.id) return;
+
+    // Disconnect from current server
+    wsManager.disconnect();
+    if (currentVoiceChannel) {
+      await voiceManager.leaveVoiceChannel().catch(() => {});
     }
+
+    // Switch to new server
+    setActiveServer(server.id);
+    await connectToServer();
+  }
+
+  function handleAddServer(url: string, name: string) {
+    const server = addServer(url, name);
+    showAddServerDialog = false;
+    // Set active and connect (will show inline auth since no token yet)
+    setActiveServer(server.id);
+    connectToServer();
+  }
+
+  /** Called when inline auth (login/register) succeeds in Tauri mode. */
+  function handleTauriAuthSuccess() {
+    needsServerAuth = false;
+    tauriAuthIsLogin = true;
+    connectToServer();
+  }
+
+  function handleRemoveServer(id: string) {
+    if (!confirm("Remove this server from your list?")) return;
+    const wasActive = $activeServer?.id === id;
+    removeServer(id);
+    if (wasActive && $servers.length > 0) {
+      connectToServer();
+    }
+  }
+
+  // Channel CRUD handlers
+  function handleCreateChannel(name: string, type: "text" | "voice") {
+    tryAction(() => API.createChannel(name, type), "create channel");
+  }
+
+  function handleUpdateChannel(channelId: string, name: string) {
+    tryAction(() => API.updateChannel(channelId, name), "update channel");
   }
 
   async function handleDeleteChannel(channelId: string) {
     if (!confirm("Delete this channel and all its messages?")) return;
-    try {
-      await API.deleteChannel(channelId);
-    } catch (error) {
-      console.error("Failed to delete channel:", error);
-    }
+    tryAction(() => API.deleteChannel(channelId), "delete channel");
   }
 
   // Message edit/delete
@@ -418,26 +503,20 @@
 
   async function saveEditMessage() {
     if (!editingMessageId || !editMessageContent.trim()) return;
-    try {
+    tryAction(async () => {
       await API.editMessage(
         selectedChannelId,
-        editingMessageId,
+        editingMessageId!,
         editMessageContent.trim(),
       );
       editingMessageId = null;
       editMessageContent = "";
-    } catch (error) {
-      console.error("Failed to edit message:", error);
-    }
+    }, "edit message");
   }
 
   async function deleteMessage(messageId: string) {
     if (!confirm("Delete this message?")) return;
-    try {
-      await API.deleteMessage(selectedChannelId, messageId);
-    } catch (error) {
-      console.error("Failed to delete message:", error);
-    }
+    tryAction(() => API.deleteMessage(selectedChannelId, messageId), "delete message");
   }
 
   // Reply functions
@@ -452,7 +531,7 @@
   // Reaction functions
   async function toggleReaction(messageId: string, emoji: string) {
     if (!selectedChannelId) return;
-    try {
+    tryAction(async () => {
       const msg = messages.find((m) => m.id === messageId);
       const existingReaction = msg?.reactions?.find((r) => r.emoji === emoji);
       if (existingReaction?.reacted) {
@@ -460,42 +539,24 @@
       } else {
         await API.addReaction(selectedChannelId, messageId, emoji);
       }
-    } catch (error) {
-      console.error("Failed to toggle reaction:", error);
-    }
+    }, "toggle reaction");
   }
 
   // Voice functions
-  async function joinVoiceChannel(channelId: string) {
-    try {
-      await voiceManager.joinVoiceChannel(channelId);
-    } catch (error) {
-      console.error("Failed to join voice channel:", error);
-    }
+  function joinVoiceChannel(channelId: string) {
+    tryAction(() => voiceManager.joinVoiceChannel(channelId), "join voice channel");
   }
 
-  async function leaveVoiceChannel() {
-    try {
-      await voiceManager.leaveVoiceChannel();
-    } catch (error) {
-      console.error("Failed to leave voice channel:", error);
-    }
+  function leaveVoiceChannel() {
+    tryAction(() => voiceManager.leaveVoiceChannel(), "leave voice channel");
   }
 
-  async function toggleMute() {
-    try {
-      await voiceManager.toggleMute();
-    } catch (error) {
-      console.error("Failed to toggle mute:", error);
-    }
+  function toggleMute() {
+    tryAction(() => voiceManager.toggleMute(), "toggle mute");
   }
 
-  async function toggleDeafen() {
-    try {
-      await voiceManager.toggleDeafen();
-    } catch (error) {
-      console.error("Failed to toggle deafen:", error);
-    }
+  function toggleDeafen() {
+    tryAction(() => voiceManager.toggleDeafen(), "toggle deafen");
   }
 
   async function toggleScreenShare() {
@@ -631,6 +692,8 @@
     if (names.length <= 3) return `${names.join(", ")} are typing...`;
     return "Several people are typing...";
   }
+
+  $: activeServerName = $activeServer?.name || "Echora";
 </script>
 
 <div class="discord-layout">
@@ -641,99 +704,160 @@
       role="presentation"
     ></div>
   {/if}
-  <div class="sidebar {sidebarOpen ? 'open' : ''}">
-    <div class="server-list">
-      <div class="server-icon home" title="Echora">E</div>
-    </div>
 
-    <div class="channels-area">
-      <div class="server-header">
-        <span>Echora</span>
-        <button class="logout-btn" on:click={logout} title="Logout">
-          Logout
+  {#if isTauri}
+    <ServerSidebar
+      onSelectServer={handleSelectServer}
+      onAddServer={() => (showAddServerDialog = true)}
+      onRemoveServer={handleRemoveServer}
+    />
+  {/if}
+
+  {#if isTauri && !$activeServer}
+    <!-- Tauri mode: no servers added yet, just show sidebar + dialog -->
+    <div class="main-content tauri-empty-state">
+      <div class="empty-state-message">
+        <h2>Welcome to Echora</h2>
+        <p>Add a server to get started.</p>
+        <button class="submit-btn" on:click={() => (showAddServerDialog = true)}>
+          Add Server
         </button>
       </div>
-
-      <div class="channels-list">
-        <ChannelList
-          {channels}
-          {selectedChannelId}
-          {currentVoiceChannel}
-          {voiceStates}
-          {speakingUsers}
-          {isMuted}
-          {isDeafened}
-          {isScreenSharing}
-          currentUserId={$user?.id || ""}
-          onSelectChannel={selectChannel}
-          onCreateChannel={handleCreateChannel}
-          onUpdateChannel={handleUpdateChannel}
-          onDeleteChannel={handleDeleteChannel}
-          onJoinVoice={joinVoiceChannel}
-          onLeaveVoice={leaveVoiceChannel}
-          onToggleMute={toggleMute}
-          onToggleDeafen={toggleDeafen}
-          onToggleScreenShare={toggleScreenShare}
-          onWatchScreen={watchScreen}
-        />
-
-        <OnlineUsers {onlineUsers} />
-      </div>
-      <div class="version-bar">
-        <span class="version-info">frontend v{FRONTEND_VERSION}</span>
-        <span class="version-info">backend v{backendVersion || "..."}</span>
+    </div>
+  {:else if isTauri && needsServerAuth}
+    <!-- Tauri mode: server selected but not authenticated -->
+    <div class="sidebar">
+      <div class="channels-area">
+        <div class="server-header">
+          <span>{activeServerName}</span>
+        </div>
       </div>
     </div>
-  </div>
-
-  <div class="main-content">
-    <div class="chat-header">
-      <button
-        class="hamburger-btn"
-        on:click={() => (sidebarOpen = !sidebarOpen)}>|||</button
-      >
-      <div class="channel-name">
-        {selectedChannelName || "Select a channel"}
+    <div class="main-content tauri-auth-state">
+      <div class="auth-container">
+        <div class="auth-content">
+          {#if tauriAuthIsLogin}
+            <LoginForm onSuccess={handleTauriAuthSuccess} />
+          {:else}
+            <RegisterForm onSuccess={handleTauriAuthSuccess} />
+          {/if}
+          <div class="auth-toggle">
+            {#if tauriAuthIsLogin}
+              <span>Need an account?</span>
+              <button on:click={() => (tauriAuthIsLogin = false)} class="toggle-btn">Register</button>
+            {:else}
+              <span>Already have an account?</span>
+              <button on:click={() => (tauriAuthIsLogin = true)} class="toggle-btn">Login</button>
+            {/if}
+          </div>
+        </div>
       </div>
     </div>
-
-    {#if watchingScreenUserId}
-      <ScreenShareViewer
-        username={watchingScreenUsername}
-        onClose={stopWatching}
-        bind:videoElement={screenVideoElement}
-      />
-    {:else}
-      <MessageList
-        bind:this={messageList}
-        {messages}
-        currentUserId={$user?.id || ""}
-        {loadingMore}
-        {editingMessageId}
-        bind:editMessageContent
-        onScrollTop={loadOlderMessages}
-        onStartEdit={startEditMessage}
-        onSaveEdit={saveEditMessage}
-        onCancelEdit={cancelEditMessage}
-        onDeleteMessage={deleteMessage}
-        onReply={startReply}
-        onToggleReaction={toggleReaction}
-      />
-
-      {#if typingUsers.size > 0}
-        <div class="typing-indicator">
-          <span class="typing-text">{getTypingText()}</span>
+  {:else}
+    <!-- Normal authenticated state (web or Tauri with active session) -->
+    <div class="sidebar {sidebarOpen ? 'open' : ''}">
+      {#if !isTauri}
+        <div class="server-list">
+          <div class="server-icon home" title="Echora">E</div>
         </div>
       {/if}
 
-      <MessageInput
-        channelName={selectedChannelName}
-        disabled={!selectedChannelId}
-        {replyingTo}
-        onSend={handleSendMessage}
-        onTyping={handleTyping}
-        onCancelReply={cancelReply}
-      />
-    {/if}
-  </div>
+      <div class="channels-area">
+        <div class="server-header">
+          <span>{activeServerName}</span>
+          <button class="logout-btn" on:click={logout} title="Logout">
+            Logout
+          </button>
+        </div>
+
+        <div class="channels-list">
+          <ChannelList
+            {channels}
+            {selectedChannelId}
+            {currentVoiceChannel}
+            {voiceStates}
+            {speakingUsers}
+            {isMuted}
+            {isDeafened}
+            {isScreenSharing}
+            currentUserId={$user?.id || ""}
+            onSelectChannel={selectChannel}
+            onCreateChannel={handleCreateChannel}
+            onUpdateChannel={handleUpdateChannel}
+            onDeleteChannel={handleDeleteChannel}
+            onJoinVoice={joinVoiceChannel}
+            onLeaveVoice={leaveVoiceChannel}
+            onToggleMute={toggleMute}
+            onToggleDeafen={toggleDeafen}
+            onToggleScreenShare={toggleScreenShare}
+            onWatchScreen={watchScreen}
+          />
+
+          <OnlineUsers {onlineUsers} />
+        </div>
+        <div class="version-bar">
+          <span class="version-info">frontend v{FRONTEND_VERSION}</span>
+          <span class="version-info">backend v{backendVersion || "..."}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="chat-header">
+        <button
+          class="hamburger-btn"
+          on:click={() => (sidebarOpen = !sidebarOpen)}>|||</button
+        >
+        <div class="channel-name">
+          {selectedChannelName || "Select a channel"}
+        </div>
+      </div>
+
+      {#if watchingScreenUserId}
+        <ScreenShareViewer
+          username={watchingScreenUsername}
+          onClose={stopWatching}
+          bind:videoElement={screenVideoElement}
+        />
+      {:else}
+        <MessageList
+          bind:this={messageList}
+          {messages}
+          currentUserId={$user?.id || ""}
+          {loadingMore}
+          {editingMessageId}
+          bind:editMessageContent
+          onScrollTop={loadOlderMessages}
+          onStartEdit={startEditMessage}
+          onSaveEdit={saveEditMessage}
+          onCancelEdit={cancelEditMessage}
+          onDeleteMessage={deleteMessage}
+          onReply={startReply}
+          onToggleReaction={toggleReaction}
+        />
+
+        {#if typingUsers.size > 0}
+          <div class="typing-indicator">
+            <span class="typing-text">{getTypingText()}</span>
+          </div>
+        {/if}
+
+        <MessageInput
+          channelName={selectedChannelName}
+          disabled={!selectedChannelId}
+          {replyingTo}
+          onSend={handleSendMessage}
+          onTyping={handleTyping}
+          onCancelReply={cancelReply}
+        />
+      {/if}
+    </div>
+  {/if}
 </div>
+
+{#if showAddServerDialog}
+  <AddServerDialog
+    onAdd={handleAddServer}
+    onCancel={() => (showAddServerDialog = false)}
+  />
+{/if}

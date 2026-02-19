@@ -1,6 +1,6 @@
 import AuthService from './auth';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+import { getApiBase, getWsBase } from './config';
+import { appFetch } from './serverManager';
 
 export interface Channel {
   id: string;
@@ -63,15 +63,6 @@ export interface JoinVoiceRequest {
   channel_id: string;
 }
 
-export interface UpdateVoiceStateRequest {
-  is_muted?: boolean;
-  is_deafened?: boolean;
-}
-
-export interface UpdateSpeakingRequest {
-  is_speaking: boolean;
-}
-
 export interface UserPresence {
   user_id: string;
   username: string;
@@ -81,9 +72,40 @@ export interface UserPresence {
 export const FRONTEND_VERSION = '0.2.5';
 
 export class API {
+  static async request<T>(
+    path: string,
+    options: RequestInit = {},
+    errorMessage = 'Request failed',
+  ): Promise<T> {
+    const headers: Record<string, string> = {
+      ...AuthService.getAuthHeaders(),
+      ...(options.headers as Record<string, string> || {}),
+    };
+    const response = await appFetch(`${getApiBase()}${path}`, { ...options, headers });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || errorMessage);
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : undefined as T;
+  }
+
+  static async jsonRequest<T>(
+    path: string,
+    method: string,
+    body: unknown,
+    errorMessage = 'Request failed',
+  ): Promise<T> {
+    return this.request<T>(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }, errorMessage);
+  }
+
   static async getBackendVersion(): Promise<string> {
     try {
-      const response = await fetch(`${API_BASE}/health`);
+      const response = await appFetch(`${getApiBase()}/health`);
       if (!response.ok) return 'unknown';
       const data = await response.json();
       return data.version || 'unknown';
@@ -93,13 +115,7 @@ export class API {
   }
 
   static async getChannels(): Promise<Channel[]> {
-    const response = await fetch(`${API_BASE}/channels`, {
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch channels');
-    }
-    return response.json();
+    return this.request('/channels', {}, 'Failed to fetch channels');
   }
 
   static async getMessages(channelId: string, limit = 50, before?: string): Promise<Message[]> {
@@ -107,234 +123,87 @@ export class API {
     if (before) {
       params.set('before', before);
     }
-    const response = await fetch(`${API_BASE}/channels/${channelId}/messages?${params}`, {
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch messages');
-    }
-    return response.json();
+    return this.request(`/channels/${channelId}/messages?${params}`, {}, 'Failed to fetch messages');
   }
 
   static async sendMessage(channelId: string, message: SendMessageRequest): Promise<Message> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify(message),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to send message');
-    }
-    return response.json();
+    return this.jsonRequest(`/channels/${channelId}/messages`, 'POST', message, 'Failed to send message');
   }
 
   static async createChannel(name: string, channelType: 'text' | 'voice'): Promise<Channel> {
-    const response = await fetch(`${API_BASE}/channels`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify({ name, channel_type: channelType }),
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to create channel');
-    }
-    return response.json();
+    return this.jsonRequest('/channels', 'POST', { name, channel_type: channelType }, 'Failed to create channel');
   }
 
   static async updateChannel(channelId: string, name: string): Promise<Channel> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify({ name }),
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to update channel');
-    }
-    return response.json();
+    return this.jsonRequest(`/channels/${channelId}`, 'PUT', { name }, 'Failed to update channel');
   }
 
   static async deleteChannel(channelId: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}`, {
-      method: 'DELETE',
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to delete channel');
-    }
+    return this.request(`/channels/${channelId}`, { method: 'DELETE' }, 'Failed to delete channel');
   }
 
   static async editMessage(channelId: string, messageId: string, content: string): Promise<Message> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}/messages/${messageId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify({ content }),
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to edit message');
-    }
-    return response.json();
+    return this.jsonRequest(`/channels/${channelId}/messages/${messageId}`, 'PUT', { content }, 'Failed to edit message');
   }
 
   static async deleteMessage(channelId: string, messageId: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}/messages/${messageId}`, {
-      method: 'DELETE',
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to delete message');
-    }
+    return this.request(`/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' }, 'Failed to delete message');
   }
 
   static async addReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
-      method: 'PUT',
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to add reaction');
-    }
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+      { method: 'PUT' },
+      'Failed to add reaction',
+    );
   }
 
   static async removeReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
-      method: 'DELETE',
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to remove reaction');
-    }
+    return this.request(
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+      { method: 'DELETE' },
+      'Failed to remove reaction',
+    );
   }
 
   static async getOnlineUsers(): Promise<UserPresence[]> {
-    const response = await fetch(`${API_BASE}/users/online`, {
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch online users');
-    }
-    return response.json();
+    return this.request('/users/online', {}, 'Failed to fetch online users');
   }
 
-  // Voice API methods
   static async joinVoiceChannel(request: JoinVoiceRequest): Promise<VoiceState> {
-    const response = await fetch(`${API_BASE}/voice/join`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to join voice channel');
-    }
-    return response.json();
+    return this.jsonRequest('/voice/join', 'POST', request, 'Failed to join voice channel');
   }
 
   static async leaveVoiceChannel(request: JoinVoiceRequest): Promise<void> {
-    const response = await fetch(`${API_BASE}/voice/leave`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to leave voice channel');
-    }
+    return this.jsonRequest('/voice/leave', 'POST', request, 'Failed to leave voice channel');
   }
 
   static async getVoiceStates(channelId: string): Promise<VoiceState[]> {
-    const response = await fetch(`${API_BASE}/voice/channels/${channelId}/states`, {
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch voice states');
-    }
-    return response.json();
+    return this.request(`/voice/channels/${channelId}/states`, {}, 'Failed to fetch voice states');
   }
 
   static async getAllVoiceStates(): Promise<VoiceState[]> {
-    const response = await fetch(`${API_BASE}/voice/states`, {
-      headers: AuthService.getAuthHeaders(),
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch all voice states');
-    }
-    return response.json();
+    return this.request('/voice/states', {}, 'Failed to fetch all voice states');
   }
+}
 
-  static async updateVoiceState(channelId: string, request: UpdateVoiceStateRequest): Promise<VoiceState> {
-    const response = await fetch(`${API_BASE}/voice/channels/${channelId}/state`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    });
+export type WsOutgoingMessage =
+  | { message_type: 'join'; channel_id: string; content: '' }
+  | { message_type: 'typing'; channel_id: string; content: '' }
+  | { message_type: 'message'; channel_id: string; content: string; reply_to_id?: string }
+  | { message_type: 'voice_state_update'; channel_id: string; is_muted?: boolean; is_deafened?: boolean }
+  | { message_type: 'voice_speaking'; channel_id: string; is_speaking: boolean }
+  | { message_type: 'screen_share_update'; channel_id: string; is_screen_sharing: boolean };
 
-    if (!response.ok) {
-      throw new Error('Failed to update voice state');
-    }
-    return response.json();
-  }
-
-  static async updateSpeakingStatus(channelId: string, request: UpdateSpeakingRequest): Promise<void> {
-    const response = await fetch(`${API_BASE}/voice/channels/${channelId}/speaking`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify(request),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update speaking status');
-    }
-  }
-
-  static async updateScreenShareState(channelId: string, isScreenSharing: boolean): Promise<VoiceState> {
-    const response = await fetch(`${API_BASE}/voice/channels/${channelId}/screen-share`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify({ is_screen_sharing: isScreenSharing }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to update screen share state');
-    }
-    return response.json();
-  }
+export interface WsIncomingMessage {
+  type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
 }
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;
-  private messageHandlers: ((data: any) => void)[] = [];
+  private messageHandlers: ((data: WsIncomingMessage) => void)[] = [];
   private intentionalClose = false;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30000;
@@ -344,12 +213,10 @@ export class WebSocketManager {
   connect(): Promise<void> {
     this.intentionalClose = false;
     const token = AuthService.getToken();
-    const wsBase = import.meta.env.VITE_WS_BASE || `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
-    this.ws = new WebSocket(`${wsBase}/ws?token=${token}`);
+    this.ws = new WebSocket(`${getWsBase()}/ws?token=${token}`);
 
     return new Promise<void>((resolve) => {
       this.ws!.onopen = () => {
-        console.log('WebSocket connected');
         this.reconnectAttempts = 0;
         if (this.currentChannelId) {
           this.joinChannel(this.currentChannelId);
@@ -359,25 +226,23 @@ export class WebSocketManager {
 
       this.ws!.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(event.data) as WsIncomingMessage;
           this.messageHandlers.forEach(handler => handler(data));
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
+        } catch {
+          // Ignore malformed messages
         }
       };
 
       this.ws!.onclose = () => {
-        console.log('WebSocket disconnected');
         if (!this.intentionalClose) {
           const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
           this.reconnectAttempts++;
-          console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
           this.reconnectTimer = setTimeout(() => this.connect(), delay);
         }
       };
 
-      this.ws!.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      this.ws!.onerror = () => {
+        // Connection errors are handled by onclose
       };
     });
   }
@@ -394,45 +259,49 @@ export class WebSocketManager {
     }
   }
 
-  onMessage(handler: (data: any) => void) {
+  onMessage(handler: (data: WsIncomingMessage) => void) {
     this.messageHandlers.push(handler);
+  }
+
+  offMessage(handler: (data: WsIncomingMessage) => void) {
+    this.messageHandlers = this.messageHandlers.filter(h => h !== handler);
+  }
+
+  private send(message: WsOutgoingMessage) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    }
   }
 
   joinChannel(channelId: string) {
     this.currentChannelId = channelId;
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const message = {
-        message_type: 'join',
-        channel_id: channelId,
-        content: ''
-      };
-      this.ws.send(JSON.stringify(message));
-    }
+    this.send({ message_type: 'join', channel_id: channelId, content: '' });
   }
 
   sendTyping(channelId: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const message = {
-        message_type: 'typing',
-        channel_id: channelId,
-        content: ''
-      };
-      this.ws.send(JSON.stringify(message));
-    }
+    this.send({ message_type: 'typing', channel_id: channelId, content: '' });
   }
 
   sendMessage(channelId: string, content: string, replyToId?: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const message: Record<string, unknown> = {
-        message_type: 'message',
-        channel_id: channelId,
-        content
-      };
-      if (replyToId) {
-        message.reply_to_id = replyToId;
-      }
-      this.ws.send(JSON.stringify(message));
-    }
+    const message: WsOutgoingMessage = {
+      message_type: 'message',
+      channel_id: channelId,
+      content,
+      ...(replyToId ? { reply_to_id: replyToId } : {}),
+    };
+    this.send(message);
+  }
+
+  sendVoiceStateUpdate(channelId: string, update: { is_muted?: boolean; is_deafened?: boolean }) {
+    this.send({ message_type: 'voice_state_update', channel_id: channelId, ...update });
+  }
+
+  sendVoiceSpeaking(channelId: string, isSpeaking: boolean) {
+    this.send({ message_type: 'voice_speaking', channel_id: channelId, is_speaking: isSpeaking });
+  }
+
+  sendScreenShareUpdate(channelId: string, isScreenSharing: boolean) {
+    this.send({ message_type: 'screen_share_update', channel_id: channelId, is_screen_sharing: isScreenSharing });
   }
 }
 

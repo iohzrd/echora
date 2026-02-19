@@ -1,7 +1,8 @@
 import * as mediasoupClient from 'mediasoup-client';
 import AuthService from './auth';
-
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+import { API } from './api';
+import { getApiBase } from './config';
+import { appFetch } from './serverManager';
 
 interface TransportOptions {
   id: string;
@@ -10,44 +11,20 @@ interface TransportOptions {
   dtls_parameters: mediasoupClient.types.DtlsParameters;
 }
 
-async function createTransportRequest(
-  channelId: string,
-): Promise<TransportOptions> {
-  const response = await fetch(`${API_BASE}/webrtc/transport`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...AuthService.getAuthHeaders(),
-    },
-    body: JSON.stringify({ channel_id: channelId }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to create transport: ${await response.text()}`);
-  }
-
-  return await response.json();
+async function createTransportRequest(channelId: string): Promise<TransportOptions> {
+  return API.jsonRequest('/webrtc/transport', 'POST', { channel_id: channelId }, 'Failed to create transport');
 }
 
 async function connectTransportRequest(
   transportId: string,
   dtlsParameters: mediasoupClient.types.DtlsParameters,
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/webrtc/transport/${transportId}/connect`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify({ dtls_parameters: dtlsParameters }),
-    },
+  return API.jsonRequest(
+    `/webrtc/transport/${transportId}/connect`,
+    'POST',
+    { dtls_parameters: dtlsParameters },
+    'Failed to connect transport',
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to connect transport: ${await response.text()}`);
-  }
 }
 
 async function produceRequest(
@@ -64,31 +41,17 @@ async function produceRequest(
     body.label = label;
   }
 
-  const response = await fetch(
-    `${API_BASE}/webrtc/transport/${transportId}/produce`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...AuthService.getAuthHeaders(),
-      },
-      body: JSON.stringify(body),
-    },
+  const data = await API.jsonRequest<{ producer_id: string }>(
+    `/webrtc/transport/${transportId}/produce`,
+    'POST',
+    body,
+    'Failed to produce',
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to produce: ${await response.text()}`);
-  }
-
-  const data = await response.json();
   return data.producer_id;
 }
 
 async function deleteTransportRequest(transportId: string): Promise<void> {
-  await fetch(`${API_BASE}/webrtc/transport/${transportId}`, {
-    method: 'DELETE',
-    headers: AuthService.getAuthHeaders(),
-  });
+  return API.request(`/webrtc/transport/${transportId}`, { method: 'DELETE' }, 'Failed to close transport');
 }
 
 export interface ProducerInfo {
@@ -100,13 +63,7 @@ export interface ProducerInfo {
 }
 
 export async function getChannelProducers(channelId: string): Promise<ProducerInfo[]> {
-  const response = await fetch(`${API_BASE}/webrtc/channel/${channelId}/producers`, {
-    headers: AuthService.getAuthHeaders(),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to get channel producers: ${await response.text()}`);
-  }
-  return await response.json();
+  return API.request(`/webrtc/channel/${channelId}/producers`, {}, 'Failed to get channel producers');
 }
 
 export class MediasoupManager {
@@ -131,19 +88,11 @@ export class MediasoupManager {
   private async initDevice(channelId: string) {
     this.device = new mediasoupClient.Device();
 
-    const response = await fetch(
-      `${API_BASE}/webrtc/channel/${channelId}/router-capabilities`,
-      {
-        headers: AuthService.getAuthHeaders(),
-      },
+    const routerRtpCapabilities = await API.request<mediasoupClient.types.RtpCapabilities>(
+      `/webrtc/channel/${channelId}/router-capabilities`,
+      {},
+      'Failed to get router capabilities',
     );
-
-    if (!response.ok) {
-      throw new Error('Failed to get router capabilities');
-    }
-
-    const routerRtpCapabilities = await response.json();
-    console.log('Router RTP capabilities:', routerRtpCapabilities);
     await this.device.load({ routerRtpCapabilities });
   }
 
@@ -153,10 +102,6 @@ export class MediasoupManager {
     }
 
     const transportData = await createTransportRequest(channelId);
-    console.log(
-      'Send transport ICE candidates:',
-      JSON.stringify(transportData.ice_candidates, null, 2),
-    );
 
     this.sendTransport = this.device.createSendTransport({
       id: transportData.id,
@@ -165,30 +110,43 @@ export class MediasoupManager {
       dtlsParameters: transportData.dtls_parameters,
     });
 
-    this.setupSendTransportHandlers(transportData.id);
+    this.setupTransportConnectHandler(this.sendTransport, transportData.id);
+    this.setupProduceHandler(transportData.id);
   }
 
-  private setupSendTransportHandlers(transportId: string) {
-    if (!this.sendTransport) return;
+  private async createRecvTransport(channelId: string) {
+    if (!this.device) {
+      throw new Error('Device not initialized');
+    }
 
-    this.sendTransport.on(
+    const transportData = await createTransportRequest(channelId);
+
+    this.recvTransport = this.device.createRecvTransport({
+      id: transportData.id,
+      iceParameters: transportData.ice_parameters,
+      iceCandidates: transportData.ice_candidates,
+      dtlsParameters: transportData.dtls_parameters,
+    });
+
+    this.setupTransportConnectHandler(this.recvTransport, transportData.id);
+  }
+
+  private setupTransportConnectHandler(transport: mediasoupClient.types.Transport, transportId: string) {
+    transport.on(
       'connect',
       async ({ dtlsParameters }, callback, errback) => {
         try {
-          console.log('Send transport connecting...');
           await connectTransportRequest(transportId, dtlsParameters);
-          console.log('Send transport connected');
           callback();
         } catch (error) {
-          console.error('Send transport connect failed:', error);
           errback(error as Error);
         }
       },
     );
+  }
 
-    this.sendTransport.on('connectionstatechange', (state) => {
-      console.log('Send transport state:', state);
-    });
+  private setupProduceHandler(transportId: string) {
+    if (!this.sendTransport) return;
 
     this.sendTransport.on(
       'produce',
@@ -208,50 +166,6 @@ export class MediasoupManager {
     );
   }
 
-  private async createRecvTransport(channelId: string) {
-    if (!this.device) {
-      throw new Error('Device not initialized');
-    }
-
-    const transportData = await createTransportRequest(channelId);
-    console.log(
-      'Recv transport ICE candidates:',
-      JSON.stringify(transportData.ice_candidates, null, 2),
-    );
-
-    this.recvTransport = this.device.createRecvTransport({
-      id: transportData.id,
-      iceParameters: transportData.ice_parameters,
-      iceCandidates: transportData.ice_candidates,
-      dtlsParameters: transportData.dtls_parameters,
-    });
-
-    this.setupRecvTransportHandlers(transportData.id);
-  }
-
-  private setupRecvTransportHandlers(transportId: string) {
-    if (!this.recvTransport) return;
-
-    this.recvTransport.on(
-      'connect',
-      async ({ dtlsParameters }, callback, errback) => {
-        try {
-          console.log('Recv transport connecting...');
-          await connectTransportRequest(transportId, dtlsParameters);
-          console.log('Recv transport connected');
-          callback();
-        } catch (error) {
-          console.error('Recv transport connect failed:', error);
-          errback(error as Error);
-        }
-      },
-    );
-
-    this.recvTransport.on('connectionstatechange', (state) => {
-      console.log('Recv transport state:', state);
-    });
-  }
-
   async produce(track: MediaStreamTrack) {
     if (!this.sendTransport) {
       throw new Error('Send transport not initialized');
@@ -259,7 +173,6 @@ export class MediasoupManager {
 
     const producer = await this.sendTransport.produce({ track });
     this.producers.set(producer.id, producer);
-    console.log('Produced', track.kind, 'track:', producer.id);
     return producer.id;
   }
 
@@ -274,7 +187,6 @@ export class MediasoupManager {
     });
     this.screenProducers.push(producer);
     this.producers.set(producer.id, producer);
-    console.log('Produced screen', track.kind, 'track:', producer.id);
     return producer.id;
   }
 
@@ -297,8 +209,9 @@ export class MediasoupManager {
     }
     this.consumedProducerIds.add(producerId);
 
-    const response = await fetch(
-      `${API_BASE}/webrtc/transport/${this.recvTransport.id}/consume`,
+    // consume has custom error handling for STALE_TRANSPORT detection
+    const response = await appFetch(
+      `${getApiBase()}/webrtc/transport/${this.recvTransport.id}/consume`,
       {
         method: 'POST',
         headers: {
@@ -332,11 +245,7 @@ export class MediasoupManager {
     this.consumers.set(consumer.id, consumer);
     await consumer.resume();
 
-    console.log('Consumed', data.kind, 'track from user', userId.substring(0, 8), label ? `(${label})` : '');
-
-    if (this.onTrack) {
-      this.onTrack(consumer.track, userId, data.kind, label);
-    }
+    this.onTrack?.(consumer.track, userId, data.kind, label);
 
     return consumer;
   }

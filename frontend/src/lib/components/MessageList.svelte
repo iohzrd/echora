@@ -1,6 +1,20 @@
 <script lang="ts">
   import type { Message } from "../api";
   import { renderMarkdown } from "../markdown";
+  import { formatTimestamp, getInitial, truncateContent } from "../utils";
+  import { getApiBase } from "../config";
+  import { isTauri } from "../serverManager";
+  import EmojiPicker from "./EmojiPicker.svelte";
+
+  function resolveUrl(url: string): string {
+    if (isTauri && url.startsWith('/')) {
+      const apiBase = getApiBase();
+      // Strip /api suffix to get the server origin
+      const origin = apiBase.replace(/\/api$/, '');
+      return origin + url;
+    }
+    return url;
+  }
 
   export let messages: Message[] = [];
   export let currentUserId: string = "";
@@ -17,13 +31,6 @@
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
-
-  const COMMON_EMOJI = [
-    "\u{1F44D}", "\u{1F44E}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F622}", "\u{1F621}",
-    "\u{1F389}", "\u{1F525}", "\u{1F44F}", "\u{1F914}",
-    "\u{1F440}", "\u{1F680}", "\u{2705}", "\u{274C}", "\u{1F4AF}", "\u{1F60D}",
-    "\u{1F631}", "\u{1F64F}", "\u{1F499}", "\u{1F49A}",
-  ];
 
   export function scrollToBottom() {
     if (messagesArea) {
@@ -75,19 +82,6 @@
     }
   }
 
-  function formatTimestamp(timestamp: string): string {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
-  function getAvatar(author: string): string {
-    return author.charAt(0).toUpperCase();
-  }
-
-  function truncateContent(content: string, maxLen = 100): string {
-    if (content.length <= maxLen) return content;
-    return content.substring(0, maxLen) + "...";
-  }
 
   function toggleEmojiPicker(messageId: string) {
     if (emojiPickerMessageId === messageId) {
@@ -114,7 +108,7 @@
   {#each messages as message}
     <div class="message">
       <div class="message-avatar">
-        {getAvatar(message.author)}
+        {getInitial(message.author)}
       </div>
       <div class="message-content">
         <div class="message-header">
@@ -161,7 +155,7 @@
           {#each message.link_previews as preview}
             <div class="link-preview-card">
               {#if preview.image_url}
-                <img class="link-preview-image" src={preview.image_url} alt={preview.title || ''} loading="lazy" />
+                <img class="link-preview-image" src={resolveUrl(preview.image_url)} alt={preview.title || ''} loading="lazy" />
               {/if}
               <div class="link-preview-text">
                 {#if preview.site_name}
@@ -194,14 +188,7 @@
               title="Add reaction"
             >+</button>
             {#if emojiPickerMessageId === message.id}
-              <div class="emoji-picker">
-                {#each COMMON_EMOJI as emoji}
-                  <button
-                    class="emoji-picker-btn"
-                    on:click={() => selectEmoji(message.id, emoji)}
-                  >{emoji}</button>
-                {/each}
-              </div>
+              <EmojiPicker onSelect={(emoji) => selectEmoji(message.id, emoji)} />
             {/if}
           </div>
         {/if}
@@ -232,14 +219,7 @@
           {/if}
         </div>
         {#if emojiPickerMessageId === message.id && !(message.reactions && message.reactions.length > 0)}
-          <div class="emoji-picker emoji-picker-floating">
-            {#each COMMON_EMOJI as emoji}
-              <button
-                class="emoji-picker-btn"
-                on:click={() => selectEmoji(message.id, emoji)}
-              >{emoji}</button>
-            {/each}
-          </div>
+          <EmojiPicker floating onSelect={(emoji) => selectEmoji(message.id, emoji)} />
         {/if}
       {/if}
     </div>

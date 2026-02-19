@@ -4,6 +4,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -12,6 +13,9 @@ use crate::database;
 use crate::models::{
     AppState, Channel, CreateChannelRequest, EditMessageRequest, Message, SendMessageRequest,
     UpdateChannelRequest, UserPresence,
+};
+use crate::shared::validation::{
+    MAX_EMOJI_LENGTH, MAX_IMAGE_PROXY_SIZE, validate_channel_name, validate_message_content,
 };
 use crate::shared::{AppError, AppResult};
 use serde::Serialize;
@@ -35,11 +39,7 @@ pub async fn create_channel(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CreateChannelRequest>,
 ) -> AppResult<Json<Channel>> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
+    let user_id = auth_user.user_id()?;
 
     let name = validate_channel_name(&payload.name)?;
 
@@ -51,11 +51,7 @@ pub async fn create_channel(
 
     database::create_channel(&state.db, &channel, user_id).await?;
 
-    let broadcast_msg = serde_json::json!({
-        "type": "channel_created",
-        "data": channel
-    });
-    let _ = state.global_broadcast.send(broadcast_msg.to_string());
+    state.broadcast_global("channel_created", serde_json::json!(channel));
 
     Ok(Json(channel))
 }
@@ -70,18 +66,11 @@ pub async fn update_channel(
 
     database::update_channel(&state.db, channel_id, &name).await?;
 
-    // Fetch the updated channel to return full data
-    let channels = database::get_channels(&state.db).await?;
-    let channel = channels
-        .into_iter()
-        .find(|c| c.id == channel_id)
+    let channel = database::get_channel_by_id(&state.db, channel_id)
+        .await?
         .ok_or_else(|| AppError::not_found("Channel not found"))?;
 
-    let broadcast_msg = serde_json::json!({
-        "type": "channel_updated",
-        "data": channel
-    });
-    let _ = state.global_broadcast.send(broadcast_msg.to_string());
+    state.broadcast_global("channel_updated", serde_json::json!(channel));
 
     Ok(Json(channel))
 }
@@ -96,11 +85,7 @@ pub async fn delete_channel(
     // Clean up broadcast channel
     state.channel_broadcasts.remove(&channel_id);
 
-    let broadcast_msg = serde_json::json!({
-        "type": "channel_deleted",
-        "data": { "id": channel_id }
-    });
-    let _ = state.global_broadcast.send(broadcast_msg.to_string());
+    state.broadcast_global("channel_deleted", serde_json::json!({ "id": channel_id }));
 
     Ok(())
 }
@@ -123,13 +108,9 @@ pub async fn get_messages(
     Query(query): Query<MessageQuery>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<Message>>> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
+    let user_id = auth_user.user_id()?;
 
-    let limit = query.limit.unwrap_or(50).min(100).max(1);
+    let limit = query.limit.unwrap_or(50).clamp(1, 100);
     let messages =
         database::get_messages(&state.db, channel_id, limit, query.before, user_id).await?;
     Ok(Json(messages))
@@ -141,17 +122,9 @@ pub async fn send_message(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SendMessageRequest>,
 ) -> AppResult<Json<Message>> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
+    let user_id = auth_user.user_id()?;
 
-    if payload.content.trim().is_empty() || payload.content.len() > 4000 {
-        return Err(AppError::bad_request(
-            "Message must be between 1 and 4000 characters",
-        ));
-    }
+    validate_message_content(&payload.content)?;
 
     // Validate reply_to_id if provided
     let mut reply_to = None;
@@ -167,19 +140,14 @@ pub async fn send_message(
         reply_to = database::get_reply_preview(&state.db, reply_id).await?;
     }
 
-    let new_message = Message {
-        id: Uuid::now_v7(),
-        content: payload.content,
-        author: auth_user.0.username,
-        author_id: user_id,
+    let new_message = Message::new(
+        payload.content,
+        auth_user.0.username,
+        user_id,
         channel_id,
-        timestamp: Utc::now(),
-        edited_at: None,
-        reply_to_id: payload.reply_to_id,
+        payload.reply_to_id,
         reply_to,
-        reactions: None,
-        link_previews: None,
-    };
+    );
 
     database::create_message(&state.db, &new_message, user_id).await?;
 
@@ -200,29 +168,10 @@ pub async fn edit_message(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<EditMessageRequest>,
 ) -> AppResult<Json<Message>> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
+    let user_id = auth_user.user_id()?;
+    verify_message_ownership(&state.db, message_id, channel_id, user_id).await?;
 
-    let message = database::get_message_by_id(&state.db, message_id)
-        .await?
-        .ok_or_else(|| AppError::not_found("Message not found"))?;
-
-    if message.author_id != user_id {
-        return Err(AppError::forbidden("You can only edit your own messages"));
-    }
-
-    if message.channel_id != channel_id {
-        return Err(AppError::not_found("Message not found in this channel"));
-    }
-
-    if payload.content.trim().is_empty() || payload.content.len() > 4000 {
-        return Err(AppError::bad_request(
-            "Message must be between 1 and 4000 characters",
-        ));
-    }
+    validate_message_content(&payload.content)?;
 
     database::update_message(&state.db, message_id, &payload.content).await?;
 
@@ -230,15 +179,11 @@ pub async fn edit_message(
         .await?
         .ok_or_else(|| AppError::not_found("Message not found"))?;
 
-    // Broadcast edit to channel subscribers
-    let broadcast_msg = serde_json::json!({
-        "type": "message_edited",
-        "data": updated_message
-    });
-
-    if let Some(tx) = state.channel_broadcasts.get(&channel_id) {
-        let _ = tx.send(broadcast_msg.to_string());
-    }
+    state.broadcast_channel(
+        channel_id,
+        "message_edited",
+        serde_json::json!(updated_message),
+    );
 
     Ok(Json(updated_message))
 }
@@ -248,35 +193,16 @@ pub async fn delete_message(
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
-
-    let message = database::get_message_by_id(&state.db, message_id)
-        .await?
-        .ok_or_else(|| AppError::not_found("Message not found"))?;
-
-    if message.author_id != user_id {
-        return Err(AppError::forbidden("You can only delete your own messages"));
-    }
-
-    if message.channel_id != channel_id {
-        return Err(AppError::not_found("Message not found in this channel"));
-    }
+    let user_id = auth_user.user_id()?;
+    verify_message_ownership(&state.db, message_id, channel_id, user_id).await?;
 
     database::delete_message(&state.db, message_id).await?;
 
-    // Broadcast deletion to channel subscribers
-    let broadcast_msg = serde_json::json!({
-        "type": "message_deleted",
-        "data": { "id": message_id, "channel_id": channel_id }
-    });
-
-    if let Some(tx) = state.channel_broadcasts.get(&channel_id) {
-        let _ = tx.send(broadcast_msg.to_string());
-    }
+    state.broadcast_channel(
+        channel_id,
+        "message_deleted",
+        serde_json::json!({ "id": message_id, "channel_id": channel_id }),
+    );
 
     Ok(())
 }
@@ -294,42 +220,28 @@ pub async fn add_reaction(
     Path((channel_id, message_id, emoji)): Path<(Uuid, Uuid, String)>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
+    let user_id = auth_user.user_id()?;
 
-    if emoji.is_empty() || emoji.len() > 32 {
+    if emoji.is_empty() || emoji.len() > MAX_EMOJI_LENGTH {
         return Err(AppError::bad_request(
             "Emoji must be between 1 and 32 characters",
         ));
     }
 
-    // Verify message exists in this channel
-    let message = database::get_message_by_id(&state.db, message_id)
-        .await?
-        .ok_or_else(|| AppError::not_found("Message not found"))?;
-
-    if message.channel_id != channel_id {
-        return Err(AppError::not_found("Message not found in this channel"));
-    }
+    verify_message_in_channel(&state.db, message_id, channel_id).await?;
 
     database::add_reaction(&state.db, message_id, user_id, &emoji).await?;
 
-    let broadcast_msg = serde_json::json!({
-        "type": "reaction_added",
-        "data": ReactionEvent {
+    state.broadcast_channel(
+        channel_id,
+        "reaction_added",
+        serde_json::json!(ReactionEvent {
             message_id,
             emoji,
             user_id,
             username: auth_user.0.username,
-        }
-    });
-
-    if let Some(tx) = state.channel_broadcasts.get(&channel_id) {
-        let _ = tx.send(broadcast_msg.to_string());
-    }
+        }),
+    );
 
     Ok(())
 }
@@ -339,36 +251,22 @@ pub async fn remove_reaction(
     Path((channel_id, message_id, emoji)): Path<(Uuid, Uuid, String)>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let user_id: Uuid = auth_user
-        .0
-        .sub
-        .parse()
-        .map_err(|_| AppError::bad_request("Invalid user ID"))?;
+    let user_id = auth_user.user_id()?;
 
-    // Verify message exists in this channel
-    let message = database::get_message_by_id(&state.db, message_id)
-        .await?
-        .ok_or_else(|| AppError::not_found("Message not found"))?;
-
-    if message.channel_id != channel_id {
-        return Err(AppError::not_found("Message not found in this channel"));
-    }
+    verify_message_in_channel(&state.db, message_id, channel_id).await?;
 
     database::remove_reaction(&state.db, message_id, user_id, &emoji).await?;
 
-    let broadcast_msg = serde_json::json!({
-        "type": "reaction_removed",
-        "data": ReactionEvent {
+    state.broadcast_channel(
+        channel_id,
+        "reaction_removed",
+        serde_json::json!(ReactionEvent {
             message_id,
             emoji,
             user_id,
             username: auth_user.0.username,
-        }
-    });
-
-    if let Some(tx) = state.channel_broadcasts.get(&channel_id) {
-        let _ = tx.send(broadcast_msg.to_string());
-    }
+        }),
+    );
 
     Ok(())
 }
@@ -386,7 +284,8 @@ pub async fn proxy_image(
     use axum::response::Response;
     use base64::Engine;
 
-    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+    let secret = std::str::from_utf8(crate::auth::jwt_secret())
+        .map_err(|_| AppError::internal("JWT_SECRET is not valid UTF-8"))?;
 
     // Decode base64url-encoded URL
     let image_url = base64::engine::general_purpose::URL_SAFE_NO_PAD
@@ -396,16 +295,12 @@ pub async fn proxy_image(
         String::from_utf8(image_url).map_err(|_| AppError::bad_request("Invalid URL encoding"))?;
 
     // Verify HMAC signature
-    if !crate::link_preview::verify_image_signature(&image_url, &query.sig, &jwt_secret) {
+    if !crate::link_preview::verify_image_signature(&image_url, &query.sig, secret) {
         return Err(AppError::forbidden("Invalid signature"));
     }
 
     // Fetch the image
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .redirect(reqwest::redirect::Policy::limited(3))
-        .user_agent("EchoraBot/1.0")
-        .build()
+    let client = crate::shared::http::create_http_client(10)
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     let response = client
@@ -432,31 +327,50 @@ pub async fn proxy_image(
         .map_err(|e| AppError::internal(e.to_string()))?;
 
     // Limit size to 10MB
-    if bytes.len() > 10 * 1024 * 1024 {
+    if bytes.len() > MAX_IMAGE_PROXY_SIZE {
         return Err(AppError::bad_request("Image too large"));
     }
 
-    Ok(Response::builder()
+    Response::builder()
         .header("Content-Type", content_type)
         .header("Cache-Control", "public, max-age=86400")
         .body(Body::from(bytes))
-        .unwrap())
+        .map_err(|e| AppError::internal(e.to_string()))
 }
 
-fn validate_channel_name(name: &str) -> Result<String, AppError> {
-    let trimmed = name.trim().to_string();
-    if trimmed.is_empty() || trimmed.len() > 50 {
-        return Err(AppError::bad_request(
-            "Channel name must be between 1 and 50 characters",
-        ));
+async fn verify_message_in_channel(
+    db: &PgPool,
+    message_id: Uuid,
+    channel_id: Uuid,
+) -> AppResult<()> {
+    let message = database::get_message_by_id(db, message_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("Message not found"))?;
+
+    if message.channel_id != channel_id {
+        return Err(AppError::not_found("Message not found in this channel"));
     }
-    if !trimmed
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ' ')
-    {
-        return Err(AppError::bad_request(
-            "Channel name can only contain letters, numbers, hyphens, underscores, and spaces",
-        ));
+
+    Ok(())
+}
+
+async fn verify_message_ownership(
+    db: &PgPool,
+    message_id: Uuid,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> AppResult<()> {
+    let message = database::get_message_by_id(db, message_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("Message not found"))?;
+
+    if message.author_id != user_id {
+        return Err(AppError::forbidden("You can only modify your own messages"));
     }
-    Ok(trimmed)
+
+    if message.channel_id != channel_id {
+        return Err(AppError::not_found("Message not found in this channel"));
+    }
+
+    Ok(())
 }

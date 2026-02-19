@@ -6,6 +6,80 @@ use crate::auth::User;
 use crate::link_preview::LinkPreviewData;
 use crate::models::{Channel, ChannelType, LinkPreview, Message, Reaction, ReplyPreview};
 use crate::shared::AppError;
+use crate::shared::validation::REPLY_PREVIEW_LENGTH;
+
+const CHANNEL_COLUMNS: &str = "SELECT id, name, channel_type FROM channels";
+const MESSAGE_COLUMNS: &str = "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id FROM messages";
+
+/// Parse a UUID from a database string column, mapping errors to AppError.
+fn parse_uuid(id: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(id).map_err(|_| AppError::internal("Invalid UUID in database"))
+}
+
+type ChannelRow = (String, String, String);
+
+fn channel_from_row((id, name, channel_type): ChannelRow) -> Result<Channel, AppError> {
+    Ok(Channel {
+        id: parse_uuid(&id)?,
+        name,
+        channel_type: ChannelType::from_str(&channel_type),
+    })
+}
+
+type UserRow = (String, String, String, String, DateTime<Utc>);
+
+fn user_from_row(
+    (id, username, email, password_hash, created_at): UserRow,
+) -> Result<User, AppError> {
+    Ok(User {
+        id: parse_uuid(&id)?,
+        username,
+        email,
+        password_hash,
+        created_at,
+    })
+}
+
+type MessageRow = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    DateTime<Utc>,
+    Option<DateTime<Utc>>,
+    Option<String>,
+);
+
+fn message_from_row(row: MessageRow) -> Result<Message, AppError> {
+    let (id, content, author, author_id, channel_id, timestamp, edited_at, reply_to_id) = row;
+    Ok(Message {
+        id: parse_uuid(&id)?,
+        content,
+        author,
+        author_id: parse_uuid(&author_id)?,
+        channel_id: parse_uuid(&channel_id)?,
+        timestamp,
+        edited_at,
+        reply_to_id: reply_to_id.as_deref().map(parse_uuid).transpose()?,
+        reply_to: None,
+        reactions: None,
+        link_previews: None,
+    })
+}
+
+fn require_rows_affected(
+    result: sqlx::postgres::PgQueryResult,
+    msg: &'static str,
+) -> Result<(), AppError> {
+    if result.rows_affected() == 0 {
+        Err(AppError::not_found(msg))
+    } else {
+        Ok(())
+    }
+}
+
+use crate::shared::truncate_string;
 
 pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
     let channel_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM channels")
@@ -36,24 +110,21 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
 }
 
 pub async fn get_channels(pool: &PgPool) -> Result<Vec<Channel>, AppError> {
-    let rows: Vec<(String, String, String)> =
-        sqlx::query_as("SELECT id, name, channel_type FROM channels")
-            .fetch_all(pool)
-            .await?;
+    let rows: Vec<ChannelRow> = sqlx::query_as(CHANNEL_COLUMNS).fetch_all(pool).await?;
 
-    let channels = rows
-        .into_iter()
-        .map(|(id, name, channel_type)| Channel {
-            id: Uuid::parse_str(&id).expect("invalid UUID in channels table"),
-            name,
-            channel_type: match channel_type.as_str() {
-                "voice" => ChannelType::Voice,
-                _ => ChannelType::Text,
-            },
-        })
-        .collect();
+    rows.into_iter().map(channel_from_row).collect()
+}
 
-    Ok(channels)
+pub async fn get_channel_by_id(
+    pool: &PgPool,
+    channel_id: Uuid,
+) -> Result<Option<Channel>, AppError> {
+    let row: Option<ChannelRow> = sqlx::query_as(&format!("{CHANNEL_COLUMNS} WHERE id = $1"))
+        .bind(channel_id.to_string())
+        .fetch_optional(pool)
+        .await?;
+
+    row.map(channel_from_row).transpose()
 }
 
 pub async fn get_messages(
@@ -63,32 +134,19 @@ pub async fn get_messages(
     before: Option<DateTime<Utc>>,
     requesting_user_id: Uuid,
 ) -> Result<Vec<Message>, AppError> {
-    let rows: Vec<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        DateTime<Utc>,
-        Option<DateTime<Utc>>,
-        Option<String>,
-    )> = if let Some(before_ts) = before {
-        sqlx::query_as(
-            "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
-             FROM messages WHERE channel_id = $1 AND created_at < $2
-             ORDER BY created_at DESC LIMIT $3",
-        )
+    let rows: Vec<MessageRow> = if let Some(before_ts) = before {
+        sqlx::query_as(&format!(
+            "{MESSAGE_COLUMNS} WHERE channel_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT $3"
+        ))
         .bind(channel_id.to_string())
         .bind(before_ts)
         .bind(limit)
         .fetch_all(pool)
         .await?
     } else {
-        sqlx::query_as(
-            "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
-             FROM messages WHERE channel_id = $1
-             ORDER BY created_at DESC LIMIT $2",
-        )
+        sqlx::query_as(&format!(
+            "{MESSAGE_COLUMNS} WHERE channel_id = $1 ORDER BY created_at DESC LIMIT $2"
+        ))
         .bind(channel_id.to_string())
         .bind(limit)
         .fetch_all(pool)
@@ -97,27 +155,8 @@ pub async fn get_messages(
 
     let mut messages: Vec<Message> = rows
         .into_iter()
-        .map(
-            |(id, content, author, author_id, channel_id, timestamp, edited_at, reply_to_id)| {
-                Message {
-                    id: Uuid::parse_str(&id).expect("invalid UUID in messages table"),
-                    content,
-                    author,
-                    author_id: Uuid::parse_str(&author_id).expect("invalid UUID in messages table"),
-                    channel_id: Uuid::parse_str(&channel_id)
-                        .expect("invalid UUID in messages table"),
-                    timestamp,
-                    edited_at,
-                    reply_to_id: reply_to_id
-                        .as_deref()
-                        .and_then(|id| Uuid::parse_str(id).ok()),
-                    reply_to: None,
-                    reactions: None,
-                    link_previews: None,
-                }
-            },
-        )
-        .collect();
+        .map(message_from_row)
+        .collect::<Result<_, _>>()?;
 
     // Reverse so messages are returned in chronological order (oldest first)
     messages.reverse();
@@ -170,40 +209,12 @@ pub async fn get_message_by_id(
     pool: &PgPool,
     message_id: Uuid,
 ) -> Result<Option<Message>, AppError> {
-    let row: Option<(
-        String,
-        String,
-        String,
-        String,
-        String,
-        DateTime<Utc>,
-        Option<DateTime<Utc>>,
-        Option<String>,
-    )> = sqlx::query_as(
-        "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
-             FROM messages WHERE id = $1",
-    )
-    .bind(message_id.to_string())
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<MessageRow> = sqlx::query_as(&format!("{MESSAGE_COLUMNS} WHERE id = $1"))
+        .bind(message_id.to_string())
+        .fetch_optional(pool)
+        .await?;
 
-    Ok(row.map(
-        |(id, content, author, author_id, channel_id, timestamp, edited_at, reply_to_id)| Message {
-            id: Uuid::parse_str(&id).expect("invalid UUID in messages table"),
-            content,
-            author,
-            author_id: Uuid::parse_str(&author_id).expect("invalid UUID in messages table"),
-            channel_id: Uuid::parse_str(&channel_id).expect("invalid UUID in messages table"),
-            timestamp,
-            edited_at,
-            reply_to_id: reply_to_id
-                .as_deref()
-                .and_then(|id| Uuid::parse_str(id).ok()),
-            reply_to: None,
-            reactions: None,
-            link_previews: None,
-        },
-    ))
+    row.map(message_from_row).transpose()
 }
 
 pub async fn update_message(
@@ -218,11 +229,7 @@ pub async fn update_message(
         .execute(pool)
         .await?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::not_found("Message not found"));
-    }
-
-    Ok(())
+    require_rows_affected(result, "Message not found")
 }
 
 pub async fn delete_message(pool: &PgPool, message_id: Uuid) -> Result<(), AppError> {
@@ -231,11 +238,7 @@ pub async fn delete_message(pool: &PgPool, message_id: Uuid) -> Result<(), AppEr
         .execute(pool)
         .await?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::not_found("Message not found"));
-    }
-
-    Ok(())
+    require_rows_affected(result, "Message not found")
 }
 
 pub async fn create_channel(
@@ -249,10 +252,7 @@ pub async fn create_channel(
     )
     .bind(channel.id.to_string())
     .bind(&channel.name)
-    .bind(match channel.channel_type {
-        ChannelType::Text => "text",
-        ChannelType::Voice => "voice",
-    })
+    .bind(channel.channel_type.as_str())
     .bind(created_by.to_string())
     .bind(Utc::now())
     .execute(pool)
@@ -268,11 +268,7 @@ pub async fn update_channel(pool: &PgPool, channel_id: Uuid, name: &str) -> Resu
         .execute(pool)
         .await?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::not_found("Channel not found"));
-    }
-
-    Ok(())
+    require_rows_affected(result, "Channel not found")
 }
 
 pub async fn delete_channel(pool: &PgPool, channel_id: Uuid) -> Result<(), AppError> {
@@ -301,11 +297,7 @@ pub async fn delete_channel(pool: &PgPool, channel_id: Uuid) -> Result<(), AppEr
         .execute(pool)
         .await?;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::not_found("Channel not found"));
-    }
-
-    Ok(())
+    require_rows_affected(result, "Channel not found")
 }
 
 pub async fn create_message(
@@ -347,22 +339,14 @@ pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
 }
 
 pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, AppError> {
-    let row: Option<(String, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+    let row: Option<UserRow> = sqlx::query_as(
         "SELECT id, username, email, password_hash, created_at FROM users WHERE username = $1",
     )
     .bind(username)
     .fetch_optional(pool)
     .await?;
 
-    Ok(
-        row.map(|(id, username, email, password_hash, created_at)| User {
-            id: Uuid::parse_str(&id).expect("invalid UUID in users table"),
-            username,
-            email,
-            password_hash,
-            created_at,
-        }),
-    )
+    row.map(user_from_row).transpose()
 }
 
 pub async fn get_reply_previews(
@@ -381,17 +365,13 @@ pub async fn get_reply_previews(
             .await?;
 
     for (id, author, content) in rows {
-        let uuid = Uuid::parse_str(&id).expect("invalid UUID in messages table");
+        let uuid = parse_uuid(&id)?;
         previews.insert(
             uuid,
             ReplyPreview {
                 id: uuid,
                 author,
-                content: if content.len() > 200 {
-                    format!("{}...", &content[..200])
-                } else {
-                    content
-                },
+                content: truncate_string(&content, REPLY_PREVIEW_LENGTH),
             },
         );
     }
@@ -422,7 +402,7 @@ pub async fn get_reactions_for_messages(
     let mut reactions_map: HashMap<Uuid, Vec<Reaction>> = HashMap::new();
 
     for (message_id, emoji, count, reacted) in rows {
-        let uuid = Uuid::parse_str(&message_id).expect("invalid UUID");
+        let uuid = parse_uuid(&message_id)?;
         reactions_map.entry(uuid).or_default().push(Reaction {
             emoji,
             count,
@@ -478,34 +458,25 @@ pub async fn get_reply_preview(
             .fetch_optional(pool)
             .await?;
 
-    Ok(row.map(|(id, author, content)| ReplyPreview {
-        id: Uuid::parse_str(&id).expect("invalid UUID"),
-        author,
-        content: if content.len() > 200 {
-            format!("{}...", &content[..200])
-        } else {
-            content
-        },
-    }))
+    row.map(|(id, author, content)| {
+        Ok(ReplyPreview {
+            id: parse_uuid(&id)?,
+            author,
+            content: truncate_string(&content, REPLY_PREVIEW_LENGTH),
+        })
+    })
+    .transpose()
 }
 
 pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
-    let row: Option<(String, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+    let row: Option<UserRow> = sqlx::query_as(
         "SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1",
     )
     .bind(email)
     .fetch_optional(pool)
     .await?;
 
-    Ok(
-        row.map(|(id, username, email, password_hash, created_at)| User {
-            id: Uuid::parse_str(&id).expect("invalid UUID in users table"),
-            username,
-            email,
-            password_hash,
-            created_at,
-        }),
-    )
+    row.map(user_from_row).transpose()
 }
 
 /// Insert or update a link preview (deduped by URL), return its ID
@@ -531,7 +502,7 @@ pub async fn upsert_link_preview(pool: &PgPool, data: &LinkPreviewData) -> Resul
     .fetch_one(pool)
     .await?;
 
-    Ok(Uuid::parse_str(&row.0).expect("invalid UUID"))
+    parse_uuid(&row.0)
 }
 
 /// Link a preview to a message via the junction table
@@ -559,7 +530,7 @@ pub async fn get_link_previews_for_messages(
 ) -> Result<std::collections::HashMap<Uuid, Vec<LinkPreview>>, AppError> {
     use std::collections::HashMap;
 
-    let rows: Vec<(
+    type LinkPreviewRow = (
         String,
         String,
         String,
@@ -567,7 +538,9 @@ pub async fn get_link_previews_for_messages(
         Option<String>,
         Option<String>,
         Option<String>,
-    )> = sqlx::query_as(
+    );
+
+    let rows: Vec<LinkPreviewRow> = sqlx::query_as(
         "SELECT mlp.message_id, lp.id, lp.url, lp.title, lp.description, lp.image_url, lp.site_name
          FROM message_link_previews mlp
          JOIN link_previews lp ON lp.id = mlp.preview_id
@@ -580,9 +553,9 @@ pub async fn get_link_previews_for_messages(
     let mut previews_map: HashMap<Uuid, Vec<LinkPreview>> = HashMap::new();
 
     for (message_id, id, url, title, description, image_url, site_name) in rows {
-        let msg_uuid = Uuid::parse_str(&message_id).expect("invalid UUID");
+        let msg_uuid = parse_uuid(&message_id)?;
         previews_map.entry(msg_uuid).or_default().push(LinkPreview {
-            id: Uuid::parse_str(&id).expect("invalid UUID"),
+            id: parse_uuid(&id)?,
             url,
             title,
             description,

@@ -9,6 +9,11 @@
 
 ## Commands
 
+- When the user says "review and commit", this means review ALL the uncommited changes with git diff, then commit.
+- When the user says "review and report", this means re-inspect ALL the code relevant to the current task and revise your list on current options.
+
+## Development
+
 ```bash
 # Backend
 cd backend && cargo run          # Dev server on http://127.0.0.1:3000

@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 use uuid::Uuid;
 
 use crate::sfu::service::SfuService;
+use crate::shared::validation::BROADCAST_CHANNEL_CAPACITY;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Channel {
@@ -20,6 +21,22 @@ pub struct Channel {
 pub enum ChannelType {
     Text,
     Voice,
+}
+
+impl ChannelType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Voice => "voice",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "voice" => Self::Voice,
+            _ => Self::Text,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +57,31 @@ pub struct Message {
     pub reactions: Option<Vec<Reaction>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link_previews: Option<Vec<LinkPreview>>,
+}
+
+impl Message {
+    pub fn new(
+        content: String,
+        author: String,
+        author_id: Uuid,
+        channel_id: Uuid,
+        reply_to_id: Option<Uuid>,
+        reply_to: Option<ReplyPreview>,
+    ) -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            content,
+            author,
+            author_id,
+            channel_id,
+            timestamp: chrono::Utc::now(),
+            edited_at: None,
+            reply_to_id,
+            reply_to,
+            reactions: None,
+            link_previews: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,22 +154,6 @@ pub struct LeaveVoiceRequest {
     pub channel_id: Uuid,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct UpdateVoiceStateRequest {
-    pub is_muted: Option<bool>,
-    pub is_deafened: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateSpeakingRequest {
-    pub is_speaking: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateScreenShareRequest {
-    pub is_screen_sharing: bool,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPresence {
     pub user_id: Uuid,
@@ -164,7 +190,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(db: PgPool, sfu_service: SfuService) -> Self {
-        let (global_tx, _) = broadcast::channel(256);
+        let (global_tx, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         Self {
             db,
             channel_broadcasts: Arc::new(DashMap::new()),
@@ -173,6 +199,24 @@ impl AppState {
             voice_states: Arc::new(DashMap::new()),
             voice_sessions: Arc::new(DashMap::new()),
             sfu_service: Arc::new(sfu_service),
+        }
+    }
+
+    pub fn broadcast_global(&self, event_type: &str, data: serde_json::Value) {
+        let msg = serde_json::json!({
+            "type": event_type,
+            "data": data,
+        });
+        let _ = self.global_broadcast.send(msg.to_string());
+    }
+
+    pub fn broadcast_channel(&self, channel_id: Uuid, event_type: &str, data: serde_json::Value) {
+        let msg = serde_json::json!({
+            "type": event_type,
+            "data": data,
+        });
+        if let Some(tx) = self.channel_broadcasts.get(&channel_id) {
+            let _ = tx.send(msg.to_string());
         }
     }
 }

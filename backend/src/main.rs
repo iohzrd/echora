@@ -77,18 +77,6 @@ async fn main() {
             "/api/voice/channels/{channel_id}/states",
             get(voice::get_voice_states),
         )
-        .route(
-            "/api/voice/channels/{channel_id}/state",
-            put(voice::update_voice_state),
-        )
-        .route(
-            "/api/voice/channels/{channel_id}/speaking",
-            post(voice::update_speaking_status),
-        )
-        .route(
-            "/api/voice/channels/{channel_id}/screen-share",
-            put(voice::update_screen_share),
-        )
         .route("/api/proxy/image", get(routes::proxy_image))
         .route("/ws", get(websocket::websocket_handler))
         // SFU WebRTC routes

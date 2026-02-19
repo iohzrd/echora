@@ -1,7 +1,21 @@
-import { type VoiceState, API } from './api';
+import { type VoiceState, type WebSocketManager, API } from './api';
 import { user } from './auth';
 import { get } from 'svelte/store';
 import { MediasoupManager, getChannelProducers } from './mediasoup';
+
+/** Stop all tracks on a MediaStream and return null for assignment. */
+function stopStream(stream: MediaStream | null): null {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+  return null;
+}
+
+/** Detach an audio element from the DOM and clean up its source. */
+function detachAudioElement(audio: HTMLAudioElement): void {
+  audio.srcObject = null;
+  audio.remove();
+}
 
 export class VoiceManager {
   private mediasoup: MediasoupManager | null = null;
@@ -18,6 +32,11 @@ export class VoiceManager {
   private currentChannelId: string | null = null;
   private voiceStates: VoiceState[] = [];
   private speakingThreshold = 50;
+  private ws: WebSocketManager | null = null;
+
+  setWebSocketManager(wsManager: WebSocketManager) {
+    this.ws = wsManager;
+  }
 
   // Event handlers
   private onVoiceStatesChanged: ((states: VoiceState[]) => void) | null = null;
@@ -108,14 +127,12 @@ export class VoiceManager {
   private async consumeExistingProducers(channelId: string, myUserId: string): Promise<void> {
     try {
       const producers = await getChannelProducers(channelId);
-      console.log('Channel producers:', producers.length, 'total,', producers.filter(p => p.user_id !== myUserId && p.label !== 'screen').length, 'to consume');
       for (const producer of producers) {
         // Skip our own producers and screen share producers (consumed on demand when watching)
         if (producer.user_id === myUserId) continue;
         if (producer.label === 'screen') continue;
 
         try {
-          console.log('Consuming producer', producer.producer_id.substring(0, 8), 'from user', producer.user_id.substring(0, 8), 'kind:', producer.kind);
           await this.mediasoup?.consume(producer.producer_id, producer.user_id, producer.label);
         } catch (e) {
           console.error('Failed to consume producer', producer.producer_id, e);
@@ -139,14 +156,11 @@ export class VoiceManager {
   private handleRemoteTrack(track: MediaStreamTrack, userId: string, kind: string, label?: string): void {
     // Screen share tracks (video or audio) go to the screen track handler
     if (label === 'screen') {
-      console.log('Received screen share', kind, 'track from user', userId);
       this.onScreenTrackReceived?.(track, userId);
       return;
     }
 
     if (kind !== 'audio') return;
-
-    console.log('handleRemoteTrack: audio from user', userId.substring(0, 8), 'track.readyState:', track.readyState, 'track.enabled:', track.enabled);
 
     let remoteAudio = this.remoteAudioElements.get(userId);
     if (!remoteAudio) {
@@ -155,17 +169,12 @@ export class VoiceManager {
       remoteAudio.volume = 1.0;
       document.body.appendChild(remoteAudio);
       this.remoteAudioElements.set(userId, remoteAudio);
-      console.log('Created new audio element for user', userId.substring(0, 8), 'total elements:', this.remoteAudioElements.size);
     }
 
     remoteAudio.srcObject = new MediaStream([track]);
-
-    const playPromise = remoteAudio.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(e => {
-        console.warn('Auto-play prevented for user', userId, ':', e);
-      });
-    }
+    remoteAudio.play().catch(e => {
+      console.warn('Auto-play prevented for user', userId, ':', e);
+    });
 
     // Apply deafen state to new track
     if (this.isDeafened) {
@@ -176,10 +185,7 @@ export class VoiceManager {
   removeUserAudio(userId: string): void {
     const remoteAudio = this.remoteAudioElements.get(userId);
     if (remoteAudio) {
-      remoteAudio.srcObject = null;
-      if (remoteAudio.parentNode) {
-        remoteAudio.parentNode.removeChild(remoteAudio);
-      }
+      detachAudioElement(remoteAudio);
       this.remoteAudioElements.delete(userId);
     }
   }
@@ -233,14 +239,9 @@ export class VoiceManager {
     this.speakingDetectionFrame = requestAnimationFrame(checkAudioLevel);
   }
 
-  private async updateSpeakingStatus(isSpeaking: boolean): Promise<void> {
-    if (!this.currentChannelId) return;
-
-    try {
-      await API.updateSpeakingStatus(this.currentChannelId, { is_speaking: isSpeaking });
-    } catch (error) {
-      console.error('Failed to update speaking status:', error);
-    }
+  private updateSpeakingStatus(isSpeaking: boolean): void {
+    if (!this.currentChannelId || !this.ws) return;
+    this.ws.sendVoiceSpeaking(this.currentChannelId, isSpeaking);
   }
 
   async startScreenShare(): Promise<void> {
@@ -272,15 +273,14 @@ export class VoiceManager {
         await this.mediasoup.produceScreen(audioTrack);
       }
 
-      await API.updateScreenShareState(this.currentChannelId, true);
+      if (this.ws) {
+        this.ws.sendScreenShareUpdate(this.currentChannelId, true);
+      }
       this.isScreenSharing = true;
       this.onStateChanged?.();
     } catch (error) {
       // User cancelled the screen picker or error occurred
-      if (this.screenStream) {
-        this.screenStream.getTracks().forEach(t => t.stop());
-        this.screenStream = null;
-      }
+      this.screenStream = stopStream(this.screenStream);
       throw error;
     }
   }
@@ -292,17 +292,10 @@ export class VoiceManager {
       this.mediasoup.closeScreenProducers();
     }
 
-    if (this.screenStream) {
-      this.screenStream.getTracks().forEach(t => t.stop());
-      this.screenStream = null;
-    }
+    this.screenStream = stopStream(this.screenStream);
 
-    if (this.currentChannelId) {
-      try {
-        await API.updateScreenShareState(this.currentChannelId, false);
-      } catch (error) {
-        console.error('Failed to update screen share state:', error);
-      }
+    if (this.currentChannelId && this.ws) {
+      this.ws.sendScreenShareUpdate(this.currentChannelId, false);
     }
 
     this.isScreenSharing = false;
@@ -328,12 +321,8 @@ export class VoiceManager {
       });
     }
 
-    if (this.currentChannelId) {
-      try {
-        await API.updateVoiceState(this.currentChannelId, { is_muted: this.isMuted });
-      } catch (error) {
-        console.error('Failed to update mute state:', error);
-      }
+    if (this.currentChannelId && this.ws) {
+      this.ws.sendVoiceStateUpdate(this.currentChannelId, { is_muted: this.isMuted });
     }
 
     this.onStateChanged?.();
@@ -352,12 +341,8 @@ export class VoiceManager {
       this.mediasoup.setConsumersEnabled(!this.isDeafened);
     }
 
-    if (this.currentChannelId) {
-      try {
-        await API.updateVoiceState(this.currentChannelId, { is_deafened: this.isDeafened });
-      } catch (error) {
-        console.error('Failed to update deafen state:', error);
-      }
+    if (this.currentChannelId && this.ws) {
+      this.ws.sendVoiceStateUpdate(this.currentChannelId, { is_deafened: this.isDeafened });
     }
 
     this.onStateChanged?.();
@@ -368,9 +353,7 @@ export class VoiceManager {
 
     try {
       this.voiceStates = await API.getVoiceStates(this.currentChannelId);
-      if (this.onVoiceStatesChanged) {
-        this.onVoiceStatesChanged(this.voiceStates);
-      }
+      this.onVoiceStatesChanged?.(this.voiceStates);
     } catch (error) {
       console.error('Failed to update voice states:', error);
     }
@@ -384,25 +367,12 @@ export class VoiceManager {
     }
 
     // Clean up all remote audio elements
-    this.remoteAudioElements.forEach(audio => {
-      audio.srcObject = null;
-      if (audio.parentNode) {
-        audio.parentNode.removeChild(audio);
-      }
-    });
+    this.remoteAudioElements.forEach(detachAudioElement);
     this.remoteAudioElements.clear();
 
-    // Stop local stream
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
-
-    // Stop screen stream
-    if (this.screenStream) {
-      this.screenStream.getTracks().forEach(track => track.stop());
-      this.screenStream = null;
-    }
+    // Stop local and screen streams
+    this.localStream = stopStream(this.localStream);
+    this.screenStream = stopStream(this.screenStream);
 
     // Close audio context
     if (this.audioContext) {
