@@ -1,3 +1,7 @@
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::database;
 use crate::shared::AppError;
 
 /// Role levels, ordered by power (higher number = more power).
@@ -70,4 +74,29 @@ pub fn can_assign_role(actor_role: &str, target_new_role: &str) -> Result<(), Ap
             "Cannot assign a role equal to or above your own",
         ))
     }
+}
+
+/// Returns Err(Forbidden) if user is banned. For REST/auth routes.
+pub async fn check_not_banned(db: &PgPool, user_id: Uuid) -> Result<(), AppError> {
+    if database::get_active_ban(db, user_id).await?.is_some() {
+        return Err(AppError::forbidden("You are banned from this server"));
+    }
+    Ok(())
+}
+
+/// Returns Err(Forbidden) if user is muted. For REST routes.
+pub async fn check_not_muted(db: &PgPool, user_id: Uuid) -> Result<(), AppError> {
+    if database::get_active_mute(db, user_id).await?.is_some() {
+        return Err(AppError::forbidden("You are muted"));
+    }
+    Ok(())
+}
+
+/// Returns true if user is muted. Swallows DB errors. For WebSocket code.
+pub async fn is_muted(db: &PgPool, user_id: Uuid) -> bool {
+    database::get_active_mute(db, user_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
 }

@@ -13,8 +13,8 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::auth;
-use crate::database;
 use crate::models::AppState;
+use crate::permissions;
 use crate::shared::validation;
 
 #[derive(Debug, Deserialize)]
@@ -81,11 +81,11 @@ pub async fn websocket_handler(
                 }
             };
             // Check ban status before accepting connection
-            match database::get_active_ban(&state.db, user_id).await {
-                Ok(Some(_)) => {
+            match permissions::check_not_banned(&state.db, user_id).await {
+                Ok(()) => ws.on_upgrade(move |socket| websocket(socket, state, claims)),
+                Err(crate::shared::AppError::Forbidden(_)) => {
                     (axum::http::StatusCode::FORBIDDEN, "You are banned").into_response()
                 }
-                Ok(None) => ws.on_upgrade(move |socket| websocket(socket, state, claims)),
                 Err(_) => (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     "Server error",
@@ -249,13 +249,7 @@ async fn handle_chat_message(
         return;
     };
 
-    // Check mute status
-    if database::get_active_mute(&state.db, user_id)
-        .await
-        .ok()
-        .flatten()
-        .is_some()
-    {
+    if permissions::is_muted(&state.db, user_id).await {
         return;
     }
 
@@ -266,44 +260,31 @@ async fn handle_chat_message(
         *broadcast_rx = Some(tx.subscribe());
     }
 
-    if validation::validate_message_content(&chat_msg.content).is_err() {
-        return;
+    match crate::services::message::create_message(
+        state,
+        &state.db,
+        crate::services::message::CreateMessageParams {
+            user_id,
+            username: username.to_string(),
+            channel_id: chat_msg.channel_id,
+            content: chat_msg.content,
+            reply_to_id: chat_msg.reply_to_id,
+            validate_reply_channel: false,
+        },
+    )
+    .await
+    {
+        Ok(result) => {
+            state.broadcast_channel(
+                result.channel_id,
+                "message",
+                serde_json::json!(result.message),
+            );
+        }
+        Err(e) => {
+            error!("Failed to create message: {}", e);
+        }
     }
-
-    let reply_to = if let Some(reply_id) = chat_msg.reply_to_id {
-        database::get_reply_preview(&state.db, reply_id)
-            .await
-            .unwrap_or_default()
-    } else {
-        None
-    };
-
-    let new_message = crate::models::Message::new(
-        chat_msg.content.clone(),
-        username.to_string(),
-        user_id,
-        chat_msg.channel_id,
-        chat_msg.reply_to_id,
-        reply_to,
-    );
-
-    if let Err(e) = database::create_message(&state.db, &new_message, user_id).await {
-        error!("Failed to save message: {}", e);
-        return;
-    }
-
-    state.broadcast_channel(
-        chat_msg.channel_id,
-        "message",
-        serde_json::json!(new_message),
-    );
-
-    crate::link_preview::spawn_preview_fetch(
-        state.clone(),
-        new_message.id,
-        chat_msg.channel_id,
-        new_message.content.clone(),
-    );
 }
 
 fn handle_join(

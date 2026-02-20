@@ -1,0 +1,72 @@
+use axum::extract::Query;
+use serde::Deserialize;
+
+use crate::shared::AppError;
+use crate::shared::validation::MAX_IMAGE_PROXY_SIZE;
+
+#[derive(Debug, Deserialize)]
+pub struct ImageProxyQuery {
+    pub url: String,
+    pub sig: String,
+}
+
+pub async fn proxy_image(
+    Query(query): Query<ImageProxyQuery>,
+) -> Result<axum::response::Response, AppError> {
+    use axum::body::Body;
+    use axum::response::Response;
+    use base64::Engine;
+
+    let secret = std::str::from_utf8(crate::auth::jwt_secret())
+        .map_err(|_| AppError::internal("JWT_SECRET is not valid UTF-8"))?;
+
+    // Decode base64url-encoded URL
+    let image_url = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(&query.url)
+        .map_err(|_| AppError::bad_request("Invalid URL encoding"))?;
+    let image_url =
+        String::from_utf8(image_url).map_err(|_| AppError::bad_request("Invalid URL encoding"))?;
+
+    // Verify HMAC signature
+    if !crate::link_preview::verify_image_signature(&image_url, &query.sig, secret) {
+        return Err(AppError::forbidden("Invalid signature"));
+    }
+
+    // Fetch the image
+    let client = crate::shared::http::create_http_client(10)
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    let response = client
+        .get(&image_url)
+        .send()
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+
+    // Only proxy image content types
+    if !content_type.starts_with("image/") {
+        return Err(AppError::bad_request("Not an image"));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))?;
+
+    // Limit size to 10MB
+    if bytes.len() > MAX_IMAGE_PROXY_SIZE {
+        return Err(AppError::bad_request("Image too large"));
+    }
+
+    Response::builder()
+        .header("Content-Type", content_type)
+        .header("Cache-Control", "public, max-age=86400")
+        .body(Body::from(bytes))
+        .map_err(|e| AppError::internal(e.to_string()))
+}

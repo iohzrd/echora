@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::auth::{AuthResponse, LoginRequest, RegisterRequest, User, UserInfo, create_jwt};
 use crate::database;
 use crate::models::AppState;
+use crate::permissions;
 use crate::shared::password;
 use crate::shared::validation;
 use crate::shared::{AppError, AppResult};
@@ -86,13 +87,7 @@ pub async fn login(
 
     password::verify_password(&payload.password, &user.password_hash)?;
 
-    // Check ban status
-    if database::get_active_ban(&state.db, user.id)
-        .await?
-        .is_some()
-    {
-        return Err(AppError::forbidden("You are banned from this server"));
-    }
+    permissions::check_not_banned(&state.db, user.id).await?;
 
     let token = create_jwt(user.id, &user.username, &user.role)?;
 
