@@ -6,31 +6,14 @@ use uuid::Uuid;
 use crate::auth::User;
 use crate::link_preview::LinkPreviewData;
 use crate::models::{
-    Ban, Channel, ChannelType, Invite, LinkPreview, Message, ModLogEntry, Mute, Reaction,
-    ReplyPreview, UserSummary,
+    Ban, Channel, Invite, LinkPreview, Message, ModLogEntry, Mute, Reaction, ReplyPreview,
+    UserSummary,
 };
 use crate::shared::AppError;
 use crate::shared::truncate_string;
 use crate::shared::validation::REPLY_PREVIEW_LENGTH;
 
-// --- Query row types (for queries that don't map directly to model structs) ---
-
-#[derive(FromRow)]
-struct ChannelRow {
-    id: Uuid,
-    name: String,
-    channel_type: String,
-}
-
-impl From<ChannelRow> for Channel {
-    fn from(row: ChannelRow) -> Self {
-        Channel {
-            id: row.id,
-            name: row.name,
-            channel_type: row.channel_type.parse::<ChannelType>().unwrap(),
-        }
-    }
-}
+// --- Query row types (only for queries that don't map directly to model structs) ---
 
 #[derive(FromRow)]
 struct MessageRow {
@@ -58,127 +41,6 @@ impl From<MessageRow> for Message {
             reply_to: None,
             reactions: None,
             link_previews: None,
-        }
-    }
-}
-
-#[derive(FromRow)]
-struct UserRow {
-    id: Uuid,
-    username: String,
-    email: String,
-    password_hash: String,
-    role: String,
-    created_at: DateTime<Utc>,
-}
-
-impl From<UserRow> for User {
-    fn from(row: UserRow) -> Self {
-        User {
-            id: row.id,
-            username: row.username,
-            email: row.email,
-            password_hash: row.password_hash,
-            role: row.role,
-            created_at: row.created_at,
-        }
-    }
-}
-
-#[derive(FromRow)]
-struct BanRow {
-    id: Uuid,
-    user_id: Uuid,
-    banned_by: Uuid,
-    reason: Option<String>,
-    expires_at: Option<DateTime<Utc>>,
-    created_at: DateTime<Utc>,
-}
-
-impl From<BanRow> for Ban {
-    fn from(row: BanRow) -> Self {
-        Ban {
-            id: row.id,
-            user_id: row.user_id,
-            banned_by: row.banned_by,
-            reason: row.reason,
-            expires_at: row.expires_at,
-            created_at: row.created_at,
-        }
-    }
-}
-
-#[derive(FromRow)]
-struct MuteRow {
-    id: Uuid,
-    user_id: Uuid,
-    muted_by: Uuid,
-    reason: Option<String>,
-    expires_at: Option<DateTime<Utc>>,
-    created_at: DateTime<Utc>,
-}
-
-impl From<MuteRow> for Mute {
-    fn from(row: MuteRow) -> Self {
-        Mute {
-            id: row.id,
-            user_id: row.user_id,
-            muted_by: row.muted_by,
-            reason: row.reason,
-            expires_at: row.expires_at,
-            created_at: row.created_at,
-        }
-    }
-}
-
-#[derive(FromRow)]
-struct InviteRow {
-    id: Uuid,
-    code: String,
-    created_by: Uuid,
-    max_uses: Option<i32>,
-    uses: i32,
-    expires_at: Option<DateTime<Utc>>,
-    revoked: bool,
-    created_at: DateTime<Utc>,
-}
-
-impl From<InviteRow> for Invite {
-    fn from(row: InviteRow) -> Self {
-        Invite {
-            id: row.id,
-            code: row.code,
-            created_by: row.created_by,
-            max_uses: row.max_uses,
-            uses: row.uses,
-            expires_at: row.expires_at,
-            revoked: row.revoked,
-            created_at: row.created_at,
-        }
-    }
-}
-
-#[derive(FromRow)]
-struct ModLogRow {
-    id: Uuid,
-    action: String,
-    moderator_id: Uuid,
-    target_user_id: Uuid,
-    reason: Option<String>,
-    details: Option<String>,
-    created_at: DateTime<Utc>,
-}
-
-impl From<ModLogRow> for ModLogEntry {
-    fn from(row: ModLogRow) -> Self {
-        ModLogEntry {
-            id: row.id,
-            action: row.action,
-            moderator_id: row.moderator_id,
-            target_user_id: row.target_user_id,
-            reason: row.reason,
-            details: row.details,
-            created_at: row.created_at,
         }
     }
 }
@@ -283,24 +145,24 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
 // --- Channels ---
 
 pub async fn get_channels(pool: &PgPool) -> Result<Vec<Channel>, AppError> {
-    let rows: Vec<ChannelRow> = sqlx::query_as("SELECT id, name, channel_type FROM channels")
+    let channels: Vec<Channel> = sqlx::query_as("SELECT id, name, channel_type FROM channels")
         .fetch_all(pool)
         .await?;
 
-    Ok(rows.into_iter().map(Channel::from).collect())
+    Ok(channels)
 }
 
 pub async fn get_channel_by_id(
     pool: &PgPool,
     channel_id: Uuid,
 ) -> Result<Option<Channel>, AppError> {
-    let row: Option<ChannelRow> =
+    let channel: Option<Channel> =
         sqlx::query_as("SELECT id, name, channel_type FROM channels WHERE id = $1")
             .bind(channel_id)
             .fetch_optional(pool)
             .await?;
 
-    Ok(row.map(Channel::from))
+    Ok(channel)
 }
 
 pub async fn create_channel(
@@ -314,7 +176,7 @@ pub async fn create_channel(
     )
     .bind(channel.id)
     .bind(&channel.name)
-    .bind(channel.channel_type.to_string())
+    .bind(&channel.channel_type)
     .bind(created_by)
     .bind(Utc::now())
     .execute(pool)
@@ -701,36 +563,36 @@ pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
 }
 
 pub async fn get_user_by_id(pool: &PgPool, user_id: Uuid) -> Result<Option<User>, AppError> {
-    let row: Option<UserRow> = sqlx::query_as(
+    let user: Option<User> = sqlx::query_as(
         "SELECT id, username, email, password_hash, role, created_at FROM users WHERE id = $1",
     )
     .bind(user_id)
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(User::from))
+    Ok(user)
 }
 
 pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, AppError> {
-    let row: Option<UserRow> = sqlx::query_as(
+    let user: Option<User> = sqlx::query_as(
         "SELECT id, username, email, password_hash, role, created_at FROM users WHERE username = $1",
     )
     .bind(username)
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(User::from))
+    Ok(user)
 }
 
 pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
-    let row: Option<UserRow> = sqlx::query_as(
+    let user: Option<User> = sqlx::query_as(
         "SELECT id, username, email, password_hash, role, created_at FROM users WHERE email = $1",
     )
     .bind(email)
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(User::from))
+    Ok(user)
 }
 
 pub async fn get_user_count(pool: &PgPool) -> Result<i64, AppError> {
@@ -759,22 +621,13 @@ pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: &str) -> Result<(
 }
 
 pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
-    let rows: Vec<(Uuid, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+    let users: Vec<UserSummary> = sqlx::query_as(
         "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC",
     )
     .fetch_all(pool)
     .await?;
 
-    Ok(rows
-        .into_iter()
-        .map(|(id, username, email, role, created_at)| UserSummary {
-            id,
-            username,
-            email,
-            role,
-            created_at,
-        })
-        .collect())
+    Ok(users)
 }
 
 // --- Bans (atomic upsert) ---
@@ -803,7 +656,7 @@ pub async fn create_ban(pool: &PgPool, ban: &Ban) -> Result<(), AppError> {
 }
 
 pub async fn get_active_ban(pool: &PgPool, user_id: Uuid) -> Result<Option<Ban>, AppError> {
-    let row: Option<BanRow> = sqlx::query_as(
+    let ban: Option<Ban> = sqlx::query_as(
         "SELECT id, user_id, banned_by, reason, expires_at, created_at FROM bans
          WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
     )
@@ -811,7 +664,7 @@ pub async fn get_active_ban(pool: &PgPool, user_id: Uuid) -> Result<Option<Ban>,
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(Ban::from))
+    Ok(ban)
 }
 
 pub async fn remove_ban(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
@@ -823,7 +676,7 @@ pub async fn remove_ban(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
 }
 
 pub async fn get_all_bans(pool: &PgPool) -> Result<Vec<Ban>, AppError> {
-    let rows: Vec<BanRow> = sqlx::query_as(
+    let bans: Vec<Ban> = sqlx::query_as(
         "SELECT id, user_id, banned_by, reason, expires_at, created_at FROM bans
          WHERE expires_at IS NULL OR expires_at > NOW()
          ORDER BY created_at DESC",
@@ -831,7 +684,7 @@ pub async fn get_all_bans(pool: &PgPool) -> Result<Vec<Ban>, AppError> {
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(Ban::from).collect())
+    Ok(bans)
 }
 
 pub async fn cleanup_expired_bans(pool: &PgPool) -> Result<u64, AppError> {
@@ -868,7 +721,7 @@ pub async fn create_mute(pool: &PgPool, mute: &Mute) -> Result<(), AppError> {
 }
 
 pub async fn get_active_mute(pool: &PgPool, user_id: Uuid) -> Result<Option<Mute>, AppError> {
-    let row: Option<MuteRow> = sqlx::query_as(
+    let mute: Option<Mute> = sqlx::query_as(
         "SELECT id, user_id, muted_by, reason, expires_at, created_at FROM mutes
          WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
     )
@@ -876,7 +729,7 @@ pub async fn get_active_mute(pool: &PgPool, user_id: Uuid) -> Result<Option<Mute
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(Mute::from))
+    Ok(mute)
 }
 
 pub async fn remove_mute(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
@@ -888,7 +741,7 @@ pub async fn remove_mute(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
 }
 
 pub async fn get_all_mutes(pool: &PgPool) -> Result<Vec<Mute>, AppError> {
-    let rows: Vec<MuteRow> = sqlx::query_as(
+    let mutes: Vec<Mute> = sqlx::query_as(
         "SELECT id, user_id, muted_by, reason, expires_at, created_at FROM mutes
          WHERE expires_at IS NULL OR expires_at > NOW()
          ORDER BY created_at DESC",
@@ -896,7 +749,7 @@ pub async fn get_all_mutes(pool: &PgPool) -> Result<Vec<Mute>, AppError> {
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(Mute::from).collect())
+    Ok(mutes)
 }
 
 pub async fn cleanup_expired_mutes(pool: &PgPool) -> Result<u64, AppError> {
@@ -956,7 +809,7 @@ pub async fn revoke_invite(pool: &PgPool, invite_id: Uuid) -> Result<(), AppErro
 }
 
 pub async fn get_invite_by_code(pool: &PgPool, code: &str) -> Result<Option<Invite>, AppError> {
-    let row: Option<InviteRow> = sqlx::query_as(
+    let invite: Option<Invite> = sqlx::query_as(
         "SELECT id, code, created_by, max_uses, uses, expires_at, revoked, created_at
          FROM invites WHERE code = $1",
     )
@@ -964,18 +817,18 @@ pub async fn get_invite_by_code(pool: &PgPool, code: &str) -> Result<Option<Invi
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(Invite::from))
+    Ok(invite)
 }
 
 pub async fn get_all_invites(pool: &PgPool) -> Result<Vec<Invite>, AppError> {
-    let rows: Vec<InviteRow> = sqlx::query_as(
+    let invites: Vec<Invite> = sqlx::query_as(
         "SELECT id, code, created_by, max_uses, uses, expires_at, revoked, created_at
          FROM invites ORDER BY created_at DESC",
     )
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(Invite::from).collect())
+    Ok(invites)
 }
 
 // --- Server settings ---
@@ -1032,7 +885,7 @@ pub async fn create_mod_log_entry(pool: &PgPool, entry: &ModLogEntry) -> Result<
 }
 
 pub async fn get_mod_log(pool: &PgPool, limit: i64) -> Result<Vec<ModLogEntry>, AppError> {
-    let rows: Vec<ModLogRow> = sqlx::query_as(
+    let entries: Vec<ModLogEntry> = sqlx::query_as(
         "SELECT id, action, moderator_id, target_user_id, reason, details, created_at
          FROM moderation_log ORDER BY created_at DESC LIMIT $1",
     )
@@ -1040,5 +893,5 @@ pub async fn get_mod_log(pool: &PgPool, limit: i64) -> Result<Vec<ModLogEntry>, 
     .fetch_all(pool)
     .await?;
 
-    Ok(rows.into_iter().map(ModLogEntry::from).collect())
+    Ok(entries)
 }

@@ -1,9 +1,5 @@
 use axum::{extract::FromRequestParts, http::request::Parts};
-use axum_extra::{
-    TypedHeader,
-    headers::{Authorization, authorization::Bearer},
-};
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -30,7 +26,7 @@ pub struct Claims {
     pub exp: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: Uuid,
     pub username: String,
@@ -82,14 +78,19 @@ where
 {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let TypedHeader(Authorization(bearer)) =
-            TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
-                .await
-                .map_err(|_| AppError::authentication("Missing or invalid authorization header"))?;
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| AppError::authentication("Missing authorization header"))?;
+
+        let token = auth_header
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| AppError::authentication("Invalid authorization header format"))?;
 
         let token_data = decode::<Claims>(
-            bearer.token(),
+            token,
             &DecodingKey::from_secret(jwt_secret()),
             &Validation::default(),
         )
@@ -101,7 +102,7 @@ where
 
 pub fn create_jwt(user_id: Uuid, username: &str, role: &str) -> Result<String, AppError> {
     let expiration = Utc::now()
-        .checked_add_signed(Duration::days(7))
+        .checked_add_signed(TimeDelta::days(7))
         .ok_or_else(|| AppError::internal("Failed to compute token expiration"))?
         .timestamp();
 

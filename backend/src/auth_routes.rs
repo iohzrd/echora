@@ -3,7 +3,9 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::auth::{AuthResponse, LoginRequest, RegisterRequest, User, UserInfo, create_jwt};
+use crate::auth::{
+    AuthResponse, AuthUser, LoginRequest, RegisterRequest, User, UserInfo, create_jwt,
+};
 use crate::database;
 use crate::models::AppState;
 use crate::permissions;
@@ -29,20 +31,6 @@ pub async fn register(
         database::use_invite_code(&state.db, code).await?;
     }
 
-    if database::get_user_by_username(&state.db, &username)
-        .await?
-        .is_some()
-    {
-        return Err(AppError::conflict("Username already taken"));
-    }
-
-    if database::get_user_by_email(&state.db, &email)
-        .await?
-        .is_some()
-    {
-        return Err(AppError::conflict("Email already in use"));
-    }
-
     let password_hash = password::hash_password(&payload.password)?;
 
     // First user becomes owner, rest are members
@@ -58,6 +46,8 @@ pub async fn register(
         created_at: Utc::now(),
     };
 
+    // Relies on DB unique constraints -- create_user maps constraint violations
+    // to specific conflict errors (username taken, email in use)
     database::create_user(&state.db, &user).await?;
 
     let token = create_jwt(user.id, &user.username, &user.role)?;
@@ -77,11 +67,14 @@ pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<LoginRequest>,
 ) -> AppResult<Json<AuthResponse>> {
-    if payload.username.trim().is_empty() || payload.password.is_empty() {
+    let username = validation::validate_username(&payload.username)
+        .map_err(|_| AppError::authentication("Invalid credentials"))?;
+
+    if payload.password.is_empty() {
         return Err(AppError::authentication("Invalid credentials"));
     }
 
-    let user = database::get_user_by_username(&state.db, payload.username.trim())
+    let user = database::get_user_by_username(&state.db, &username)
         .await?
         .ok_or_else(|| AppError::authentication("Invalid credentials"))?;
 
@@ -104,7 +97,7 @@ pub async fn login(
 
 pub async fn me(
     State(state): State<Arc<AppState>>,
-    auth_user: crate::auth::AuthUser,
+    auth_user: AuthUser,
 ) -> AppResult<Json<UserInfo>> {
     let user = database::get_user_by_id(&state.db, auth_user.user_id())
         .await?

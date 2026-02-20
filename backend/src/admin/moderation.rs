@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     response::Json,
 };
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -13,8 +13,8 @@ use crate::permissions::{self, Role};
 use crate::shared::AppResult;
 
 pub async fn kick_user(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<KickRequest>,
 ) -> AppResult<()> {
     let actor_id = auth_user.user_id();
@@ -50,8 +50,8 @@ pub async fn kick_user(
 }
 
 pub async fn ban_user(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<BanRequest>,
 ) -> AppResult<()> {
     let actor_id = auth_user.user_id();
@@ -63,7 +63,8 @@ pub async fn ban_user(
 
     let expires_at = payload
         .duration_hours
-        .map(|h| Utc::now() + Duration::hours(h));
+        .and_then(TimeDelta::try_hours)
+        .map(|d| Utc::now() + d);
 
     let ban = Ban {
         id: Uuid::now_v7(),
@@ -104,9 +105,9 @@ pub async fn ban_user(
 }
 
 pub async fn unban_user(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(target_user_id): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
@@ -137,8 +138,8 @@ pub async fn unban_user(
 }
 
 pub async fn list_bans(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
 ) -> AppResult<Json<Vec<Ban>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
@@ -148,8 +149,8 @@ pub async fn list_bans(
 }
 
 pub async fn mute_user(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<MuteRequest>,
 ) -> AppResult<()> {
     let actor_id = auth_user.user_id();
@@ -161,7 +162,8 @@ pub async fn mute_user(
 
     let expires_at = payload
         .duration_hours
-        .map(|h| Utc::now() + Duration::hours(h));
+        .and_then(TimeDelta::try_hours)
+        .map(|d| Utc::now() + d);
 
     let mute = Mute {
         id: Uuid::now_v7(),
@@ -203,9 +205,9 @@ pub async fn mute_user(
 }
 
 pub async fn unmute_user(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(target_user_id): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
@@ -236,8 +238,8 @@ pub async fn unmute_user(
 }
 
 pub async fn list_mutes(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
 ) -> AppResult<Json<Vec<Mute>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;

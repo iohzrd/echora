@@ -20,8 +20,8 @@ pub struct InitResponse {
 }
 
 pub async fn get_init(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
 ) -> AppResult<Json<InitResponse>> {
     let server_name = database::get_server_setting(&state.db, "server_name").await?;
 
@@ -33,17 +33,7 @@ pub async fn get_init(
         .map(|entry| entry.value().clone())
         .collect();
 
-    let voice_states: Vec<VoiceState> = state
-        .voice_states
-        .iter()
-        .flat_map(|entry| {
-            entry
-                .value()
-                .iter()
-                .map(|r| r.value().clone())
-                .collect::<Vec<_>>()
-        })
-        .collect();
+    let voice_states: Vec<VoiceState> = state.all_voice_states();
 
     // Include user list for moderators+ (needed for role badges)
     let user_id = auth_user.user_id();

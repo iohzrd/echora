@@ -8,8 +8,8 @@ use crate::permissions::{self, Role};
 use crate::shared::{AppError, AppResult};
 
 pub async fn get_settings(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
 ) -> AppResult<Json<std::collections::HashMap<String, String>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Admin)?;
@@ -19,8 +19,8 @@ pub async fn get_settings(
 }
 
 pub async fn update_setting(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<ServerSettingUpdate>,
 ) -> AppResult<()> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;

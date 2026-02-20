@@ -13,16 +13,16 @@ use crate::shared::validation::validate_channel_name;
 use crate::shared::{AppError, AppResult};
 
 pub async fn get_channels(
-    _auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    _auth_user: AuthUser,
 ) -> AppResult<Json<Vec<Channel>>> {
     let channels = database::get_channels(&state.db).await?;
     Ok(Json(channels))
 }
 
 pub async fn create_channel(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<CreateChannelRequest>,
 ) -> AppResult<Json<Channel>> {
     let user_id = auth_user.user_id();
@@ -45,9 +45,9 @@ pub async fn create_channel(
 }
 
 pub async fn update_channel(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(channel_id): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateChannelRequest>,
 ) -> AppResult<Json<Channel>> {
     let user_id = auth_user.user_id();
@@ -68,9 +68,9 @@ pub async fn update_channel(
 }
 
 pub async fn delete_channel(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(channel_id): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, user_id).await?;
@@ -87,8 +87,8 @@ pub async fn delete_channel(
 }
 
 pub async fn get_online_users(
-    _auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    _auth_user: AuthUser,
 ) -> AppResult<Json<Vec<UserPresence>>> {
     let users: Vec<UserPresence> = state
         .online_users

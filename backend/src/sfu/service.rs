@@ -1,4 +1,3 @@
-use anyhow::Result;
 use dashmap::DashMap;
 use mediasoup::prelude::*;
 use mediasoup_types::rtp_parameters::{RtpHeaderExtension, RtpHeaderExtensionDirection};
@@ -10,6 +9,7 @@ use uuid::Uuid;
 use crate::sfu::models::{
     ConsumerData, ParticipantConnection, ProducerEntry, ProducerInfo, TransportOptions,
 };
+use crate::shared::AppError;
 
 const STALE_TRANSPORT_THRESHOLD_SECS: u64 = 5;
 const DEFAULT_ANNOUNCED_IP: &str = "127.0.0.1";
@@ -21,7 +21,7 @@ fn current_timestamp() -> u64 {
         .as_secs()
 }
 
-async fn auto_detect_public_ip() -> Result<String> {
+async fn auto_detect_public_ip() -> Result<String, AppError> {
     tracing::info!("Auto-detecting public IP address...");
 
     let services = [
@@ -47,7 +47,9 @@ async fn auto_detect_public_ip() -> Result<String> {
         }
     }
 
-    anyhow::bail!("Failed to auto-detect public IP from all services")
+    Err(AppError::internal(
+        "Failed to auto-detect public IP from all services",
+    ))
 }
 
 async fn get_announced_ip() -> String {
@@ -70,26 +72,27 @@ async fn get_announced_ip() -> String {
 }
 
 pub struct SfuService {
-    worker: Arc<Worker>,
-    routers: Arc<DashMap<Uuid, Arc<Router>>>,
-    router_capabilities: Arc<DashMap<Uuid, RtpCapabilities>>,
-    connections: Arc<DashMap<String, ParticipantConnection>>,
-    channel_connections: Arc<DashMap<Uuid, Vec<String>>>,
-    user_connections: Arc<DashMap<(Uuid, Uuid), Vec<String>>>,
-    transports: Arc<DashMap<String, Arc<Mutex<WebRtcTransport>>>>,
-    producers: Arc<DashMap<String, Arc<Producer>>>,
-    consumers: Arc<DashMap<String, Arc<Consumer>>>,
+    worker: Worker,
+    routers: DashMap<Uuid, Arc<Router>>,
+    router_capabilities: DashMap<Uuid, RtpCapabilities>,
+    connections: DashMap<String, ParticipantConnection>,
+    channel_connections: DashMap<Uuid, Vec<String>>,
+    user_connections: DashMap<(Uuid, Uuid), Vec<String>>,
+    transports: DashMap<String, Arc<Mutex<WebRtcTransport>>>,
+    producers: DashMap<String, Arc<Producer>>,
+    consumers: DashMap<String, Arc<Consumer>>,
     announced_ip: String,
 }
 
 impl SfuService {
-    pub async fn new() -> Result<Self> {
+    pub async fn new() -> Result<Self, AppError> {
         let announced_ip = get_announced_ip().await;
 
         let worker_manager = WorkerManager::new();
         let worker = worker_manager
             .create_worker(WorkerSettings::default())
-            .await?;
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to create mediasoup worker: {e}")))?;
 
         tracing::info!(
             "mediasoup SFU initialized with announced IP: {}",
@@ -97,20 +100,20 @@ impl SfuService {
         );
 
         Ok(Self {
-            worker: Arc::new(worker),
-            routers: Arc::new(DashMap::new()),
-            router_capabilities: Arc::new(DashMap::new()),
-            connections: Arc::new(DashMap::new()),
-            channel_connections: Arc::new(DashMap::new()),
-            user_connections: Arc::new(DashMap::new()),
-            transports: Arc::new(DashMap::new()),
-            producers: Arc::new(DashMap::new()),
-            consumers: Arc::new(DashMap::new()),
+            worker,
+            routers: DashMap::new(),
+            router_capabilities: DashMap::new(),
+            connections: DashMap::new(),
+            channel_connections: DashMap::new(),
+            user_connections: DashMap::new(),
+            transports: DashMap::new(),
+            producers: DashMap::new(),
+            consumers: DashMap::new(),
             announced_ip,
         })
     }
 
-    pub async fn get_or_create_router(&self, channel_id: Uuid) -> Result<Arc<Router>> {
+    pub async fn get_or_create_router(&self, channel_id: Uuid) -> Result<Arc<Router>, AppError> {
         if let Some(router) = self.routers.get(&channel_id) {
             return Ok(router.clone());
         }
@@ -171,7 +174,8 @@ impl SfuService {
         let router = self
             .worker
             .create_router(RouterOptions::new(media_codecs))
-            .await?;
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to create router: {e}")))?;
 
         let router_arc = Arc::new(router);
         self.routers.insert(channel_id, router_arc.clone());
@@ -183,7 +187,7 @@ impl SfuService {
         &self,
         channel_id: Uuid,
         user_id: Uuid,
-    ) -> Result<TransportOptions> {
+    ) -> Result<TransportOptions, AppError> {
         use std::net::{IpAddr, Ipv4Addr};
 
         self.cleanup_stale_transports(channel_id, user_id).await;
@@ -205,7 +209,10 @@ impl SfuService {
         let transport_options =
             WebRtcTransportOptions::new(WebRtcTransportListenInfos::new(listen_info));
 
-        let transport = router.create_webrtc_transport(transport_options).await?;
+        let transport = router
+            .create_webrtc_transport(transport_options)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to create WebRTC transport: {e}")))?;
 
         let transport_id = transport.id().to_string();
         let ice_parameters = transport.ice_parameters().clone();
@@ -252,16 +259,19 @@ impl SfuService {
         &self,
         transport_id: &str,
         dtls_parameters: DtlsParameters,
-    ) -> Result<()> {
+    ) -> Result<(), AppError> {
         let transport = self
             .transports
             .get(transport_id)
-            .ok_or_else(|| anyhow::anyhow!("Transport not found"))?
+            .ok_or_else(|| AppError::not_found("Transport not found"))?
             .clone();
 
         let transport_guard = transport.lock().await;
         let remote_parameters = WebRtcTransportRemoteParameters { dtls_parameters };
-        transport_guard.connect(remote_parameters).await?;
+        transport_guard
+            .connect(remote_parameters)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to connect transport: {e}")))?;
 
         tracing::info!("Transport {} connected", transport_id);
         Ok(())
@@ -273,18 +283,19 @@ impl SfuService {
         kind: MediaKind,
         rtp_parameters: RtpParameters,
         label: Option<String>,
-    ) -> Result<ProducerInfo> {
+    ) -> Result<ProducerInfo, AppError> {
         let transport = self
             .transports
             .get(transport_id)
-            .ok_or_else(|| anyhow::anyhow!("Transport not found"))?
+            .ok_or_else(|| AppError::not_found("Transport not found"))?
             .clone();
 
         let producer = transport
             .lock()
             .await
             .produce(ProducerOptions::new(kind, rtp_parameters))
-            .await?;
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to produce: {e}")))?;
 
         let producer_id = producer.id().to_string();
         tracing::info!(
@@ -310,8 +321,8 @@ impl SfuService {
 
         Ok(ProducerInfo {
             producer_id,
-            channel_id: channel_id.ok_or_else(|| anyhow::anyhow!("Connection not found"))?,
-            user_id: user_id.ok_or_else(|| anyhow::anyhow!("Connection not found"))?,
+            channel_id: channel_id.ok_or_else(|| AppError::not_found("Connection not found"))?,
+            user_id: user_id.ok_or_else(|| AppError::not_found("Connection not found"))?,
             kind,
             label,
         })
@@ -322,24 +333,29 @@ impl SfuService {
         transport_id: &str,
         producer_id: &str,
         rtp_capabilities: RtpCapabilities,
-    ) -> Result<ConsumerData> {
+    ) -> Result<ConsumerData, AppError> {
         let transport = self
             .transports
             .get(transport_id)
-            .ok_or_else(|| anyhow::anyhow!("Transport not found"))?
+            .ok_or_else(|| AppError::not_found("Transport not found"))?
             .clone();
 
         let producer = self
             .producers
             .get(producer_id)
-            .ok_or_else(|| anyhow::anyhow!("Producer not found"))?
+            .ok_or_else(|| AppError::not_found("Producer not found"))?
             .clone();
 
         let mut consumer_options =
             mediasoup::consumer::ConsumerOptions::new(producer.id(), rtp_capabilities);
         consumer_options.paused = false;
 
-        let consumer = transport.lock().await.consume(consumer_options).await?;
+        let consumer = transport
+            .lock()
+            .await
+            .consume(consumer_options)
+            .await
+            .map_err(|e| AppError::internal(format!("Failed to consume: {e}")))?;
 
         let consumer_id = consumer.id().to_string();
         let kind = consumer.kind();
@@ -389,7 +405,7 @@ impl SfuService {
     pub async fn get_router_capabilities(
         &self,
         channel_id: Uuid,
-    ) -> Result<RtpCapabilitiesFinalized> {
+    ) -> Result<RtpCapabilitiesFinalized, AppError> {
         let router = self.get_or_create_router(channel_id).await?;
         Ok(router.rtp_capabilities().clone())
     }
@@ -418,11 +434,11 @@ impl SfuService {
         }
     }
 
-    pub async fn close_connection(&self, transport_id: &str) -> Result<(Uuid, Uuid)> {
+    pub async fn close_connection(&self, transport_id: &str) -> Result<(Uuid, Uuid), AppError> {
         let connection = self
             .connections
             .remove(transport_id)
-            .ok_or_else(|| anyhow::anyhow!("Connection not found"))?
+            .ok_or_else(|| AppError::not_found("Connection not found"))?
             .1;
 
         let channel_id = connection.channel_id;

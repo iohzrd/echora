@@ -16,14 +16,14 @@ pub async fn join_voice_channel(
     Json(request): Json<JoinVoiceRequest>,
 ) -> AppResult<Json<VoiceState>> {
     let user_id = auth_user.user_id();
-    let session_id = Uuid::new_v4().to_string();
+    let session_id = Uuid::new_v4();
     let now = Utc::now();
 
     let voice_state = VoiceState {
         user_id,
         username: auth_user.0.username,
         channel_id: request.channel_id,
-        session_id: session_id.clone(),
+        session_id,
         is_muted: false,
         is_deafened: false,
         is_screen_sharing: false,
@@ -32,7 +32,7 @@ pub async fn join_voice_channel(
     };
 
     let voice_session = VoiceSession {
-        session_id: session_id.clone(),
+        session_id,
         user_id,
         channel_id: request.channel_id,
         peer_connection_id: None,
@@ -116,17 +116,5 @@ pub async fn get_all_voice_states(
     State(state): State<Arc<AppState>>,
     _auth_user: AuthUser,
 ) -> AppResult<Json<Vec<VoiceState>>> {
-    let all_states: Vec<VoiceState> = state
-        .voice_states
-        .iter()
-        .flat_map(|entry| {
-            entry
-                .value()
-                .iter()
-                .map(|r| r.value().clone())
-                .collect::<Vec<_>>()
-        })
-        .collect();
-
-    Ok(Json(all_states))
+    Ok(Json(state.all_voice_states()))
 }

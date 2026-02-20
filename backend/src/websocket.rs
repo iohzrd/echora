@@ -67,9 +67,9 @@ struct CameraUpdate {
 }
 
 pub async fn websocket_handler(
-    ws: WebSocketUpgrade,
-    Query(query): Query<WsQuery>,
     State(state): State<Arc<AppState>>,
+    Query(query): Query<WsQuery>,
+    ws: WebSocketUpgrade,
 ) -> Response {
     let claims = match auth::decode_jwt(&query.token) {
         Ok(c) => c,
@@ -156,7 +156,6 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
                                 handle_camera_update(&state, envelope.payload, user_id);
                             }
                             "ping" => {
-                                // Respond to client ping with pong
                                 let _ = sender.send(Message::Text("{\"type\":\"pong\"}".into())).await;
                             }
                             _ => {}

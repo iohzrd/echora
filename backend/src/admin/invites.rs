@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     response::Json,
 };
-use chrono::{Duration, Utc};
+use chrono::{TimeDelta, Utc};
 use rand::Rng;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -22,8 +22,8 @@ fn generate_invite_code() -> String {
 }
 
 pub async fn create_invite(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Json(payload): Json<CreateInviteRequest>,
 ) -> AppResult<Json<Invite>> {
     let actor_id = auth_user.user_id();
@@ -32,7 +32,8 @@ pub async fn create_invite(
 
     let expires_at = payload
         .expires_in_hours
-        .map(|h| Utc::now() + Duration::hours(h));
+        .and_then(TimeDelta::try_hours)
+        .map(|d| Utc::now() + d);
 
     let invite = Invite {
         id: Uuid::now_v7(),
@@ -51,8 +52,8 @@ pub async fn create_invite(
 }
 
 pub async fn list_invites(
-    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
 ) -> AppResult<Json<Vec<Invite>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
@@ -62,9 +63,9 @@ pub async fn list_invites(
 }
 
 pub async fn revoke_invite(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(invite_id): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
@@ -75,8 +76,8 @@ pub async fn revoke_invite(
 }
 
 pub async fn validate_invite(
-    Path(code): Path<String>,
     State(state): State<Arc<AppState>>,
+    Path(code): Path<String>,
 ) -> AppResult<Json<serde_json::Value>> {
     let invite = database::get_invite_by_code(&state.db, &code).await?;
 

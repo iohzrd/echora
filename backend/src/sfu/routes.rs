@@ -11,12 +11,7 @@ use uuid::Uuid;
 use crate::auth::AuthUser;
 use crate::models::AppState;
 use crate::sfu::models::{ConsumerData, ProducerInfo, TransportOptions};
-use crate::shared::{AppError, AppResult};
-
-fn sfu_error(context: &str, e: impl std::fmt::Display) -> AppError {
-    tracing::error!("{}: {}", context, e);
-    AppError::internal(e.to_string())
-}
+use crate::shared::AppResult;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTransportRequest {
@@ -60,7 +55,6 @@ pub async fn create_transport(
         .create_transport(req.channel_id, user_id)
         .await
         .map(Json)
-        .map_err(|e| sfu_error("Failed to create transport", e))
 }
 
 pub async fn connect_transport(
@@ -74,7 +68,6 @@ pub async fn connect_transport(
         .connect_transport(&transport_id, req.dtls_parameters)
         .await
         .map(|_| StatusCode::OK)
-        .map_err(|e| sfu_error(&format!("Failed to connect transport {transport_id}"), e))
 }
 
 pub async fn produce(
@@ -86,8 +79,7 @@ pub async fn produce(
     let info = state
         .sfu_service
         .produce(&transport_id, req.kind, req.rtp_parameters, req.label)
-        .await
-        .map_err(|e| sfu_error(&format!("Failed to produce on transport {transport_id}"), e))?;
+        .await?;
 
     // Broadcast new_producer event so other participants can consume immediately
     state.broadcast_global(
@@ -119,7 +111,6 @@ pub async fn consume(
         .consume(&transport_id, &req.producer_id, req.rtp_capabilities)
         .await
         .map(Json)
-        .map_err(|e| sfu_error(&format!("Failed to consume on transport {transport_id}"), e))
 }
 
 pub async fn close_connection(
@@ -132,7 +123,6 @@ pub async fn close_connection(
         .close_connection(&transport_id)
         .await
         .map(|_| StatusCode::OK)
-        .map_err(|e| sfu_error(&format!("Failed to close connection {transport_id}"), e))
 }
 
 pub async fn get_channel_producers(
@@ -153,10 +143,4 @@ pub async fn get_router_capabilities(
         .get_router_capabilities(channel_id)
         .await
         .map(Json)
-        .map_err(|e| {
-            sfu_error(
-                &format!("Failed to get router capabilities for channel {channel_id}"),
-                e,
-            )
-        })
 }

@@ -17,9 +17,9 @@ pub struct ModLogQuery {
 }
 
 pub async fn get_moderation_log(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Query(query): Query<ModLogQuery>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<ModLogEntry>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;

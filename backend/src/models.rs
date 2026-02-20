@@ -10,14 +10,15 @@ use uuid::Uuid;
 use crate::sfu::service::SfuService;
 use crate::shared::validation::BROADCAST_CHANNEL_CAPACITY;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Channel {
     pub id: Uuid,
     pub name: String,
     pub channel_type: ChannelType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelType {
     Text,
@@ -30,17 +31,6 @@ impl fmt::Display for ChannelType {
             Self::Text => f.write_str("text"),
             Self::Voice => f.write_str("voice"),
         }
-    }
-}
-
-impl std::str::FromStr for ChannelType {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "voice" => Self::Voice,
-            _ => Self::Text,
-        })
     }
 }
 
@@ -79,7 +69,7 @@ impl Message {
             author,
             author_id,
             channel_id,
-            timestamp: chrono::Utc::now(),
+            timestamp: Utc::now(),
             edited_at: None,
             reply_to_id,
             reply_to,
@@ -103,7 +93,7 @@ pub struct Reaction {
     pub reacted: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct LinkPreview {
     pub id: Uuid,
     pub url: String,
@@ -133,7 +123,7 @@ pub struct VoiceState {
     pub user_id: Uuid,
     pub username: String,
     pub channel_id: Uuid,
-    pub session_id: String,
+    pub session_id: Uuid,
     pub is_muted: bool,
     pub is_deafened: bool,
     pub is_screen_sharing: bool,
@@ -143,7 +133,7 @@ pub struct VoiceState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VoiceSession {
-    pub session_id: String,
+    pub session_id: Uuid,
     pub user_id: Uuid,
     pub channel_id: Uuid,
     pub peer_connection_id: Option<String>,
@@ -180,7 +170,7 @@ pub struct UpdateChannelRequest {
 
 // --- Admin / Moderation models ---
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct UserSummary {
     pub id: Uuid,
     pub username: String,
@@ -189,7 +179,7 @@ pub struct UserSummary {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Ban {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -201,7 +191,7 @@ pub struct Ban {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Mute {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -213,7 +203,7 @@ pub struct Mute {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Invite {
     pub id: Uuid,
     pub code: String,
@@ -227,7 +217,7 @@ pub struct Invite {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ModLogEntry {
     pub id: Uuid,
     pub action: String,
@@ -280,17 +270,11 @@ pub struct ServerSettingUpdate {
 pub struct AppState {
     pub db: PgPool,
     pub http_client: reqwest::Client,
-    // Per-channel text chat broadcast
     pub channel_broadcasts: DashMap<Uuid, broadcast::Sender<String>>,
-    // Global broadcast for server-wide events (channel CRUD, presence, voice)
     pub global_broadcast: broadcast::Sender<String>,
-    // Online users: user_id -> presence info
     pub online_users: DashMap<Uuid, UserPresence>,
-    // Voice state: channel_id -> user_id -> voice_state
     pub voice_states: DashMap<Uuid, DashMap<Uuid, VoiceState>>,
-    // Voice sessions: session_id -> session info
-    pub voice_sessions: DashMap<String, VoiceSession>,
-    // mediasoup SFU service
+    pub voice_sessions: DashMap<Uuid, VoiceSession>,
     pub sfu_service: Arc<SfuService>,
 }
 
@@ -325,5 +309,18 @@ impl AppState {
         if let Some(tx) = self.channel_broadcasts.get(&channel_id) {
             let _ = tx.send(msg.to_string());
         }
+    }
+
+    pub fn all_voice_states(&self) -> Vec<VoiceState> {
+        self.voice_states
+            .iter()
+            .flat_map(|entry| {
+                entry
+                    .value()
+                    .iter()
+                    .map(|r| r.value().clone())
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 }

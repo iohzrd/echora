@@ -22,10 +22,10 @@ pub struct MessageQuery {
 }
 
 pub async fn get_messages(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(channel_id): Path<Uuid>,
     Query(query): Query<MessageQuery>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<Message>>> {
     let user_id = auth_user.user_id();
 
@@ -36,9 +36,9 @@ pub async fn get_messages(
 }
 
 pub async fn send_message(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path(channel_id): Path<Uuid>,
-    State(state): State<Arc<AppState>>,
     Json(payload): Json<SendMessageRequest>,
 ) -> AppResult<Json<Message>> {
     let user_id = auth_user.user_id();
@@ -62,9 +62,9 @@ pub async fn send_message(
 }
 
 pub async fn edit_message(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
-    State(state): State<Arc<AppState>>,
     Json(payload): Json<EditMessageRequest>,
 ) -> AppResult<Json<Message>> {
     let user_id = auth_user.user_id();
@@ -88,9 +88,9 @@ pub async fn edit_message(
 }
 
 pub async fn delete_message(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id();
     let actor_role_str = database::get_user_role(&state.db, user_id).await?;
@@ -122,9 +122,9 @@ pub struct ReactionEvent {
 }
 
 pub async fn add_reaction(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path((channel_id, message_id, emoji)): Path<(Uuid, Uuid, String)>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id();
 
@@ -153,9 +153,9 @@ pub async fn add_reaction(
 }
 
 pub async fn remove_reaction(
+    State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
     Path((channel_id, message_id, emoji)): Path<(Uuid, Uuid, String)>,
-    State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id();
 
