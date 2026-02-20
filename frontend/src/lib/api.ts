@@ -120,7 +120,8 @@ export interface ServerSettings {
   [key: string]: string;
 }
 
-export const FRONTEND_VERSION = '0.2.5';
+declare const __APP_VERSION__: string;
+export const FRONTEND_VERSION = __APP_VERSION__;
 
 export class API {
   static async request<T>(
