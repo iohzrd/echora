@@ -15,8 +15,6 @@ jobs:
         include:
           - platform: ubuntu-22.04
             args: ''
-          - platform: ubuntu-22.04-arm
-            args: ''
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
           - platform: macos-latest
