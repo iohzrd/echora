@@ -1,6 +1,6 @@
-use evdev::{Device, InputEventKind, Key};
-use std::sync::atomic::{AtomicBool, Ordering};
+use evdev::{Device, EventSummary, KeyCode};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
@@ -21,81 +21,81 @@ struct Modifiers {
 #[derive(Clone)]
 struct KeyCombo {
     modifiers: Modifiers,
-    target: Key,
+    target: KeyCode,
 }
 
 /// Check if an evdev Key is a modifier and return which one.
-fn modifier_for_key(key: Key) -> Option<&'static str> {
+fn modifier_for_key(key: KeyCode) -> Option<&'static str> {
     match key {
-        Key::KEY_LEFTCTRL | Key::KEY_RIGHTCTRL => Some("ctrl"),
-        Key::KEY_LEFTSHIFT | Key::KEY_RIGHTSHIFT => Some("shift"),
-        Key::KEY_LEFTALT | Key::KEY_RIGHTALT => Some("alt"),
-        Key::KEY_LEFTMETA | Key::KEY_RIGHTMETA => Some("meta"),
+        KeyCode::KEY_LEFTCTRL | KeyCode::KEY_RIGHTCTRL => Some("ctrl"),
+        KeyCode::KEY_LEFTSHIFT | KeyCode::KEY_RIGHTSHIFT => Some("shift"),
+        KeyCode::KEY_LEFTALT | KeyCode::KEY_RIGHTALT => Some("alt"),
+        KeyCode::KEY_LEFTMETA | KeyCode::KEY_RIGHTMETA => Some("meta"),
         _ => None,
     }
 }
 
 /// Map a key name string (from the frontend) to an evdev Key.
-fn parse_key(name: &str) -> Option<Key> {
+fn parse_key(name: &str) -> Option<KeyCode> {
     match name {
-        "Space" => Some(Key::KEY_SPACE),
-        "CapsLock" => Some(Key::KEY_CAPSLOCK),
-        "Tab" => Some(Key::KEY_TAB),
-        "Backquote" => Some(Key::KEY_GRAVE),
-        "Backslash" => Some(Key::KEY_BACKSLASH),
-        "BracketLeft" => Some(Key::KEY_LEFTBRACE),
-        "BracketRight" => Some(Key::KEY_RIGHTBRACE),
-        "Semicolon" => Some(Key::KEY_SEMICOLON),
-        "Quote" => Some(Key::KEY_APOSTROPHE),
-        "Comma" => Some(Key::KEY_COMMA),
-        "Period" => Some(Key::KEY_DOT),
-        "Slash" => Some(Key::KEY_SLASH),
-        "Minus" => Some(Key::KEY_MINUS),
-        "Equal" => Some(Key::KEY_EQUAL),
+        "Space" => Some(KeyCode::KEY_SPACE),
+        "CapsLock" => Some(KeyCode::KEY_CAPSLOCK),
+        "Tab" => Some(KeyCode::KEY_TAB),
+        "Backquote" => Some(KeyCode::KEY_GRAVE),
+        "Backslash" => Some(KeyCode::KEY_BACKSLASH),
+        "BracketLeft" => Some(KeyCode::KEY_LEFTBRACE),
+        "BracketRight" => Some(KeyCode::KEY_RIGHTBRACE),
+        "Semicolon" => Some(KeyCode::KEY_SEMICOLON),
+        "Quote" => Some(KeyCode::KEY_APOSTROPHE),
+        "Comma" => Some(KeyCode::KEY_COMMA),
+        "Period" => Some(KeyCode::KEY_DOT),
+        "Slash" => Some(KeyCode::KEY_SLASH),
+        "Minus" => Some(KeyCode::KEY_MINUS),
+        "Equal" => Some(KeyCode::KEY_EQUAL),
         s if s.len() == 1 && s.as_bytes()[0].is_ascii_uppercase() => {
             let key_code = match s.as_bytes()[0] {
-                b'A' => Key::KEY_A,
-                b'B' => Key::KEY_B,
-                b'C' => Key::KEY_C,
-                b'D' => Key::KEY_D,
-                b'E' => Key::KEY_E,
-                b'F' => Key::KEY_F,
-                b'G' => Key::KEY_G,
-                b'H' => Key::KEY_H,
-                b'I' => Key::KEY_I,
-                b'J' => Key::KEY_J,
-                b'K' => Key::KEY_K,
-                b'L' => Key::KEY_L,
-                b'M' => Key::KEY_M,
-                b'N' => Key::KEY_N,
-                b'O' => Key::KEY_O,
-                b'P' => Key::KEY_P,
-                b'Q' => Key::KEY_Q,
-                b'R' => Key::KEY_R,
-                b'S' => Key::KEY_S,
-                b'T' => Key::KEY_T,
-                b'U' => Key::KEY_U,
-                b'V' => Key::KEY_V,
-                b'W' => Key::KEY_W,
-                b'X' => Key::KEY_X,
-                b'Y' => Key::KEY_Y,
-                b'Z' => Key::KEY_Z,
+                b'A' => KeyCode::KEY_A,
+                b'B' => KeyCode::KEY_B,
+                b'C' => KeyCode::KEY_C,
+                b'D' => KeyCode::KEY_D,
+                b'E' => KeyCode::KEY_E,
+                b'F' => KeyCode::KEY_F,
+                b'G' => KeyCode::KEY_G,
+                b'H' => KeyCode::KEY_H,
+                b'I' => KeyCode::KEY_I,
+                b'J' => KeyCode::KEY_J,
+                b'K' => KeyCode::KEY_K,
+                b'L' => KeyCode::KEY_L,
+                b'M' => KeyCode::KEY_M,
+                b'N' => KeyCode::KEY_N,
+                b'O' => KeyCode::KEY_O,
+                b'P' => KeyCode::KEY_P,
+                b'Q' => KeyCode::KEY_Q,
+                b'R' => KeyCode::KEY_R,
+                b'S' => KeyCode::KEY_S,
+                b'T' => KeyCode::KEY_T,
+                b'U' => KeyCode::KEY_U,
+                b'V' => KeyCode::KEY_V,
+                b'W' => KeyCode::KEY_W,
+                b'X' => KeyCode::KEY_X,
+                b'Y' => KeyCode::KEY_Y,
+                b'Z' => KeyCode::KEY_Z,
                 _ => return None,
             };
             Some(key_code)
         }
         s if s.len() == 1 && s.as_bytes()[0].is_ascii_digit() => {
             let key_code = match s.as_bytes()[0] {
-                b'0' => Key::KEY_0,
-                b'1' => Key::KEY_1,
-                b'2' => Key::KEY_2,
-                b'3' => Key::KEY_3,
-                b'4' => Key::KEY_4,
-                b'5' => Key::KEY_5,
-                b'6' => Key::KEY_6,
-                b'7' => Key::KEY_7,
-                b'8' => Key::KEY_8,
-                b'9' => Key::KEY_9,
+                b'0' => KeyCode::KEY_0,
+                b'1' => KeyCode::KEY_1,
+                b'2' => KeyCode::KEY_2,
+                b'3' => KeyCode::KEY_3,
+                b'4' => KeyCode::KEY_4,
+                b'5' => KeyCode::KEY_5,
+                b'6' => KeyCode::KEY_6,
+                b'7' => KeyCode::KEY_7,
+                b'8' => KeyCode::KEY_8,
+                b'9' => KeyCode::KEY_9,
                 _ => return None,
             };
             Some(key_code)
@@ -103,18 +103,18 @@ fn parse_key(name: &str) -> Option<Key> {
         s if s.starts_with('F') && s[1..].parse::<u32>().is_ok() => {
             let num: u32 = s[1..].parse().unwrap();
             let key_code = match num {
-                1 => Key::KEY_F1,
-                2 => Key::KEY_F2,
-                3 => Key::KEY_F3,
-                4 => Key::KEY_F4,
-                5 => Key::KEY_F5,
-                6 => Key::KEY_F6,
-                7 => Key::KEY_F7,
-                8 => Key::KEY_F8,
-                9 => Key::KEY_F9,
-                10 => Key::KEY_F10,
-                11 => Key::KEY_F11,
-                12 => Key::KEY_F12,
+                1 => KeyCode::KEY_F1,
+                2 => KeyCode::KEY_F2,
+                3 => KeyCode::KEY_F3,
+                4 => KeyCode::KEY_F4,
+                5 => KeyCode::KEY_F5,
+                6 => KeyCode::KEY_F6,
+                7 => KeyCode::KEY_F7,
+                8 => KeyCode::KEY_F8,
+                9 => KeyCode::KEY_F9,
+                10 => KeyCode::KEY_F10,
+                11 => KeyCode::KEY_F11,
+                12 => KeyCode::KEY_F12,
                 _ => return None,
             };
             Some(key_code)
@@ -151,17 +151,13 @@ fn parse_combo(combo: &str) -> Result<KeyCombo, String> {
 }
 
 /// Find all keyboard devices that support the target key.
-fn find_keyboards(target: Key) -> Vec<Device> {
+fn find_keyboards(target: KeyCode) -> Vec<Device> {
     evdev::enumerate()
         .filter_map(|(_, device)| {
             let supported = device
                 .supported_keys()
                 .map_or(false, |keys| keys.contains(target));
-            if supported {
-                Some(device)
-            } else {
-                None
-            }
+            if supported { Some(device) } else { None }
         })
         .collect()
 }
@@ -215,9 +211,9 @@ pub fn start(app: tauri::AppHandle, key_name: &str) -> Result<(), String> {
                 match device.fetch_events() {
                     Ok(events) => {
                         for event in events {
-                            if let InputEventKind::Key(key) = event.kind() {
-                                let pressed = event.value() == 1;
-                                let released = event.value() == 0;
+                            if let EventSummary::Key(_, key, value) = event.destructure() {
+                                let pressed = value == 1;
+                                let released = value == 0;
 
                                 if !pressed && !released {
                                     continue; // skip repeat (2)
