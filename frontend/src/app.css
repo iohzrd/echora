@@ -681,6 +681,82 @@ body {
 	color: var(--text-white);
 }
 
+.voice-control-btn.ptt-transmitting {
+	background: var(--status-positive);
+	color: var(--text-white);
+}
+
+.voice-settings {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 4px 0;
+	padding: 0 16px;
+}
+
+.voice-mode-toggle {
+	display: flex;
+	gap: 2px;
+	background: var(--bg-tertiary);
+	border-radius: var(--radius-md);
+	padding: 2px;
+}
+
+.mode-btn {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 3px 8px;
+	border-radius: var(--radius-sm);
+	font-size: 11px;
+	font-weight: 600;
+	transition: background-color 0.15s, color 0.15s;
+}
+
+.mode-btn:hover {
+	color: var(--text-normal);
+}
+
+.mode-btn.active {
+	background: var(--brand-primary);
+	color: var(--text-white);
+}
+
+.ptt-key-binding {
+	flex: 1;
+}
+
+.ptt-key-btn {
+	background: var(--bg-input);
+	border: 1px solid var(--border-subtle);
+	color: var(--text-secondary);
+	cursor: pointer;
+	padding: 3px 10px;
+	border-radius: var(--radius-md);
+	font-size: 11px;
+	font-weight: 600;
+	width: 100%;
+	text-align: center;
+	transition: border-color 0.15s;
+}
+
+.ptt-key-btn:hover {
+	border-color: var(--brand-primary);
+	color: var(--text-normal);
+}
+
+.ptt-key-btn.recording {
+	border-color: var(--status-positive);
+	color: var(--status-positive);
+	animation: pulse-border 1s infinite;
+}
+
+@keyframes pulse-border {
+	0%, 100% { border-color: var(--status-positive); }
+	50% { border-color: transparent; }
+}
+
 .create-channel-btn {
 	background: none;
 	border: none;

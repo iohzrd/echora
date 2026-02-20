@@ -17,6 +17,8 @@ function detachAudioElement(audio: HTMLAudioElement): void {
   audio.remove();
 }
 
+export type VoiceInputMode = 'voice-activity' | 'push-to-talk';
+
 export class VoiceManager {
   private mediasoup: MediasoupManager | null = null;
   private remoteAudioElements: Map<string, HTMLAudioElement> = new Map();
@@ -33,6 +35,8 @@ export class VoiceManager {
   private voiceStates: VoiceState[] = [];
   private speakingThreshold = 50;
   private ws: WebSocketManager | null = null;
+  private inputMode: VoiceInputMode = 'voice-activity';
+  private pttActive = false;
 
   setWebSocketManager(wsManager: WebSocketManager) {
     this.ws = wsManager;
@@ -79,6 +83,11 @@ export class VoiceManager {
       await this.consumeExistingProducers(channelId, currentUser.id);
 
       this.isConnected = true;
+
+      // In PTT mode, start muted until key is held
+      if (this.inputMode === 'push-to-talk') {
+        this.setMuted(true);
+      }
 
       // Reconciliation: re-check for producers after a delay in case of race conditions
       // during the join flow (producers registered after our initial fetch)
@@ -151,6 +160,13 @@ export class VoiceManager {
     } catch (e) {
       console.error('Failed to consume producer', producerId, e);
     }
+  }
+
+  async reconcileProducers(): Promise<void> {
+    if (!this.isConnected || !this.currentChannelId) return;
+    const currentUser = get(user);
+    if (!currentUser) return;
+    await this.consumeExistingProducers(this.currentChannelId, currentUser.id);
   }
 
   private handleRemoteTrack(track: MediaStreamTrack, userId: string, kind: string, label?: string): void {
@@ -303,29 +319,54 @@ export class VoiceManager {
   }
 
   async toggleMute(): Promise<void> {
-    this.isMuted = !this.isMuted;
+    // In PTT mode, toggleMute acts as a force-mute override
+    if (this.inputMode === 'push-to-talk') {
+      this.setMuted(!this.isMuted);
+      return;
+    }
+    this.setMuted(!this.isMuted);
+  }
 
-    // Pause/resume the mediasoup producer (local mute)
+  private setMuted(muted: boolean): void {
+    this.isMuted = muted;
+
     if (this.mediasoup) {
-      if (this.isMuted) {
+      if (muted) {
         this.mediasoup.pauseAudioProducer();
       } else {
         this.mediasoup.resumeAudioProducer();
       }
     }
 
-    // Also mute the local stream track
     if (this.localStream) {
       this.localStream.getAudioTracks().forEach(track => {
-        track.enabled = !this.isMuted;
+        track.enabled = !muted;
       });
     }
 
     if (this.currentChannelId && this.ws) {
-      this.ws.sendVoiceStateUpdate(this.currentChannelId, { is_muted: this.isMuted });
+      this.ws.sendVoiceStateUpdate(this.currentChannelId, { is_muted: muted });
     }
 
     this.onStateChanged?.();
+  }
+
+  setPTTActive(active: boolean): void {
+    if (this.inputMode !== 'push-to-talk') return;
+    this.pttActive = active;
+    this.setMuted(!active);
+  }
+
+  setInputMode(mode: VoiceInputMode): void {
+    this.inputMode = mode;
+    // Only change mute state if currently in a voice channel
+    if (this.isConnected) {
+      if (mode === 'push-to-talk') {
+        this.setMuted(true);
+      } else {
+        this.setMuted(false);
+      }
+    }
   }
 
   async toggleDeafen(): Promise<void> {
@@ -397,6 +438,8 @@ export class VoiceManager {
   get isConnectedState(): boolean { return this.isConnected; }
   get currentChannel(): string | null { return this.currentChannelId; }
   get currentVoiceStates(): VoiceState[] { return this.voiceStates; }
+  get currentInputMode(): VoiceInputMode { return this.inputMode; }
+  get isPTTActive(): boolean { return this.pttActive; }
 
   // Event handlers
   onVoiceStatesChange(handler: (states: VoiceState[]) => void): void {

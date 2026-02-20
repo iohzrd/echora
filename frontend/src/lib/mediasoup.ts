@@ -4,6 +4,34 @@ import { API } from './api';
 import { getApiBase } from './config';
 import { appFetch } from './serverManager';
 
+// WebKitGTK's GStreamer-based WebRTC omits a=ssrc lines from SDP offers, which
+// causes mediasoup-client to fail with "no a=ssrc lines found". We inject
+// placeholder SSRC lines so mediasoup-client can parse the SDP. The real SSRC
+// is read from the RTP sender stats and patched into rtpParameters before the
+// produce request reaches the server (see fixProducerSsrc).
+if (typeof RTCPeerConnection !== 'undefined') {
+  const origCreateOffer = RTCPeerConnection.prototype.createOffer as
+    (this: RTCPeerConnection, options?: RTCOfferOptions) => Promise<RTCSessionDescriptionInit>;
+
+  RTCPeerConnection.prototype.createOffer = async function (
+    this: RTCPeerConnection,
+    ...args: [RTCOfferOptions?]
+  ): Promise<RTCSessionDescriptionInit> {
+    const offer = await origCreateOffer.apply(this, args);
+    if (offer.sdp && !offer.sdp.includes('a=ssrc:')) {
+      offer.sdp = offer.sdp.replace(
+        /^(m=(?:audio|video)\s.+(?:\r?\n(?!m=).+)*)/gm,
+        (section: string) => {
+          if (section.includes('a=ssrc:')) return section;
+          const ssrc = Math.floor(Math.random() * 0xFFFFFFFF);
+          return section + `\r\na=ssrc:${ssrc} cname:webkitgtk\r\na=ssrc:${ssrc} msid:webkitgtk webkitgtk`;
+        }
+      );
+    }
+    return offer;
+  } as typeof RTCPeerConnection.prototype.createOffer;
+}
+
 interface TransportOptions {
   id: string;
   ice_parameters: mediasoupClient.types.IceParameters;
@@ -152,6 +180,11 @@ export class MediasoupManager {
       'produce',
       async ({ kind, rtpParameters, appData }, callback, errback) => {
         try {
+          // WebKitGTK SSRC fix: the SDP had a placeholder SSRC but GStreamer uses
+          // its own. Read the real SSRC from the RTP sender and update rtpParameters
+          // before sending to the server, so mediasoup matches the actual RTP stream.
+          await this.fixProducerSsrc(kind, rtpParameters);
+
           const producerId = await produceRequest(
             transportId,
             kind,
@@ -164,6 +197,49 @@ export class MediasoupManager {
         }
       },
     );
+  }
+
+  /**
+   * Fix SSRC in rtpParameters by reading the real SSRC from the RTP sender.
+   * WebKitGTK/GStreamer sends RTP with its own SSRC that differs from the
+   * placeholder injected into the SDP. Without this fix, mediasoup drops all
+   * packets because the SSRC doesn't match.
+   */
+  private async fixProducerSsrc(
+    kind: mediasoupClient.types.MediaKind,
+    rtpParameters: mediasoupClient.types.RtpParameters,
+  ): Promise<void> {
+    try {
+      const pc = (this.sendTransport as unknown as { _handler?: { _pc?: RTCPeerConnection } })
+        ?._handler?._pc;
+      if (!pc) return;
+
+      const sender = pc.getSenders().find(s => s.track?.kind === kind);
+      if (!sender) return;
+
+      let realSsrc: number | null = null;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const stats = await sender.getStats();
+        stats.forEach((stat) => {
+          if (stat.type === 'outbound-rtp' && stat.ssrc) {
+            realSsrc = stat.ssrc;
+          }
+        });
+        if (realSsrc !== null) break;
+      }
+
+      if (realSsrc === null) return;
+
+      const oldSsrc = rtpParameters.encodings?.[0]?.ssrc;
+      if (oldSsrc === realSsrc) return;
+
+      if (rtpParameters.encodings?.[0]) {
+        rtpParameters.encodings[0].ssrc = realSsrc;
+      }
+    } catch {
+      // SSRC fix is best-effort; standard browsers don't need it
+    }
   }
 
   async produce(track: MediaStreamTrack) {

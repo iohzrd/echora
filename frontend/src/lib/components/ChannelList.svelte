@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { Channel, VoiceState } from "../api";
+  import type { VoiceInputMode } from "../voice";
   import { getInitial } from "../utils";
+  import { formatKeyLabel, keyEventToTauriKey } from "../ptt";
 
   export let channels: Channel[] = [];
   export let selectedChannelId: string = "";
@@ -11,6 +13,9 @@
   export let isDeafened: boolean = false;
   export let isScreenSharing: boolean = false;
   export let currentUserId: string = "";
+  export let voiceInputMode: VoiceInputMode = "voice-activity";
+  export let pttKey: string = "Space";
+  export let pttActive: boolean = false;
 
   export let onSelectChannel: (id: string, name: string) => void = () => {};
   export let onCreateChannel: (name: string, type: "text" | "voice") => void = () => {};
@@ -22,12 +27,27 @@
   export let onToggleDeafen: () => void = () => {};
   export let onToggleScreenShare: () => void = () => {};
   export let onWatchScreen: (userId: string, username: string) => void = () => {};
+  export let onSwitchInputMode: (mode: VoiceInputMode) => void = () => {};
+  export let onChangePTTKey: (key: string) => void = () => {};
 
   // Local state for channel create/edit forms
   let showCreateChannel: "text" | "voice" | null = null;
   let newChannelName = "";
   let editingChannelId: string | null = null;
   let editChannelName = "";
+
+  // PTT key recording state
+  let recordingKey = false;
+
+  function handleKeyRecord(e: KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = keyEventToTauriKey(e);
+    if (key) {
+      recordingKey = false;
+      onChangePTTKey(key);
+    }
+  }
 
   function formKeydown(event: KeyboardEvent, onSubmit: () => void, onCancel: () => void) {
     if (event.key === "Enter") {
@@ -206,11 +226,17 @@
     {#if currentVoiceChannel === channel.id}
       <div class="voice-controls">
         <button
-          class="voice-control-btn {isMuted ? 'active' : ''}"
+          class="voice-control-btn {isMuted ? 'active' : ''} {voiceInputMode === 'push-to-talk' && pttActive ? 'ptt-transmitting' : ''}"
           on:click={onToggleMute}
-          title={isMuted ? "Unmute" : "Mute"}
+          title={voiceInputMode === 'push-to-talk'
+            ? (pttActive ? 'Transmitting' : 'PTT: Hold ' + formatKeyLabel(pttKey))
+            : (isMuted ? 'Unmute' : 'Mute')}
         >
-          {isMuted ? "MUTED" : "MIC"}
+          {#if voiceInputMode === 'push-to-talk'}
+            {pttActive ? 'TX' : 'PTT'}
+          {:else}
+            {isMuted ? "MUTED" : "MIC"}
+          {/if}
         </button>
         <button
           class="voice-control-btn {isDeafened ? 'active' : ''}"
@@ -226,6 +252,47 @@
         >
           {isScreenSharing ? "SHARING" : "SCREEN"}
         </button>
+      </div>
+
+      <div class="voice-settings">
+        <div class="voice-mode-toggle">
+          <button
+            class="mode-btn {voiceInputMode === 'voice-activity' ? 'active' : ''}"
+            on:click={() => onSwitchInputMode('voice-activity')}
+            title="Voice Activity Detection"
+          >
+            VAD
+          </button>
+          <button
+            class="mode-btn {voiceInputMode === 'push-to-talk' ? 'active' : ''}"
+            on:click={() => onSwitchInputMode('push-to-talk')}
+            title="Push to Talk"
+          >
+            PTT
+          </button>
+        </div>
+
+        {#if voiceInputMode === 'push-to-talk'}
+          <div class="ptt-key-binding">
+            {#if recordingKey}
+              <button
+                class="ptt-key-btn recording"
+                on:keydown={handleKeyRecord}
+                on:blur={() => (recordingKey = false)}
+              >
+                Press a key...
+              </button>
+            {:else}
+              <button
+                class="ptt-key-btn"
+                on:click={() => (recordingKey = true)}
+                title="Click to change PTT key"
+              >
+                {formatKeyLabel(pttKey)}
+              </button>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
 

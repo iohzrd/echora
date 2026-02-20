@@ -193,7 +193,8 @@ export type WsOutgoingMessage =
   | { message_type: 'message'; channel_id: string; content: string; reply_to_id?: string }
   | { message_type: 'voice_state_update'; channel_id: string; is_muted?: boolean; is_deafened?: boolean }
   | { message_type: 'voice_speaking'; channel_id: string; is_speaking: boolean }
-  | { message_type: 'screen_share_update'; channel_id: string; is_screen_sharing: boolean };
+  | { message_type: 'screen_share_update'; channel_id: string; is_screen_sharing: boolean }
+  | { message_type: 'ping'; channel_id: ''; content: '' };
 
 export interface WsIncomingMessage {
   type: string;
@@ -204,10 +205,12 @@ export interface WsIncomingMessage {
 export class WebSocketManager {
   private ws: WebSocket | null = null;
   private messageHandlers: ((data: WsIncomingMessage) => void)[] = [];
+  private reconnectCallbacks: (() => void)[] = [];
   private intentionalClose = false;
   private reconnectAttempts = 0;
   private maxReconnectDelay = 30000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private currentChannelId: string | null = null;
 
   connect(): Promise<void> {
@@ -217,9 +220,14 @@ export class WebSocketManager {
 
     return new Promise<void>((resolve) => {
       this.ws!.onopen = () => {
+        const isReconnect = this.reconnectAttempts > 0;
         this.reconnectAttempts = 0;
         if (this.currentChannelId) {
           this.joinChannel(this.currentChannelId);
+        }
+        this.startHeartbeat();
+        if (isReconnect) {
+          this.reconnectCallbacks.forEach(cb => cb());
         }
         resolve();
       };
@@ -227,6 +235,7 @@ export class WebSocketManager {
       this.ws!.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as WsIncomingMessage;
+          if (data.type === 'pong') return;
           this.messageHandlers.forEach(handler => handler(data));
         } catch {
           // Ignore malformed messages
@@ -234,6 +243,7 @@ export class WebSocketManager {
       };
 
       this.ws!.onclose = () => {
+        this.stopHeartbeat();
         if (!this.intentionalClose) {
           const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay);
           this.reconnectAttempts++;
@@ -249,6 +259,7 @@ export class WebSocketManager {
 
   disconnect() {
     this.intentionalClose = true;
+    this.stopHeartbeat();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -256,6 +267,24 @@ export class WebSocketManager {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
+    }
+  }
+
+  onReconnect(callback: () => void) {
+    this.reconnectCallbacks.push(callback);
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.send({ message_type: 'ping', channel_id: '', content: '' } as WsOutgoingMessage);
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 

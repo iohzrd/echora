@@ -100,6 +100,10 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, claims: auth::Claims
     let mut current_channel: Option<Uuid> = None;
     let mut broadcast_rx: Option<broadcast::Receiver<String>> = None;
 
+    // Ping interval to keep ALB from closing idle connections (ALB default timeout = 60s)
+    let mut ping_interval = tokio::time::interval(std::time::Duration::from_secs(30));
+    ping_interval.tick().await; // consume the immediate first tick
+
     loop {
         tokio::select! {
             msg = receiver.next() => {
@@ -135,11 +139,24 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, claims: auth::Claims
                             "screen_share_update" => {
                                 handle_screen_share_update(&state, envelope.payload, user_id);
                             }
+                            "ping" => {
+                                // Respond to client ping with pong
+                                let _ = sender.send(Message::Text("{\"type\":\"pong\"}".into())).await;
+                            }
                             _ => {}
                         }
                     }
+                    Some(Ok(Message::Ping(data))) => {
+                        let _ = sender.send(Message::Pong(data)).await;
+                    }
                     Some(Ok(Message::Close(_))) | None => break,
                     _ => {}
+                }
+            }
+
+            _ = ping_interval.tick() => {
+                if sender.send(Message::Ping(vec![].into())).await.is_err() {
+                    break;
                 }
             }
 

@@ -10,7 +10,9 @@
     type UserPresence,
   } from "../lib/api";
   import { voiceManager } from "../lib/voice";
+  import type { VoiceInputMode } from "../lib/voice";
   import { getChannelProducers } from "../lib/mediasoup";
+  import { initPTT, switchInputMode, changePTTKey, loadVoiceSettings } from "../lib/ptt";
   import AuthService, { user } from "../lib/auth";
   import {
     isTauri,
@@ -53,6 +55,11 @@
   let isMuted = false;
   let isDeafened = false;
   let isScreenSharing = false;
+
+  // PTT state
+  let voiceInputMode: VoiceInputMode = "voice-activity";
+  let pttKey = "Space";
+  let pttActive = false;
 
   // Screen share viewing state
   let watchingScreenUserId: string | null = null;
@@ -101,6 +108,8 @@
     isMuted = voiceManager.isMutedState;
     isDeafened = voiceManager.isDeafenedState;
     isScreenSharing = voiceManager.isScreenSharingState;
+    voiceInputMode = voiceManager.currentInputMode;
+    pttActive = voiceManager.isPTTActive;
   }
 
   function updateMessageReaction(
@@ -394,6 +403,7 @@
       wsManager = new WebSocketManager();
       voiceManager.setWebSocketManager(wsManager);
       setupWsHandlers();
+      wsManager.onReconnect(() => voiceManager.reconcileProducers());
 
       await wsManager.connect();
 
@@ -422,6 +432,10 @@
 
   onMount(async () => {
     setupVoiceHandlers();
+    // Initialize PTT settings from localStorage
+    const settings = await initPTT();
+    voiceInputMode = settings.inputMode;
+    pttKey = settings.pttKey;
     await connectToServer();
   });
 
@@ -557,6 +571,17 @@
 
   function toggleDeafen() {
     tryAction(() => voiceManager.toggleDeafen(), "toggle deafen");
+  }
+
+  async function handleSwitchInputMode(mode: VoiceInputMode) {
+    await switchInputMode(mode, pttKey);
+    voiceInputMode = mode;
+    syncVoiceState();
+  }
+
+  async function handleChangePTTKey(key: string) {
+    pttKey = key;
+    await changePTTKey(key);
   }
 
   async function toggleScreenShare() {
@@ -780,6 +805,9 @@
             {isMuted}
             {isDeafened}
             {isScreenSharing}
+            {voiceInputMode}
+            {pttKey}
+            {pttActive}
             currentUserId={$user?.id || ""}
             onSelectChannel={selectChannel}
             onCreateChannel={handleCreateChannel}
@@ -791,6 +819,8 @@
             onToggleDeafen={toggleDeafen}
             onToggleScreenShare={toggleScreenShare}
             onWatchScreen={watchScreen}
+            onSwitchInputMode={handleSwitchInputMode}
+            onChangePTTKey={handleChangePTTKey}
           />
 
           <OnlineUsers {onlineUsers} />
