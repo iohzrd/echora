@@ -167,6 +167,16 @@ export class API {
     }
   }
 
+  static async getServerInfo(): Promise<{ name: string }> {
+    try {
+      const response = await appFetch(`${getApiBase()}/server/info`);
+      if (!response.ok) return { name: 'Echora' };
+      return await response.json();
+    } catch {
+      return { name: 'Echora' };
+    }
+  }
+
   static async getChannels(): Promise<Channel[]> {
     return this.request('/channels', {}, 'Failed to fetch channels');
   }

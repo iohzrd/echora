@@ -110,6 +110,19 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
         tracing::info!("Seeded {} default channels", channels.len());
     }
 
+    // Seed default server_name if not present
+    let has_name: Option<(String,)> =
+        sqlx::query_as("SELECT value FROM server_settings WHERE key = 'server_name'")
+            .fetch_optional(pool)
+            .await?;
+    if has_name.is_none() {
+        sqlx::query(
+            "INSERT INTO server_settings (key, value, updated_at) VALUES ('server_name', 'Echora', NOW()) ON CONFLICT (key) DO NOTHING",
+        )
+        .execute(pool)
+        .await?;
+    }
+
     // Ensure at least one owner exists (promote oldest user if none)
     let owner_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE role = 'owner'")
         .fetch_one(pool)

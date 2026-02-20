@@ -108,6 +108,7 @@
 
   // Version info
   let backendVersion = "";
+  let serverName = "";
 
   // User roles map (user_id -> role)
   let userRolesMap: Record<string, string> = {};
@@ -465,6 +466,7 @@
     selectedChannelId = "";
     selectedChannelName = "";
     backendVersion = "";
+    serverName = "";
     needsServerAuth = false;
     typingUsers.forEach((u) => clearTimeout(u.timeout));
     typingUsers = new Map();
@@ -502,6 +504,8 @@
       onlineUsers = await API.getOnlineUsers();
       voiceStates = await API.getAllVoiceStates();
       backendVersion = await API.getBackendVersion();
+      const info = await API.getServerInfo();
+      serverName = info.name;
 
       // Fetch user roles for online user badges (Mod+ only)
       const role = $user?.role || "member";
@@ -962,7 +966,7 @@
     return "Several people are typing...";
   }
 
-  $: activeServerName = $activeServer?.name || "Echora";
+  $: activeServerName = serverName || $activeServer?.name || "Echora";
   $: userRole = $user?.role || "member";
   $: isMod = userRole === "moderator" || userRole === "admin" || userRole === "owner";
   $: onlineUserRoles = userRolesMap;
@@ -1028,15 +1032,9 @@
   {:else}
     <!-- Normal authenticated state (web or Tauri with active session) -->
     <div class="sidebar {sidebarOpen ? 'open' : ''}">
-      {#if !isTauri}
-        <div class="server-list">
-          <div class="server-icon home" title="Echora">E</div>
-        </div>
-      {/if}
-
       <div class="channels-area">
         <div class="server-header">
-          <span>{activeServerName}</span>
+          <span class="server-name">{activeServerName}</span>
           <div class="header-actions">
             {#if isMod}
               <button class="admin-btn" on:click={() => (showAdminPanel = true)} title="Admin Panel">

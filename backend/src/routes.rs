@@ -27,6 +27,15 @@ pub struct MessageQuery {
     pub before: Option<DateTime<Utc>>,
 }
 
+pub async fn get_server_info(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<serde_json::Value>> {
+    let name = database::get_server_setting(&state.db, "server_name").await?;
+    Ok(Json(serde_json::json!({
+        "name": name,
+    })))
+}
+
 pub async fn get_channels(
     _auth_user: AuthUser,
     State(state): State<Arc<AppState>>,

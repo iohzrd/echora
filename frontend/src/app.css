@@ -60,39 +60,6 @@ body {
 	border-right: 1px solid var(--border-primary);
 }
 
-.server-list {
-	width: 72px;
-	background-color: var(--bg-tertiary);
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	padding: 12px 0;
-	gap: 8px;
-}
-
-.server-icon {
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	background-color: var(--brand-primary);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--text-white);
-	font-weight: bold;
-	cursor: pointer;
-	transition: border-radius 0.2s ease;
-}
-
-.server-icon:hover {
-	border-radius: 16px;
-	background-color: var(--brand-primary);
-}
-
-.server-icon.home {
-	background-color: var(--brand-primary);
-}
-
 .channels-area {
 	flex: 1;
 	display: flex;
@@ -100,14 +67,19 @@ body {
 }
 
 .server-header {
-	height: 48px;
-	padding: 0 16px;
+	padding: 12px 16px 8px;
 	display: flex;
-	align-items: center;
-	justify-content: space-between;
+	flex-direction: column;
+	gap: 6px;
 	border-bottom: 1px solid var(--border-primary);
+}
+
+.server-header .server-name {
 	font-weight: 600;
 	font-size: 16px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .version-bar {
@@ -1488,10 +1460,6 @@ body {
 
 /* Mobile Responsive - Tablet */
 @media (max-width: 768px) {
-	.server-list {
-		display: none;
-	}
-
 	.sidebar {
 		position: fixed;
 		left: -240px;
