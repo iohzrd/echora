@@ -61,6 +61,8 @@ body {
 	display: flex;
 	flex-direction: column;
 	border-right: 1px solid var(--border-primary);
+	flex-shrink: 0;
+	overflow: hidden;
 }
 
 .channels-area {
@@ -77,6 +79,7 @@ body {
 	align-items: center;
 	gap: 8px;
 	border-bottom: 1px solid var(--border-primary);
+	flex-shrink: 0;
 }
 
 .server-header .server-name {
