@@ -942,10 +942,10 @@
     }
   }
 
-  function handleSendMessage(text: string) {
+  function handleSendMessage(text: string, attachmentIds?: string[]) {
     if (selectedChannelId && $user) {
       try {
-        wsManager.sendMessage(selectedChannelId, text, replyingTo?.id);
+        wsManager.sendMessage(selectedChannelId, text, replyingTo?.id, attachmentIds);
         replyingTo = null;
       } catch (error) {
         console.error("Failed to send message:", error);

@@ -32,8 +32,10 @@ struct WsEnvelope {
 #[derive(Debug, Deserialize)]
 struct ChatMessage {
     channel_id: Uuid,
-    content: String,
+    content: Option<String>,
     reply_to_id: Option<Uuid>,
+    #[serde(default)]
+    attachment_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -282,6 +284,7 @@ async fn handle_chat_message(
             channel_id: chat_msg.channel_id,
             content: chat_msg.content,
             reply_to_id: chat_msg.reply_to_id,
+            attachment_ids: chat_msg.attachment_ids,
             validate_reply_channel: false,
         },
     )

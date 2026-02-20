@@ -6,8 +6,8 @@ use uuid::Uuid;
 use crate::auth::User;
 use crate::link_preview::LinkPreviewData;
 use crate::models::{
-    Ban, Channel, ChannelType, Invite, LinkPreview, Message, ModLogEntry, Mute, Reaction,
-    ReplyPreview, UserSummary,
+    Attachment, Ban, Channel, ChannelType, Invite, LinkPreview, Message, ModLogEntry, Mute,
+    Reaction, ReplyPreview, UserSummary,
 };
 use crate::permissions::Role;
 use crate::shared::AppError;
@@ -42,6 +42,7 @@ impl From<MessageRow> for Message {
             reply_to: None,
             reactions: None,
             link_previews: None,
+            attachments: None,
         }
     }
 }
@@ -272,15 +273,17 @@ pub async fn get_messages(
         }
     }
 
-    // Batch-fetch reactions and link previews concurrently
+    // Batch-fetch reactions, link previews, and attachments concurrently
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
     if !message_ids.is_empty() {
-        let (reactions_map, previews_map) = tokio::join!(
+        let (reactions_map, previews_map, attachments_map) = tokio::join!(
             get_reactions_for_messages(pool, &message_ids, requesting_user_id),
             get_link_previews_for_messages(pool, &message_ids),
+            get_attachments_for_messages(pool, &message_ids),
         );
         let reactions_map = reactions_map?;
         let previews_map = previews_map?;
+        let attachments_map = attachments_map?;
 
         for msg in &mut messages {
             if let Some(reactions) = reactions_map.get(&msg.id)
@@ -292,6 +295,11 @@ pub async fn get_messages(
                 && !previews.is_empty()
             {
                 msg.link_previews = Some(previews.clone());
+            }
+            if let Some(attachments) = attachments_map.get(&msg.id)
+                && !attachments.is_empty()
+            {
+                msg.attachments = Some(attachments.clone());
             }
         }
     }
@@ -541,6 +549,51 @@ pub async fn get_link_previews_for_messages(
     }
 
     Ok(previews_map)
+}
+
+// --- Attachments ---
+
+pub async fn get_attachments_for_messages(
+    pool: &PgPool,
+    message_ids: &[Uuid],
+) -> Result<HashMap<Uuid, Vec<Attachment>>, AppError> {
+    let rows: Vec<Attachment> = sqlx::query_as(
+        "SELECT id, filename, content_type, size, storage_path, uploader_id, message_id, created_at
+         FROM attachments WHERE message_id = ANY($1)
+         ORDER BY created_at ASC",
+    )
+    .bind(message_ids)
+    .fetch_all(pool)
+    .await?;
+
+    let mut map: HashMap<Uuid, Vec<Attachment>> = HashMap::new();
+    for row in rows {
+        if let Some(msg_id) = row.message_id {
+            map.entry(msg_id).or_default().push(row);
+        }
+    }
+
+    Ok(map)
+}
+
+pub async fn link_attachments_to_message(
+    pool: &PgPool,
+    attachment_ids: &[Uuid],
+    message_id: Uuid,
+    uploader_id: Uuid,
+) -> Result<Vec<Attachment>, AppError> {
+    let attachments: Vec<Attachment> = sqlx::query_as(
+        "UPDATE attachments SET message_id = $1
+         WHERE id = ANY($2) AND uploader_id = $3 AND message_id IS NULL
+         RETURNING *",
+    )
+    .bind(message_id)
+    .bind(attachment_ids)
+    .bind(uploader_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(attachments)
 }
 
 // --- Users ---

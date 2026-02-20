@@ -29,6 +29,17 @@ export interface LinkPreview {
   site_name?: string;
 }
 
+export interface Attachment {
+  id: string;
+  filename: string;
+  content_type: string;
+  size: number;
+  storage_path: string;
+  uploader_id: string;
+  message_id?: string;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -41,11 +52,13 @@ export interface Message {
   reply_to?: ReplyPreview;
   reactions?: ReactionData[];
   link_previews?: LinkPreview[];
+  attachments?: Attachment[];
 }
 
 export interface SendMessageRequest {
-  content: string;
+  content?: string;
   reply_to_id?: string;
+  attachment_ids?: string[];
 }
 
 export interface VoiceState {
@@ -314,12 +327,43 @@ export class API {
   static async getModLog(): Promise<ModLogEntry[]> {
     return this.request('/admin/modlog', {}, 'Failed to fetch moderation log');
   }
+
+  // --- Attachments ---
+
+  static async uploadAttachment(
+    file: File,
+    onProgress?: (percent: number) => void,
+  ): Promise<Attachment> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers: Record<string, string> = {
+      ...AuthService.getAuthHeaders(),
+    };
+
+    const response = await appFetch(`${getApiBase()}/attachments`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to upload file');
+    }
+
+    return response.json();
+  }
+
+  static getAttachmentUrl(attachmentId: string, filename: string): string {
+    return `${getApiBase()}/attachments/${attachmentId}/${encodeURIComponent(filename)}`;
+  }
 }
 
 export type WsOutgoingMessage =
   | { message_type: 'join'; channel_id: string; content: '' }
   | { message_type: 'typing'; channel_id: string; content: '' }
-  | { message_type: 'message'; channel_id: string; content: string; reply_to_id?: string }
+  | { message_type: 'message'; channel_id: string; content: string; reply_to_id?: string; attachment_ids?: string[] }
   | { message_type: 'voice_state_update'; channel_id: string; is_muted?: boolean; is_deafened?: boolean }
   | { message_type: 'voice_speaking'; channel_id: string; is_speaking: boolean }
   | { message_type: 'screen_share_update'; channel_id: string; is_screen_sharing: boolean }
@@ -441,12 +485,13 @@ export class WebSocketManager {
     this.send({ message_type: 'typing', channel_id: channelId, content: '' });
   }
 
-  sendMessage(channelId: string, content: string, replyToId?: string) {
+  sendMessage(channelId: string, content: string, replyToId?: string, attachmentIds?: string[]) {
     const message: WsOutgoingMessage = {
       message_type: 'message',
       channel_id: channelId,
       content,
       ...(replyToId ? { reply_to_id: replyToId } : {}),
+      ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
     };
     this.send(message);
   }

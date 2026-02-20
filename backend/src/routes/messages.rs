@@ -53,6 +53,7 @@ pub async fn send_message(
             channel_id,
             content: payload.content,
             reply_to_id: payload.reply_to_id,
+            attachment_ids: payload.attachment_ids,
             validate_reply_channel: true,
         },
     )

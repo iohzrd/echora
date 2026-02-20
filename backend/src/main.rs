@@ -4,7 +4,6 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use std::sync::Arc;
-use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::cors::CorsLayer;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
@@ -21,6 +20,7 @@ mod routes;
 mod services;
 mod sfu;
 mod shared;
+mod storage;
 mod voice;
 mod websocket;
 
@@ -45,7 +45,9 @@ async fn main() {
 
     let http_client = shared::http::create_http_client(10).expect("Failed to create HTTP client");
 
-    let state = Arc::new(AppState::new(db, sfu_service, http_client));
+    let file_store = storage::build_object_store().expect("Failed to initialize file storage");
+
+    let state = Arc::new(AppState::new(db, sfu_service, http_client, file_store));
 
     // Spawn periodic cleanup of expired bans and mutes
     let cleanup_db = state.db.clone();
@@ -58,18 +60,9 @@ async fn main() {
         }
     });
 
-    // Rate limiter for auth endpoints: 10 requests per 60 seconds per IP
-    let auth_governor_config = GovernorConfigBuilder::default()
-        .per_second(6)
-        .burst_size(10)
-        .finish()
-        .expect("Failed to build auth rate limiter config");
-
-    // Auth routes with stricter rate limiting
     let auth_routes = Router::new()
         .route("/api/auth/register", post(auth_routes::register))
-        .route("/api/auth/login", post(auth_routes::login))
-        .layer(GovernorLayer::new(Arc::new(auth_governor_config)));
+        .route("/api/auth/login", post(auth_routes::login));
 
     let app = Router::new()
         .route("/api/init", get(routes::get_init))
@@ -160,6 +153,15 @@ async fn main() {
         )
         .route("/api/invites/{invite_id}", delete(admin::revoke_invite))
         .route("/api/invites/{code}/validate", get(admin::validate_invite))
+        // Attachment routes
+        .route(
+            "/api/attachments",
+            post(routes::upload_attachment).layer(RequestBodyLimitLayer::new(25 * 1024 * 1024)), // 25MB for uploads
+        )
+        .route(
+            "/api/attachments/{attachment_id}/{filename}",
+            get(routes::download_attachment),
+        )
         // Merge rate-limited auth routes
         .merge(auth_routes)
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))

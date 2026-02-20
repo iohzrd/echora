@@ -7,6 +7,8 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
+use object_store::ObjectStore;
+
 use crate::permissions::Role;
 use crate::sfu::service::SfuService;
 use crate::shared::validation::BROADCAST_CHANNEL_CAPACITY;
@@ -53,6 +55,8 @@ pub struct Message {
     pub reactions: Option<Vec<Reaction>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub link_previews: Option<Vec<LinkPreview>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<Attachment>>,
 }
 
 impl Message {
@@ -76,6 +80,7 @@ impl Message {
             reply_to,
             reactions: None,
             link_previews: None,
+            attachments: None,
         }
     }
 }
@@ -108,10 +113,25 @@ pub struct LinkPreview {
     pub site_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Attachment {
+    pub id: Uuid,
+    pub filename: String,
+    pub content_type: String,
+    pub size: i64,
+    pub storage_path: String,
+    pub uploader_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
-    pub content: String,
+    pub content: Option<String>,
     pub reply_to_id: Option<Uuid>,
+    #[serde(default)]
+    pub attachment_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -307,6 +327,7 @@ pub struct ServerSettingUpdate {
 pub struct AppState {
     pub db: PgPool,
     pub http_client: reqwest::Client,
+    pub file_store: Option<Arc<dyn ObjectStore>>,
     pub channel_broadcasts: DashMap<Uuid, broadcast::Sender<String>>,
     pub global_broadcast: broadcast::Sender<String>,
     pub online_users: DashMap<Uuid, UserPresence>,
@@ -315,11 +336,17 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(db: PgPool, sfu_service: SfuService, http_client: reqwest::Client) -> Self {
+    pub fn new(
+        db: PgPool,
+        sfu_service: SfuService,
+        http_client: reqwest::Client,
+        file_store: Option<Arc<dyn ObjectStore>>,
+    ) -> Self {
         let (global_tx, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         Self {
             db,
             http_client,
+            file_store,
             channel_broadcasts: DashMap::new(),
             global_broadcast: global_tx,
             online_users: DashMap::new(),

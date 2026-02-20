@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Message } from "../api";
+  import { API, type Message } from "../api";
   import { renderMarkdown } from "../markdown";
   import { formatTimestamp, getInitial, truncateContent } from "../utils";
   import { getApiBase } from "../config";
@@ -98,6 +98,28 @@
     onToggleReaction(messageId, emoji);
     emojiPickerMessageId = null;
   }
+
+  function isImageType(contentType: string): boolean {
+    return contentType.startsWith("image/");
+  }
+
+  function isVideoType(contentType: string): boolean {
+    return contentType.startsWith("video/");
+  }
+
+  function isAudioType(contentType: string): boolean {
+    return contentType.startsWith("audio/");
+  }
+
+  function getAttachmentUrl(attachmentId: string, filename: string): string {
+    return resolveUrl(API.getAttachmentUrl(attachmentId, filename));
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 </script>
 
 <div class="messages-area" bind:this={messagesArea} on:scroll={handleScroll}>
@@ -148,8 +170,63 @@
             </div>
           </div>
         {:else}
-          <div class="message-text">
-            {@html renderMarkdown(message.content)}
+          {#if message.content}
+            <div class="message-text">
+              {@html renderMarkdown(message.content)}
+            </div>
+          {/if}
+        {/if}
+        {#if message.attachments && message.attachments.length > 0}
+          <div class="attachments">
+            {#each message.attachments as attachment}
+              {#if isImageType(attachment.content_type)}
+                <a
+                  class="attachment-image-link"
+                  href={getAttachmentUrl(attachment.id, attachment.filename)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    class="attachment-image"
+                    src={getAttachmentUrl(attachment.id, attachment.filename)}
+                    alt={attachment.filename}
+                    loading="lazy"
+                  />
+                </a>
+              {:else if isVideoType(attachment.content_type)}
+                <video
+                  class="attachment-video"
+                  controls
+                  preload="metadata"
+                  src={getAttachmentUrl(attachment.id, attachment.filename)}
+                >
+                  <track kind="captions" />
+                </video>
+              {:else if isAudioType(attachment.content_type)}
+                <div class="attachment-audio">
+                  <span class="attachment-audio-name">{attachment.filename}</span>
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={getAttachmentUrl(attachment.id, attachment.filename)}
+                  ></audio>
+                </div>
+              {:else}
+                <a
+                  class="attachment-file"
+                  href={getAttachmentUrl(attachment.id, attachment.filename)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={attachment.filename}
+                >
+                  <span class="attachment-file-icon">F</span>
+                  <div class="attachment-file-info">
+                    <span class="attachment-file-name">{attachment.filename}</span>
+                    <span class="attachment-file-size">{formatFileSize(attachment.size)}</span>
+                  </div>
+                </a>
+              {/if}
+            {/each}
           </div>
         {/if}
         {#if message.link_previews && message.link_previews.length > 0}

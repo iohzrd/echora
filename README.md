@@ -10,6 +10,7 @@ A self-hosted real-time chat platform with text, voice, and screen sharing -- bu
 - **Message Edit/Delete** -- Edit and delete your own messages with ownership enforcement
 - **Online Presence** -- See who is online with real-time connect/disconnect tracking
 - **Typing Indicators** -- See when others are typing with debounced indicators
+- **File Uploads** -- Attach images, video, audio, and documents to messages with inline previews
 - **Authentication** -- JWT-based auth with Argon2 password hashing
 - **PostgreSQL** -- Persistent storage with automatic migrations via sqlx
 - **Message Pagination** -- Cursor-based pagination with scroll-to-load-more
@@ -18,14 +19,15 @@ A self-hosted real-time chat platform with text, voice, and screen sharing -- bu
 
 ## Tech Stack
 
-| Component | Technology                 |
-| --------- | -------------------------- |
-| Frontend  | Svelte 5, TypeScript, Vite |
-| Backend   | Rust, Axum 0.8, Tokio      |
-| Database  | PostgreSQL, sqlx           |
-| Voice     | WebRTC, SFU architecture   |
-| Auth      | JWT, Argon2                |
-| Desktop   | Tauri                      |
+| Component | Technology                      |
+| --------- | ------------------------------- |
+| Frontend  | Svelte 5, TypeScript, Vite      |
+| Backend   | Rust, Axum 0.8, Tokio           |
+| Database  | PostgreSQL, sqlx                |
+| Voice     | WebRTC, SFU architecture        |
+| Storage   | S3-compatible, local filesystem |
+| Auth      | JWT, Argon2                     |
+| Desktop   | Tauri                           |
 
 ## Getting Started
 
@@ -69,14 +71,41 @@ npm run tauri:dev
 
 ## Configuration
 
-Environment variables (set in `backend/.env`):
+Backend environment variables (set in `backend/.env`):
 
 | Variable       | Description                     | Default                                          |
 | -------------- | ------------------------------- | ------------------------------------------------ |
 | `DATABASE_URL` | PostgreSQL connection string    | `postgres://echora:echora@localhost:5432/echora` |
-| `JWT_SECRET`   | Secret key for JWT signing      | (required, no default)                           |
+| `JWT_SECRET`   | Secret key for JWT signing      | (required)                                       |
 | `BIND_ADDR`    | Server bind address             | `127.0.0.1:3000`                                 |
 | `CORS_ORIGINS` | Comma-separated allowed origins | Permissive (all origins)                         |
+| `RUST_LOG`     | Log level filter                | `info`                                           |
+
+#### File Storage
+
+File uploads are disabled by default. Set `STORAGE_BACKEND` to enable.
+
+| Variable                | Description                                                   | Default              |
+| ----------------------- | ------------------------------------------------------------- | -------------------- |
+| `STORAGE_BACKEND`       | Storage backend: `s3` or `local`                              | (unset = disabled)   |
+| `S3_BUCKET`             | S3 bucket name                                                | (required when `s3`) |
+| `S3_REGION`             | S3 region                                                     | (required when `s3`) |
+| `S3_ENDPOINT`           | Custom S3 endpoint (for DigitalOcean Spaces, MinIO, R2, etc.) | (unset = AWS S3)     |
+| `AWS_ACCESS_KEY_ID`     | S3 access key (not needed on ECS/EC2 with IAM roles)          | (from env/IAM)       |
+| `AWS_SECRET_ACCESS_KEY` | S3 secret key                                                 | (from env/IAM)       |
+| `STORAGE_PATH`          | Local filesystem path for uploads                             | `./uploads`          |
+
+**S3-compatible providers** (DigitalOcean Spaces, MinIO, Backblaze B2, Cloudflare R2, Wasabi, etc.) work by setting `S3_ENDPOINT`:
+
+```bash
+# DigitalOcean Spaces example
+STORAGE_BACKEND=s3
+S3_BUCKET=my-space
+S3_REGION=nyc3
+S3_ENDPOINT=https://nyc3.digitaloceanspaces.com
+AWS_ACCESS_KEY_ID=your-spaces-key
+AWS_SECRET_ACCESS_KEY=your-spaces-secret
+```
 
 Frontend environment (set in `frontend/.env` / `.env.production`):
 
@@ -98,7 +127,7 @@ Users register/login via REST endpoints. The backend returns a JWT token (7-day 
 
 ### Database
 
-PostgreSQL with sqlx. Migrations run automatically on startup from `backend/migrations/`. UUIDs stored as TEXT (UUID v7 for time-ordering). Voice state is managed in-memory with DashMaps and is not persisted.
+PostgreSQL with sqlx. Migrations run automatically on startup from `backend/migrations/`. IDs use native UUID columns (UUID v7 for time-ordering). Voice state is managed in-memory with DashMaps and is not persisted.
 
 ## Deployment
 
@@ -109,6 +138,7 @@ The backend runs as a container behind a load balancer, the frontend is static f
 | Frontend  | Static hosting + CDN                   |
 | Backend   | Containerized (Docker) + load balancer |
 | Database  | Managed PostgreSQL                     |
+| Storage   | S3-compatible bucket or local disk     |
 
 ### Deploy Backend
 
@@ -138,12 +168,12 @@ cd frontend && npm run build
 - [x] Roles & permissions
 - [x] Moderation (kick, ban, mute/timeout, audit log)
 - [x] Invite system
+- [x] File uploads
 - [ ] Message pinning
 - [ ] Search
 - [ ] Notifications (@mentions, unread indicators)
 - [ ] Direct messages & group DMs
 - [ ] Polls
-- [ ] File uploads
 - [ ] User profiles & avatars
 - [ ] One-click deployment(s)
 - [ ] Webhooks

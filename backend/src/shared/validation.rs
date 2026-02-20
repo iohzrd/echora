@@ -12,6 +12,28 @@ pub const MAX_REASON_LENGTH: usize = 500;
 pub const MAX_SERVER_NAME_LENGTH: usize = 100;
 pub const MAX_IMAGE_PROXY_SIZE: usize = 10 * 1024 * 1024;
 pub const BROADCAST_CHANNEL_CAPACITY: usize = 256;
+pub const MAX_ATTACHMENT_SIZE: usize = 25 * 1024 * 1024; // 25MB
+pub const MAX_ATTACHMENTS_PER_MESSAGE: usize = 5;
+pub const MAX_FILENAME_LENGTH: usize = 255;
+
+pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "video/mp4",
+    "video/webm",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+    "application/pdf",
+    "text/plain",
+    "application/zip",
+    "application/gzip",
+    "application/x-tar",
+];
 
 pub fn validate_message_content(content: &str) -> Result<(), AppError> {
     if content.trim().is_empty() || content.len() > MAX_MESSAGE_LENGTH {
@@ -20,6 +42,46 @@ pub fn validate_message_content(content: &str) -> Result<(), AppError> {
         ));
     }
     Ok(())
+}
+
+pub fn validate_message_content_optional(
+    content: &Option<String>,
+    has_attachments: bool,
+) -> Result<(), AppError> {
+    match content {
+        Some(c) if !c.trim().is_empty() => validate_message_content(c),
+        _ if has_attachments => Ok(()),
+        _ => Err(AppError::bad_request(
+            "Message must have content or attachments",
+        )),
+    }
+}
+
+pub fn validate_attachment_content_type(content_type: &str) -> Result<(), AppError> {
+    if !ALLOWED_CONTENT_TYPES.contains(&content_type) {
+        return Err(AppError::bad_request(format!(
+            "File type '{}' is not allowed",
+            content_type
+        )));
+    }
+    Ok(())
+}
+
+pub fn validate_filename(name: &str) -> Result<String, AppError> {
+    let sanitized: String = name
+        .chars()
+        .filter(|c| {
+            !matches!(
+                c,
+                '/' | '\\' | '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|'
+            )
+        })
+        .collect();
+    let sanitized = sanitized.trim().to_string();
+    if sanitized.is_empty() || sanitized.len() > MAX_FILENAME_LENGTH {
+        return Err(AppError::bad_request("Invalid filename"));
+    }
+    Ok(sanitized)
 }
 
 pub fn validate_username(name: &str) -> Result<String, AppError> {
