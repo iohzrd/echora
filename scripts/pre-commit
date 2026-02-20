@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Auto-bump patch version for frontend and backend independently
+# Only bumps if files in the respective directory are staged
+
+bump_patch() {
+    local version="$1"
+    local major minor patch
+    IFS='.' read -r major minor patch <<< "$version"
+    echo "${major}.${minor}.$((patch + 1))"
+}
+
+# Check for staged frontend files (excluding version files to avoid loops)
+if git diff --cached --name-only | grep -q '^frontend/' && \
+   ! git diff --cached --name-only | grep -qx 'frontend/package.json'; then
+    current=$(grep '"version"' frontend/package.json | sed 's/.*"\([0-9]*\.[0-9]*\.[0-9]*\)".*/\1/')
+    new=$(bump_patch "$current")
+    sed -i "s/\"version\": \"$current\"/\"version\": \"$new\"/" frontend/package.json
+    git add frontend/package.json
+    echo "frontend: $current -> $new"
+
+    # Also bump tauri.conf.json and Tauri Cargo.toml to keep in sync
+    tauri_conf="frontend/src-tauri/tauri.conf.json"
+    tauri_cargo="frontend/src-tauri/Cargo.toml"
+    tauri_current=$(grep '"version"' "$tauri_conf" | head -1 | sed 's/.*"\([0-9]*\.[0-9]*\.[0-9]*\)".*/\1/')
+    tauri_new=$(bump_patch "$tauri_current")
+    sed -i "s/\"version\": \"$tauri_current\"/\"version\": \"$tauri_new\"/" "$tauri_conf"
+    sed -i "s/^version = \"$tauri_current\"/version = \"$tauri_new\"/" "$tauri_cargo"
+    (cd frontend/src-tauri && cargo update --workspace --quiet 2>/dev/null)
+    git add "$tauri_conf" "$tauri_cargo" frontend/src-tauri/Cargo.lock
+    echo "tauri: $tauri_current -> $tauri_new"
+fi
+
+# Check for staged backend files (excluding Cargo.toml itself to avoid loops)
+if git diff --cached --name-only | grep -q '^backend/' && \
+   ! git diff --cached --name-only | grep -qx 'backend/Cargo.toml'; then
+    current=$(grep '^version' backend/Cargo.toml | sed 's/.*"\([0-9]*\.[0-9]*\.[0-9]*\)".*/\1/')
+    new=$(bump_patch "$current")
+    sed -i "s/^version = \"$current\"/version = \"$new\"/" backend/Cargo.toml
+    # Regenerate Cargo.lock to reflect the version bump
+    (cd backend && cargo update --workspace --quiet 2>/dev/null)
+    git add backend/Cargo.toml backend/Cargo.lock
+    echo "backend: $current -> $new"
+fi
