@@ -112,6 +112,7 @@
   // Version info
   let backendVersion = "";
   let serverName = "";
+  let tauriVersion = "";
 
   // User roles map (user_id -> role)
   let userRolesMap: Record<string, string> = {};
@@ -575,6 +576,10 @@
     const settings = await initPTT();
     voiceInputMode = settings.inputMode;
     pttKey = settings.pttKey;
+
+    if (isTauri) {
+      import("@tauri-apps/api/app").then((m) => m.getVersion()).then((v) => (tauriVersion = v)).catch(() => {});
+    }
 
     // Initialize audio settings
     await initAudioSettings();
@@ -1139,6 +1144,9 @@
         />
 
         <div class="version-bar">
+          {#if tauriVersion}
+            <span class="version-info">app v{tauriVersion}</span>
+          {/if}
           <span class="version-info">frontend v{FRONTEND_VERSION}</span>
           <span class="version-info">backend v{backendVersion || "..."}</span>
         </div>
