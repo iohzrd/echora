@@ -266,6 +266,15 @@ export class MediasoupManager {
     return producer.id;
   }
 
+  async replaceProducerTrack(newTrack: MediaStreamTrack): Promise<void> {
+    for (const producer of this.producers.values()) {
+      if (producer.kind === 'audio' && !producer.closed) {
+        await producer.replaceTrack({ track: newTrack });
+        break;
+      }
+    }
+  }
+
   closeScreenProducers() {
     for (const producer of this.screenProducers) {
       producer.close();

@@ -26,6 +26,8 @@ export class VoiceManager {
   private screenStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
+  private gainNode: GainNode | null = null;
+  private destinationNode: MediaStreamAudioDestinationNode | null = null;
   private speakingDetectionFrame: number | null = null;
   private isMuted = false;
   private isDeafened = false;
@@ -37,6 +39,13 @@ export class VoiceManager {
   private ws: WebSocketManager | null = null;
   private inputMode: VoiceInputMode = 'voice-activity';
   private pttActive = false;
+
+  // Audio settings
+  private perUserVolumes: Map<string, number> = new Map();
+  private outputVolume = 1.0;
+  private currentInputDeviceId = '';
+  private currentOutputDeviceId = '';
+  private noiseSuppression = true;
 
   setWebSocketManager(wsManager: WebSocketManager) {
     this.ws = wsManager;
@@ -71,8 +80,13 @@ export class VoiceManager {
       // Capture local audio
       await this.setupLocalAudio();
 
-      // Produce local audio track via SFU
-      if (this.localStream) {
+      // Produce local audio track via SFU (use gained track from destination node)
+      if (this.destinationNode) {
+        const audioTrack = this.destinationNode.stream.getAudioTracks()[0];
+        if (audioTrack) {
+          await this.mediasoup.produce(audioTrack);
+        }
+      } else if (this.localStream) {
         const audioTrack = this.localStream.getAudioTracks()[0];
         if (audioTrack) {
           await this.mediasoup.produce(audioTrack);
@@ -169,6 +183,12 @@ export class VoiceManager {
     await this.consumeExistingProducers(this.currentChannelId, currentUser.id);
   }
 
+  private computeUserVolume(userId: string): number {
+    if (this.isDeafened) return 0;
+    const perUser = this.perUserVolumes.get(userId) ?? 1.0;
+    return Math.min(this.outputVolume * perUser, 1.0);
+  }
+
   private handleRemoteTrack(track: MediaStreamTrack, userId: string, kind: string, label?: string): void {
     // Screen share tracks (video or audio) go to the screen track handler
     if (label === 'screen') {
@@ -182,20 +202,22 @@ export class VoiceManager {
     if (!remoteAudio) {
       remoteAudio = document.createElement('audio');
       remoteAudio.autoplay = true;
-      remoteAudio.volume = 1.0;
       document.body.appendChild(remoteAudio);
       this.remoteAudioElements.set(userId, remoteAudio);
+    }
+
+    remoteAudio.volume = this.computeUserVolume(userId);
+
+    // Apply output device if supported
+    if (this.currentOutputDeviceId && 'setSinkId' in remoteAudio) {
+      (remoteAudio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
+        .setSinkId(this.currentOutputDeviceId).catch(() => {});
     }
 
     remoteAudio.srcObject = new MediaStream([track]);
     remoteAudio.play().catch(e => {
       console.warn('Auto-play prevented for user', userId, ':', e);
     });
-
-    // Apply deafen state to new track
-    if (this.isDeafened) {
-      remoteAudio.volume = 0;
-    }
   }
 
   removeUserAudio(userId: string): void {
@@ -207,22 +229,66 @@ export class VoiceManager {
   }
 
   private async setupLocalAudio(): Promise<void> {
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
+    const constraints: MediaTrackConstraints = {
+      echoCancellation: true,
+      noiseSuppression: this.noiseSuppression,
+      autoGainControl: true,
+    };
+    if (this.currentInputDeviceId) {
+      constraints.deviceId = { exact: this.currentInputDeviceId };
+    }
 
-    // Setup audio analysis for speaking detection
+    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+
+    // Setup Web Audio pipeline: Source -> GainNode -> AnalyserNode (VAD)
+    //                                             \-> DestinationNode (producer track)
     this.audioContext = new AudioContext();
     const source = this.audioContext.createMediaStreamSource(this.localStream);
+
+    this.gainNode = this.audioContext.createGain();
+    source.connect(this.gainNode);
+
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 512;
-    source.connect(this.analyser);
+    this.gainNode.connect(this.analyser);
+
+    this.destinationNode = this.audioContext.createMediaStreamDestination();
+    this.gainNode.connect(this.destinationNode);
 
     this.startSpeakingDetection();
+  }
+
+  private async replaceInputDevice(deviceId: string): Promise<void> {
+    // Stop old local stream tracks
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(t => t.stop());
+    }
+
+    // Get new stream with updated constraints
+    const constraints: MediaTrackConstraints = {
+      echoCancellation: true,
+      noiseSuppression: this.noiseSuppression,
+      autoGainControl: true,
+    };
+    if (deviceId) {
+      constraints.deviceId = { exact: deviceId };
+    }
+
+    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+
+    // Reconnect Web Audio pipeline (GainNode, AnalyserNode, DestinationNode already exist)
+    if (this.audioContext && this.gainNode) {
+      const source = this.audioContext.createMediaStreamSource(this.localStream);
+      source.connect(this.gainNode);
+    }
+
+    // Replace the track on the mediasoup producer
+    if (this.mediasoup && this.destinationNode) {
+      const newTrack = this.destinationNode.stream.getAudioTracks()[0];
+      if (newTrack) {
+        await this.mediasoup.replaceProducerTrack(newTrack);
+      }
+    }
   }
 
   private startSpeakingDetection(): void {
@@ -372,9 +438,9 @@ export class VoiceManager {
   async toggleDeafen(): Promise<void> {
     this.isDeafened = !this.isDeafened;
 
-    // Mute/unmute all remote audio elements
-    this.remoteAudioElements.forEach(audio => {
-      audio.volume = this.isDeafened ? 0 : 1.0;
+    // Adjust all remote audio element volumes
+    this.remoteAudioElements.forEach((audio, userId) => {
+      audio.volume = this.computeUserVolume(userId);
     });
 
     // Also pause/resume consumers on mediasoup side
@@ -387,6 +453,61 @@ export class VoiceManager {
     }
 
     this.onStateChanged?.();
+  }
+
+  // --- Audio settings methods ---
+
+  setInputGain(gain: number): void {
+    if (this.gainNode) {
+      this.gainNode.gain.value = gain;
+    }
+  }
+
+  setOutputVolume(volume: number): void {
+    this.outputVolume = volume;
+    this.remoteAudioElements.forEach((audio, userId) => {
+      audio.volume = this.computeUserVolume(userId);
+    });
+  }
+
+  setUserVolume(userId: string, volume: number): void {
+    this.perUserVolumes.set(userId, volume);
+    const audio = this.remoteAudioElements.get(userId);
+    if (audio) {
+      audio.volume = this.computeUserVolume(userId);
+    }
+  }
+
+  getUserVolume(userId: string): number {
+    return this.perUserVolumes.get(userId) ?? 1.0;
+  }
+
+  setSpeakingThreshold(threshold: number): void {
+    this.speakingThreshold = threshold;
+  }
+
+  async setNoiseSuppression(enabled: boolean): Promise<void> {
+    this.noiseSuppression = enabled;
+    if (this.isConnected && this.localStream) {
+      await this.replaceInputDevice(this.currentInputDeviceId);
+    }
+  }
+
+  async setInputDevice(deviceId: string): Promise<void> {
+    this.currentInputDeviceId = deviceId;
+    if (this.isConnected) {
+      await this.replaceInputDevice(deviceId);
+    }
+  }
+
+  setOutputDevice(deviceId: string): void {
+    this.currentOutputDeviceId = deviceId;
+    this.remoteAudioElements.forEach(audio => {
+      if ('setSinkId' in audio) {
+        (audio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
+          .setSinkId(deviceId).catch(() => {});
+      }
+    });
   }
 
   private async updateVoiceStates(): Promise<void> {
@@ -421,6 +542,9 @@ export class VoiceManager {
       this.audioContext = null;
     }
 
+    this.gainNode = null;
+    this.destinationNode = null;
+    this.analyser = null;
     this.isConnected = false;
     this.isMuted = false;
     this.isDeafened = false;
@@ -440,6 +564,10 @@ export class VoiceManager {
   get currentVoiceStates(): VoiceState[] { return this.voiceStates; }
   get currentInputMode(): VoiceInputMode { return this.inputMode; }
   get isPTTActive(): boolean { return this.pttActive; }
+  get currentInputGain(): number { return this.gainNode?.gain.value ?? 1.0; }
+  get currentOutputVolume(): number { return this.outputVolume; }
+  get currentSpeakingThresholdValue(): number { return this.speakingThreshold; }
+  get isNoiseSuppressionEnabled(): boolean { return this.noiseSuppression; }
 
   // Event handlers
   onVoiceStatesChange(handler: (states: VoiceState[]) => void): void {

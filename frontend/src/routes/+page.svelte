@@ -13,6 +13,17 @@
   import type { VoiceInputMode } from "../lib/voice";
   import { getChannelProducers } from "../lib/mediasoup";
   import { initPTT, switchInputMode, changePTTKey, loadVoiceSettings } from "../lib/ptt";
+  import {
+    loadAudioSettings,
+    saveAudioSettings,
+    enumerateAudioDevices,
+    onDeviceChange,
+    supportsOutputDeviceSelection,
+    loadPerUserVolumes,
+    savePerUserVolume,
+    getPerUserVolume,
+    type AudioDevice,
+  } from "../lib/audioSettings";
   import AuthService, { user } from "../lib/auth";
   import {
     isTauri,
@@ -60,6 +71,18 @@
   let voiceInputMode: VoiceInputMode = "voice-activity";
   let pttKey = "Space";
   let pttActive = false;
+
+  // Audio settings state
+  let inputDeviceId = "";
+  let outputDeviceId = "";
+  let inputGain = 1.0;
+  let outputVolume = 1.0;
+  let vadSensitivity = 50;
+  let noiseSuppression = true;
+  let inputDevices: AudioDevice[] = [];
+  let outputDevices: AudioDevice[] = [];
+  let showOutputDevice = true;
+  let removeDeviceListener: (() => void) | null = null;
 
   // Screen share viewing state
   let watchingScreenUserId: string | null = null;
@@ -430,17 +453,58 @@
     }
   }
 
+  async function initAudioSettings() {
+    const settings = loadAudioSettings();
+    inputDeviceId = settings.inputDeviceId;
+    outputDeviceId = settings.outputDeviceId;
+    inputGain = settings.inputGain;
+    outputVolume = settings.outputVolume;
+    vadSensitivity = settings.vadSensitivity;
+    noiseSuppression = settings.noiseSuppression;
+
+    // Apply saved settings to voice manager
+    voiceManager.setInputGain(inputGain);
+    voiceManager.setOutputVolume(outputVolume);
+    voiceManager.setSpeakingThreshold(vadSensitivity);
+
+    // Load per-user volumes
+    const perUserVols = loadPerUserVolumes();
+    for (const [userId, vol] of Object.entries(perUserVols)) {
+      voiceManager.setUserVolume(userId, vol);
+    }
+
+    // Check output device support
+    showOutputDevice = supportsOutputDeviceSelection();
+
+    // Enumerate devices
+    await refreshDeviceList();
+
+    // Listen for device hot-plug
+    removeDeviceListener = onDeviceChange(() => refreshDeviceList());
+  }
+
+  async function refreshDeviceList() {
+    const devices = await enumerateAudioDevices();
+    inputDevices = devices.inputs;
+    outputDevices = devices.outputs;
+  }
+
   onMount(async () => {
     setupVoiceHandlers();
     // Initialize PTT settings from localStorage
     const settings = await initPTT();
     voiceInputMode = settings.inputMode;
     pttKey = settings.pttKey;
+
+    // Initialize audio settings
+    await initAudioSettings();
+
     await connectToServer();
   });
 
   onDestroy(() => {
     wsManager.disconnect();
+    removeDeviceListener?.();
   });
 
   async function tryAction(action: () => Promise<unknown>, context: string) {
@@ -582,6 +646,63 @@
   async function handleChangePTTKey(key: string) {
     pttKey = key;
     await changePTTKey(key);
+  }
+
+  // Audio settings handlers
+  function saveCurrentAudioSettings() {
+    saveAudioSettings({
+      inputDeviceId,
+      outputDeviceId,
+      inputGain,
+      outputVolume,
+      vadSensitivity,
+      noiseSuppression,
+    });
+  }
+
+  function handleInputDeviceChange(deviceId: string) {
+    inputDeviceId = deviceId;
+    voiceManager.setInputDevice(deviceId);
+    saveCurrentAudioSettings();
+  }
+
+  function handleOutputDeviceChange(deviceId: string) {
+    outputDeviceId = deviceId;
+    voiceManager.setOutputDevice(deviceId);
+    saveCurrentAudioSettings();
+  }
+
+  function handleInputGainChange(gain: number) {
+    inputGain = gain;
+    voiceManager.setInputGain(gain);
+    saveCurrentAudioSettings();
+  }
+
+  function handleOutputVolumeChange(volume: number) {
+    outputVolume = volume;
+    voiceManager.setOutputVolume(volume);
+    saveCurrentAudioSettings();
+  }
+
+  function handleVadSensitivityChange(sensitivity: number) {
+    vadSensitivity = sensitivity;
+    voiceManager.setSpeakingThreshold(sensitivity);
+    saveCurrentAudioSettings();
+  }
+
+  function handleNoiseSuppressionToggle(enabled: boolean) {
+    noiseSuppression = enabled;
+    voiceManager.setNoiseSuppression(enabled);
+    saveCurrentAudioSettings();
+  }
+
+  function handleUserVolumeChange(userId: string, volume: number) {
+    voiceManager.setUserVolume(userId, volume);
+    savePerUserVolume(userId, volume);
+  }
+
+  function handleGetUserVolume(userId: string): number {
+    return voiceManager.getUserVolume(userId);
   }
 
   async function toggleScreenShare() {
@@ -809,6 +930,15 @@
             {pttKey}
             {pttActive}
             currentUserId={$user?.id || ""}
+            {inputDeviceId}
+            {outputDeviceId}
+            {inputGain}
+            {outputVolume}
+            {vadSensitivity}
+            {noiseSuppression}
+            {inputDevices}
+            {outputDevices}
+            {showOutputDevice}
             onSelectChannel={selectChannel}
             onCreateChannel={handleCreateChannel}
             onUpdateChannel={handleUpdateChannel}
@@ -821,6 +951,14 @@
             onWatchScreen={watchScreen}
             onSwitchInputMode={handleSwitchInputMode}
             onChangePTTKey={handleChangePTTKey}
+            onInputDeviceChange={handleInputDeviceChange}
+            onOutputDeviceChange={handleOutputDeviceChange}
+            onInputGainChange={handleInputGainChange}
+            onOutputVolumeChange={handleOutputVolumeChange}
+            onVadSensitivityChange={handleVadSensitivityChange}
+            onNoiseSuppressionToggle={handleNoiseSuppressionToggle}
+            onUserVolumeChange={handleUserVolumeChange}
+            getUserVolume={handleGetUserVolume}
           />
 
           <OnlineUsers {onlineUsers} />

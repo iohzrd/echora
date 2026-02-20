@@ -1,8 +1,11 @@
 <script lang="ts">
   import type { Channel, VoiceState } from "../api";
   import type { VoiceInputMode } from "../voice";
+  import type { AudioDevice } from "../audioSettings";
   import { getInitial } from "../utils";
   import { formatKeyLabel, keyEventToTauriKey } from "../ptt";
+  import AudioSettingsPanel from "./AudioSettings.svelte";
+  import UserVolumeMenu from "./UserVolumeMenu.svelte";
 
   export let channels: Channel[] = [];
   export let selectedChannelId: string = "";
@@ -17,6 +20,17 @@
   export let pttKey: string = "Space";
   export let pttActive: boolean = false;
 
+  // Audio settings
+  export let inputDeviceId: string = "";
+  export let outputDeviceId: string = "";
+  export let inputGain: number = 1.0;
+  export let outputVolume: number = 1.0;
+  export let vadSensitivity: number = 50;
+  export let noiseSuppression: boolean = true;
+  export let inputDevices: AudioDevice[] = [];
+  export let outputDevices: AudioDevice[] = [];
+  export let showOutputDevice: boolean = true;
+
   export let onSelectChannel: (id: string, name: string) => void = () => {};
   export let onCreateChannel: (name: string, type: "text" | "voice") => void = () => {};
   export let onUpdateChannel: (id: string, name: string) => void = () => {};
@@ -29,6 +43,14 @@
   export let onWatchScreen: (userId: string, username: string) => void = () => {};
   export let onSwitchInputMode: (mode: VoiceInputMode) => void = () => {};
   export let onChangePTTKey: (key: string) => void = () => {};
+  export let onInputDeviceChange: (deviceId: string) => void = () => {};
+  export let onOutputDeviceChange: (deviceId: string) => void = () => {};
+  export let onInputGainChange: (gain: number) => void = () => {};
+  export let onOutputVolumeChange: (volume: number) => void = () => {};
+  export let onVadSensitivityChange: (sensitivity: number) => void = () => {};
+  export let onNoiseSuppressionToggle: (enabled: boolean) => void = () => {};
+  export let onUserVolumeChange: (userId: string, volume: number) => void = () => {};
+  export let getUserVolume: (userId: string) => number = () => 1.0;
 
   // Local state for channel create/edit forms
   let showCreateChannel: "text" | "voice" | null = null;
@@ -38,6 +60,19 @@
 
   // PTT key recording state
   let recordingKey = false;
+
+  // Per-user volume menu state
+  let volumeMenuUserId: string | null = null;
+  let volumeMenuUsername = "";
+  let volumeMenuX = 0;
+  let volumeMenuY = 0;
+
+  function openUserVolumeMenu(e: MouseEvent, userId: string, username: string) {
+    volumeMenuUserId = userId;
+    volumeMenuUsername = username;
+    volumeMenuX = e.clientX;
+    volumeMenuY = e.clientY;
+  }
 
   function handleKeyRecord(e: KeyboardEvent) {
     e.preventDefault();
@@ -294,6 +329,25 @@
           </div>
         {/if}
       </div>
+
+      <AudioSettingsPanel
+        {inputDeviceId}
+        {outputDeviceId}
+        {inputGain}
+        {outputVolume}
+        {vadSensitivity}
+        {noiseSuppression}
+        {inputDevices}
+        {outputDevices}
+        showSensitivity={voiceInputMode === 'voice-activity'}
+        {showOutputDevice}
+        {onInputDeviceChange}
+        {onOutputDeviceChange}
+        {onInputGainChange}
+        {onOutputVolumeChange}
+        {onVadSensitivityChange}
+        {onNoiseSuppressionToggle}
+      />
     {/if}
 
     {#if voiceStates.some((vs) => vs.channel_id === channel.id)}
@@ -309,6 +363,11 @@
                 voiceState.user_id !== currentUserId
               )
                 onWatchScreen(voiceState.user_id, voiceState.username);
+            }}
+            on:contextmenu|preventDefault={(e) => {
+              if (voiceState.user_id !== currentUserId) {
+                openUserVolumeMenu(e, voiceState.user_id, voiceState.username);
+              }
             }}
             role={voiceState.is_screen_sharing ? "button" : "listitem"}
             tabindex={voiceState.is_screen_sharing ? 0 : -1}
@@ -332,3 +391,15 @@
     {/if}
   </div>
 {/each}
+
+{#if volumeMenuUserId}
+  <UserVolumeMenu
+    userId={volumeMenuUserId}
+    username={volumeMenuUsername}
+    volume={getUserVolume(volumeMenuUserId)}
+    x={volumeMenuX}
+    y={volumeMenuY}
+    onVolumeChange={onUserVolumeChange}
+    onClose={() => (volumeMenuUserId = null)}
+  />
+{/if}
