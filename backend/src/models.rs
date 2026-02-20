@@ -274,30 +274,32 @@ pub struct ServerSettingUpdate {
 
 pub struct AppState {
     pub db: PgPool,
+    pub http_client: reqwest::Client,
     // Per-channel text chat broadcast
-    pub channel_broadcasts: Arc<DashMap<Uuid, broadcast::Sender<String>>>,
+    pub channel_broadcasts: DashMap<Uuid, broadcast::Sender<String>>,
     // Global broadcast for server-wide events (channel CRUD, presence, voice)
     pub global_broadcast: broadcast::Sender<String>,
     // Online users: user_id -> presence info
-    pub online_users: Arc<DashMap<Uuid, UserPresence>>,
+    pub online_users: DashMap<Uuid, UserPresence>,
     // Voice state: channel_id -> user_id -> voice_state
-    pub voice_states: Arc<DashMap<Uuid, DashMap<Uuid, VoiceState>>>,
+    pub voice_states: DashMap<Uuid, DashMap<Uuid, VoiceState>>,
     // Voice sessions: session_id -> session info
-    pub voice_sessions: Arc<DashMap<String, VoiceSession>>,
+    pub voice_sessions: DashMap<String, VoiceSession>,
     // mediasoup SFU service
     pub sfu_service: Arc<SfuService>,
 }
 
 impl AppState {
-    pub fn new(db: PgPool, sfu_service: SfuService) -> Self {
+    pub fn new(db: PgPool, sfu_service: SfuService, http_client: reqwest::Client) -> Self {
         let (global_tx, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         Self {
             db,
-            channel_broadcasts: Arc::new(DashMap::new()),
+            http_client,
+            channel_broadcasts: DashMap::new(),
             global_broadcast: global_tx,
-            online_users: Arc::new(DashMap::new()),
-            voice_states: Arc::new(DashMap::new()),
-            voice_sessions: Arc::new(DashMap::new()),
+            online_users: DashMap::new(),
+            voice_states: DashMap::new(),
+            voice_sessions: DashMap::new(),
             sfu_service: Arc::new(sfu_service),
         }
     }

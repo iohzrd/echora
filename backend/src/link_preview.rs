@@ -108,12 +108,10 @@ async fn is_safe_url(url: &str) -> bool {
 }
 
 /// Fetch a URL and parse OpenGraph/meta tags
-async fn fetch_preview(url: &str) -> Result<LinkPreviewData, String> {
+async fn fetch_preview(client: &reqwest::Client, url: &str) -> Result<LinkPreviewData, String> {
     if !is_safe_url(url).await {
         return Err("URL failed safety check".to_string());
     }
-
-    let client = crate::shared::http::create_http_client(5).map_err(|e| e.to_string())?;
 
     let response = client
         .get(url)
@@ -133,7 +131,13 @@ async fn fetch_preview(url: &str) -> Result<LinkPreviewData, String> {
         return Err("Not HTML content".to_string());
     }
 
-    // Limit body size
+    // Reject early if Content-Length header exceeds limit
+    if let Some(content_length) = response.content_length()
+        && content_length as usize > MAX_BODY_SIZE
+    {
+        return Err("Content too large".to_string());
+    }
+
     let bytes = response.bytes().await.map_err(|e| e.to_string())?;
 
     if bytes.len() > MAX_BODY_SIZE {
@@ -255,7 +259,7 @@ pub fn spawn_preview_fetch(
         let mut previews = Vec::new();
 
         for url in &urls {
-            match fetch_preview(url).await {
+            match fetch_preview(&state.http_client, url).await {
                 Ok(mut data) => {
                     // Sign image URL for proxy if present
                     if let Some(ref img_url) = data.image_url {

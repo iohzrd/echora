@@ -4,7 +4,9 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use std::sync::Arc;
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use tower_http::cors::CorsLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing::info;
 
@@ -41,7 +43,9 @@ async fn main() {
         .await
         .expect("Failed to initialize SFU service");
 
-    let state = Arc::new(AppState::new(db, sfu_service));
+    let http_client = shared::http::create_http_client(10).expect("Failed to create HTTP client");
+
+    let state = Arc::new(AppState::new(db, sfu_service, http_client));
 
     // Spawn periodic cleanup of expired bans and mutes
     let cleanup_db = state.db.clone();
@@ -54,11 +58,22 @@ async fn main() {
         }
     });
 
+    // Rate limiter for auth endpoints: 10 requests per 60 seconds per IP
+    let auth_governor_config = GovernorConfigBuilder::default()
+        .per_second(6)
+        .burst_size(10)
+        .finish()
+        .expect("Failed to build auth rate limiter config");
+
+    // Auth routes with stricter rate limiting
+    let auth_routes = Router::new()
+        .route("/api/auth/register", post(auth_routes::register))
+        .route("/api/auth/login", post(auth_routes::login))
+        .layer(GovernorLayer::new(Arc::new(auth_governor_config)));
+
     let app = Router::new()
         .route("/api/init", get(routes::get_init))
         .route("/api/health", get(health_check))
-        .route("/api/auth/register", post(auth_routes::register))
-        .route("/api/auth/login", post(auth_routes::login))
         .route("/api/auth/me", get(auth_routes::me))
         .route(
             "/api/channels",
@@ -145,7 +160,10 @@ async fn main() {
         )
         .route("/api/invites/{invite_id}", delete(admin::revoke_invite))
         .route("/api/invites/{code}/validate", get(admin::validate_invite))
+        // Merge rate-limited auth routes
+        .merge(auth_routes)
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
+        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB global body limit
         .layer(build_cors_layer())
         .with_state(state);
 

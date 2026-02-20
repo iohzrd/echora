@@ -14,63 +14,75 @@ use crate::shared::validation::REPLY_PREVIEW_LENGTH;
 const CHANNEL_COLUMNS: &str = "SELECT id, name, channel_type FROM channels";
 const MESSAGE_COLUMNS: &str = "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id FROM messages";
 
-/// Parse a UUID from a database string column, mapping errors to AppError.
-fn parse_uuid(id: &str) -> Result<Uuid, AppError> {
-    Uuid::parse_str(id).map_err(|_| AppError::internal("Invalid UUID in database"))
-}
+type ChannelRow = (Uuid, String, String);
 
-type ChannelRow = (String, String, String);
-
-fn channel_from_row((id, name, channel_type): ChannelRow) -> Result<Channel, AppError> {
-    Ok(Channel {
-        id: parse_uuid(&id)?,
+fn channel_from_row((id, name, channel_type): ChannelRow) -> Channel {
+    Channel {
+        id,
         name,
         channel_type: ChannelType::from_str(&channel_type),
-    })
+    }
 }
 
-type UserRow = (String, String, String, String, String, DateTime<Utc>);
+type UserRow = (Uuid, String, String, String, String, DateTime<Utc>);
 
-fn user_from_row(
-    (id, username, email, password_hash, role, created_at): UserRow,
-) -> Result<User, AppError> {
-    Ok(User {
-        id: parse_uuid(&id)?,
+fn user_from_row((id, username, email, password_hash, role, created_at): UserRow) -> User {
+    User {
+        id,
         username,
         email,
         password_hash,
         role,
         created_at,
-    })
+    }
 }
 
 type MessageRow = (
+    Uuid,
     String,
     String,
-    String,
-    String,
-    String,
+    Uuid,
+    Uuid,
     DateTime<Utc>,
     Option<DateTime<Utc>>,
-    Option<String>,
+    Option<Uuid>,
 );
 
-fn message_from_row(row: MessageRow) -> Result<Message, AppError> {
+fn message_from_row(row: MessageRow) -> Message {
     let (id, content, author, author_id, channel_id, timestamp, edited_at, reply_to_id) = row;
-    Ok(Message {
-        id: parse_uuid(&id)?,
+    Message {
+        id,
         content,
         author,
-        author_id: parse_uuid(&author_id)?,
-        channel_id: parse_uuid(&channel_id)?,
+        author_id,
+        channel_id,
         timestamp,
         edited_at,
-        reply_to_id: reply_to_id.as_deref().map(parse_uuid).transpose()?,
+        reply_to_id,
         reply_to: None,
         reactions: None,
         link_previews: None,
-    })
+    }
 }
+
+type BanMuteRow = (
+    Uuid,
+    Uuid,
+    Uuid,
+    Option<String>,
+    Option<DateTime<Utc>>,
+    DateTime<Utc>,
+);
+
+type ModLogRow = (
+    Uuid,
+    String,
+    Uuid,
+    Uuid,
+    Option<String>,
+    Option<String>,
+    DateTime<Utc>,
+);
 
 fn require_rows_affected(
     result: sqlx::postgres::PgQueryResult,
@@ -100,7 +112,7 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
 
         for (id, name, channel_type) in &channels {
             sqlx::query("INSERT INTO channels (id, name, channel_type) VALUES ($1, $2, $3)")
-                .bind(id.to_string())
+                .bind(id)
                 .bind(name)
                 .bind(channel_type)
                 .execute(pool)
@@ -150,7 +162,7 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
 pub async fn get_channels(pool: &PgPool) -> Result<Vec<Channel>, AppError> {
     let rows: Vec<ChannelRow> = sqlx::query_as(CHANNEL_COLUMNS).fetch_all(pool).await?;
 
-    rows.into_iter().map(channel_from_row).collect()
+    Ok(rows.into_iter().map(channel_from_row).collect())
 }
 
 pub async fn get_channel_by_id(
@@ -158,11 +170,11 @@ pub async fn get_channel_by_id(
     channel_id: Uuid,
 ) -> Result<Option<Channel>, AppError> {
     let row: Option<ChannelRow> = sqlx::query_as(&format!("{CHANNEL_COLUMNS} WHERE id = $1"))
-        .bind(channel_id.to_string())
+        .bind(channel_id)
         .fetch_optional(pool)
         .await?;
 
-    row.map(channel_from_row).transpose()
+    Ok(row.map(channel_from_row))
 }
 
 pub async fn get_messages(
@@ -176,7 +188,7 @@ pub async fn get_messages(
         sqlx::query_as(&format!(
             "{MESSAGE_COLUMNS} WHERE channel_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT $3"
         ))
-        .bind(channel_id.to_string())
+        .bind(channel_id)
         .bind(before_ts)
         .bind(limit)
         .fetch_all(pool)
@@ -185,25 +197,19 @@ pub async fn get_messages(
         sqlx::query_as(&format!(
             "{MESSAGE_COLUMNS} WHERE channel_id = $1 ORDER BY created_at DESC LIMIT $2"
         ))
-        .bind(channel_id.to_string())
+        .bind(channel_id)
         .bind(limit)
         .fetch_all(pool)
         .await?
     };
 
-    let mut messages: Vec<Message> = rows
-        .into_iter()
-        .map(message_from_row)
-        .collect::<Result<_, _>>()?;
+    let mut messages: Vec<Message> = rows.into_iter().map(message_from_row).collect();
 
     // Reverse so messages are returned in chronological order (oldest first)
     messages.reverse();
 
     // Batch-fetch reply previews
-    let reply_ids: Vec<String> = messages
-        .iter()
-        .filter_map(|m| m.reply_to_id.map(|id| id.to_string()))
-        .collect();
+    let reply_ids: Vec<Uuid> = messages.iter().filter_map(|m| m.reply_to_id).collect();
 
     if !reply_ids.is_empty() {
         let previews = get_reply_previews(pool, &reply_ids).await?;
@@ -215,7 +221,7 @@ pub async fn get_messages(
     }
 
     // Batch-fetch reactions
-    let message_ids: Vec<String> = messages.iter().map(|m| m.id.to_string()).collect();
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
     if !message_ids.is_empty() {
         let reactions_map =
             get_reactions_for_messages(pool, &message_ids, requesting_user_id).await?;
@@ -248,11 +254,11 @@ pub async fn get_message_by_id(
     message_id: Uuid,
 ) -> Result<Option<Message>, AppError> {
     let row: Option<MessageRow> = sqlx::query_as(&format!("{MESSAGE_COLUMNS} WHERE id = $1"))
-        .bind(message_id.to_string())
+        .bind(message_id)
         .fetch_optional(pool)
         .await?;
 
-    row.map(message_from_row).transpose()
+    Ok(row.map(message_from_row))
 }
 
 pub async fn update_message(
@@ -263,7 +269,7 @@ pub async fn update_message(
     let result = sqlx::query("UPDATE messages SET content = $1, edited_at = $2 WHERE id = $3")
         .bind(content)
         .bind(Utc::now())
-        .bind(message_id.to_string())
+        .bind(message_id)
         .execute(pool)
         .await?;
 
@@ -272,7 +278,7 @@ pub async fn update_message(
 
 pub async fn delete_message(pool: &PgPool, message_id: Uuid) -> Result<(), AppError> {
     let result = sqlx::query("DELETE FROM messages WHERE id = $1")
-        .bind(message_id.to_string())
+        .bind(message_id)
         .execute(pool)
         .await?;
 
@@ -288,10 +294,10 @@ pub async fn create_channel(
         "INSERT INTO channels (id, name, channel_type, created_by, created_at)
          VALUES ($1, $2, $3, $4, $5)",
     )
-    .bind(channel.id.to_string())
+    .bind(channel.id)
     .bind(&channel.name)
     .bind(channel.channel_type.as_str())
-    .bind(created_by.to_string())
+    .bind(created_by)
     .bind(Utc::now())
     .execute(pool)
     .await?;
@@ -302,7 +308,7 @@ pub async fn create_channel(
 pub async fn update_channel(pool: &PgPool, channel_id: Uuid, name: &str) -> Result<(), AppError> {
     let result = sqlx::query("UPDATE channels SET name = $1 WHERE id = $2")
         .bind(name)
-        .bind(channel_id.to_string())
+        .bind(channel_id)
         .execute(pool)
         .await?;
 
@@ -310,32 +316,22 @@ pub async fn update_channel(pool: &PgPool, channel_id: Uuid, name: &str) -> Resu
 }
 
 pub async fn delete_channel(pool: &PgPool, channel_id: Uuid) -> Result<(), AppError> {
-    // Delete link preview junctions, reactions, then messages (FK constraints)
-    sqlx::query(
-        "DELETE FROM message_link_previews WHERE message_id IN (SELECT id FROM messages WHERE channel_id = $1)",
-    )
-    .bind(channel_id.to_string())
-    .execute(pool)
-    .await?;
+    let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = $1)",
-    )
-    .bind(channel_id.to_string())
-    .execute(pool)
-    .await?;
-
+    // Delete messages (reactions and link_previews cascade via ON DELETE CASCADE)
     sqlx::query("DELETE FROM messages WHERE channel_id = $1")
-        .bind(channel_id.to_string())
-        .execute(pool)
+        .bind(channel_id)
+        .execute(&mut *tx)
         .await?;
 
     let result = sqlx::query("DELETE FROM channels WHERE id = $1")
-        .bind(channel_id.to_string())
-        .execute(pool)
+        .bind(channel_id)
+        .execute(&mut *tx)
         .await?;
 
-    require_rows_affected(result, "Channel not found")
+    require_rows_affected(result, "Channel not found")?;
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn create_message(
@@ -347,13 +343,13 @@ pub async fn create_message(
         "INSERT INTO messages (id, content, author_id, author_username, channel_id, created_at, reply_to_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
-    .bind(message.id.to_string())
+    .bind(message.id)
     .bind(&message.content)
-    .bind(author_id.to_string())
+    .bind(author_id)
     .bind(&message.author)
-    .bind(message.channel_id.to_string())
+    .bind(message.channel_id)
     .bind(message.timestamp)
-    .bind(message.reply_to_id.map(|id| id.to_string()))
+    .bind(message.reply_to_id)
     .execute(pool)
     .await?;
 
@@ -365,7 +361,7 @@ pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
         "INSERT INTO users (id, username, email, password_hash, role, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)",
     )
-    .bind(user.id.to_string())
+    .bind(user.id)
     .bind(&user.username)
     .bind(&user.email)
     .bind(&user.password_hash)
@@ -385,30 +381,28 @@ pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Optio
     .fetch_optional(pool)
     .await?;
 
-    row.map(user_from_row).transpose()
+    Ok(row.map(user_from_row))
 }
 
 pub async fn get_reply_previews(
     pool: &PgPool,
-    reply_ids: &[String],
+    reply_ids: &[Uuid],
 ) -> Result<std::collections::HashMap<Uuid, ReplyPreview>, AppError> {
     use std::collections::HashMap;
 
     let mut previews = HashMap::new();
 
-    // Fetch reply previews in a batch using ANY
-    let rows: Vec<(String, String, String)> =
+    let rows: Vec<(Uuid, String, String)> =
         sqlx::query_as("SELECT id, author_username, content FROM messages WHERE id = ANY($1)")
             .bind(reply_ids)
             .fetch_all(pool)
             .await?;
 
     for (id, author, content) in rows {
-        let uuid = parse_uuid(&id)?;
         previews.insert(
-            uuid,
+            id,
             ReplyPreview {
-                id: uuid,
+                id,
                 author,
                 content: truncate_string(&content, REPLY_PREVIEW_LENGTH),
             },
@@ -420,12 +414,12 @@ pub async fn get_reply_previews(
 
 pub async fn get_reactions_for_messages(
     pool: &PgPool,
-    message_ids: &[String],
+    message_ids: &[Uuid],
     requesting_user_id: Uuid,
 ) -> Result<std::collections::HashMap<Uuid, Vec<Reaction>>, AppError> {
     use std::collections::HashMap;
 
-    let rows: Vec<(String, String, i64, bool)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, i64, bool)> = sqlx::query_as(
         "SELECT r.message_id, r.emoji, COUNT(*) as count,
                 BOOL_OR(r.user_id = $2) as reacted
          FROM reactions r
@@ -434,15 +428,14 @@ pub async fn get_reactions_for_messages(
          ORDER BY MIN(r.created_at)",
     )
     .bind(message_ids)
-    .bind(requesting_user_id.to_string())
+    .bind(requesting_user_id)
     .fetch_all(pool)
     .await?;
 
     let mut reactions_map: HashMap<Uuid, Vec<Reaction>> = HashMap::new();
 
     for (message_id, emoji, count, reacted) in rows {
-        let uuid = parse_uuid(&message_id)?;
-        reactions_map.entry(uuid).or_default().push(Reaction {
+        reactions_map.entry(message_id).or_default().push(Reaction {
             emoji,
             count,
             reacted,
@@ -462,8 +455,8 @@ pub async fn add_reaction(
         "INSERT INTO reactions (message_id, user_id, emoji) VALUES ($1, $2, $3)
          ON CONFLICT DO NOTHING",
     )
-    .bind(message_id.to_string())
-    .bind(user_id.to_string())
+    .bind(message_id)
+    .bind(user_id)
     .bind(emoji)
     .execute(pool)
     .await?;
@@ -478,8 +471,8 @@ pub async fn remove_reaction(
     emoji: &str,
 ) -> Result<(), AppError> {
     sqlx::query("DELETE FROM reactions WHERE message_id = $1 AND user_id = $2 AND emoji = $3")
-        .bind(message_id.to_string())
-        .bind(user_id.to_string())
+        .bind(message_id)
+        .bind(user_id)
         .bind(emoji)
         .execute(pool)
         .await?;
@@ -491,20 +484,17 @@ pub async fn get_reply_preview(
     pool: &PgPool,
     message_id: Uuid,
 ) -> Result<Option<ReplyPreview>, AppError> {
-    let row: Option<(String, String, String)> =
+    let row: Option<(Uuid, String, String)> =
         sqlx::query_as("SELECT id, author_username, content FROM messages WHERE id = $1")
-            .bind(message_id.to_string())
+            .bind(message_id)
             .fetch_optional(pool)
             .await?;
 
-    row.map(|(id, author, content)| {
-        Ok(ReplyPreview {
-            id: parse_uuid(&id)?,
-            author,
-            content: truncate_string(&content, REPLY_PREVIEW_LENGTH),
-        })
-    })
-    .transpose()
+    Ok(row.map(|(id, author, content)| ReplyPreview {
+        id,
+        author,
+        content: truncate_string(&content, REPLY_PREVIEW_LENGTH),
+    }))
 }
 
 pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
@@ -515,13 +505,13 @@ pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User
     .fetch_optional(pool)
     .await?;
 
-    row.map(user_from_row).transpose()
+    Ok(row.map(user_from_row))
 }
 
 /// Insert or update a link preview (deduped by URL), return its ID
 pub async fn upsert_link_preview(pool: &PgPool, data: &LinkPreviewData) -> Result<Uuid, AppError> {
     let id = Uuid::now_v7();
-    let row: (String,) = sqlx::query_as(
+    let row: (Uuid,) = sqlx::query_as(
         "INSERT INTO link_previews (id, url, title, description, image_url, site_name)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (url) DO UPDATE SET
@@ -532,7 +522,7 @@ pub async fn upsert_link_preview(pool: &PgPool, data: &LinkPreviewData) -> Resul
            fetched_at = NOW()
          RETURNING id",
     )
-    .bind(id.to_string())
+    .bind(id)
     .bind(&data.url)
     .bind(&data.title)
     .bind(&data.description)
@@ -541,7 +531,7 @@ pub async fn upsert_link_preview(pool: &PgPool, data: &LinkPreviewData) -> Resul
     .fetch_one(pool)
     .await?;
 
-    parse_uuid(&row.0)
+    Ok(row.0)
 }
 
 /// Link a preview to a message via the junction table
@@ -554,8 +544,8 @@ pub async fn attach_preview_to_message(
         "INSERT INTO message_link_previews (message_id, preview_id) VALUES ($1, $2)
          ON CONFLICT DO NOTHING",
     )
-    .bind(message_id.to_string())
-    .bind(preview_id.to_string())
+    .bind(message_id)
+    .bind(preview_id)
     .execute(pool)
     .await?;
 
@@ -565,13 +555,13 @@ pub async fn attach_preview_to_message(
 /// Batch-fetch link previews for a set of messages
 pub async fn get_link_previews_for_messages(
     pool: &PgPool,
-    message_ids: &[String],
+    message_ids: &[Uuid],
 ) -> Result<std::collections::HashMap<Uuid, Vec<LinkPreview>>, AppError> {
     use std::collections::HashMap;
 
     type LinkPreviewRow = (
-        String,
-        String,
+        Uuid,
+        Uuid,
         String,
         Option<String>,
         Option<String>,
@@ -592,15 +582,17 @@ pub async fn get_link_previews_for_messages(
     let mut previews_map: HashMap<Uuid, Vec<LinkPreview>> = HashMap::new();
 
     for (message_id, id, url, title, description, image_url, site_name) in rows {
-        let msg_uuid = parse_uuid(&message_id)?;
-        previews_map.entry(msg_uuid).or_default().push(LinkPreview {
-            id: parse_uuid(&id)?,
-            url,
-            title,
-            description,
-            image_url,
-            site_name,
-        });
+        previews_map
+            .entry(message_id)
+            .or_default()
+            .push(LinkPreview {
+                id,
+                url,
+                title,
+                description,
+                image_url,
+                site_name,
+            });
     }
 
     Ok(previews_map)
@@ -617,7 +609,7 @@ pub async fn get_user_count(pool: &PgPool) -> Result<i64, AppError> {
 
 pub async fn get_user_role(pool: &PgPool, user_id: Uuid) -> Result<String, AppError> {
     let row: (String,) = sqlx::query_as("SELECT role FROM users WHERE id = $1")
-        .bind(user_id.to_string())
+        .bind(user_id)
         .fetch_one(pool)
         .await
         .map_err(|_| AppError::not_found("User not found"))?;
@@ -627,30 +619,29 @@ pub async fn get_user_role(pool: &PgPool, user_id: Uuid) -> Result<String, AppEr
 pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: &str) -> Result<(), AppError> {
     let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
         .bind(role)
-        .bind(user_id.to_string())
+        .bind(user_id)
         .execute(pool)
         .await?;
     require_rows_affected(result, "User not found")
 }
 
 pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
-    let rows: Vec<(String, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, String, String, DateTime<Utc>)> = sqlx::query_as(
         "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC",
     )
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
-        .map(|(id, username, email, role, created_at)| {
-            Ok(UserSummary {
-                id: parse_uuid(&id)?,
-                username,
-                email,
-                role,
-                created_at,
-            })
+    Ok(rows
+        .into_iter()
+        .map(|(id, username, email, role, created_at)| UserSummary {
+            id,
+            username,
+            email,
+            role,
+            created_at,
         })
-        .collect()
+        .collect())
 }
 
 // --- Ban management ---
@@ -658,7 +649,7 @@ pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> 
 pub async fn create_ban(pool: &PgPool, ban: &Ban) -> Result<(), AppError> {
     // Remove any existing ban first (UNIQUE on user_id)
     sqlx::query("DELETE FROM bans WHERE user_id = $1")
-        .bind(ban.user_id.to_string())
+        .bind(ban.user_id)
         .execute(pool)
         .await?;
 
@@ -666,9 +657,9 @@ pub async fn create_ban(pool: &PgPool, ban: &Ban) -> Result<(), AppError> {
         "INSERT INTO bans (id, user_id, banned_by, reason, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)",
     )
-    .bind(ban.id.to_string())
-    .bind(ban.user_id.to_string())
-    .bind(ban.banned_by.to_string())
+    .bind(ban.id)
+    .bind(ban.user_id)
+    .bind(ban.banned_by)
     .bind(&ban.reason)
     .bind(ban.expires_at)
     .bind(ban.created_at)
@@ -679,51 +670,36 @@ pub async fn create_ban(pool: &PgPool, ban: &Ban) -> Result<(), AppError> {
 }
 
 pub async fn get_active_ban(pool: &PgPool, user_id: Uuid) -> Result<Option<Ban>, AppError> {
-    let row: Option<(
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<DateTime<Utc>>,
-        DateTime<Utc>,
-    )> = sqlx::query_as(
+    let row: Option<BanMuteRow> = sqlx::query_as(
         "SELECT id, user_id, banned_by, reason, expires_at, created_at FROM bans
          WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
     )
-    .bind(user_id.to_string())
+    .bind(user_id)
     .fetch_optional(pool)
     .await?;
 
-    row.map(|(id, user_id, banned_by, reason, expires_at, created_at)| {
-        Ok(Ban {
-            id: parse_uuid(&id)?,
-            user_id: parse_uuid(&user_id)?,
-            banned_by: parse_uuid(&banned_by)?,
+    Ok(row.map(
+        |(id, user_id, banned_by, reason, expires_at, created_at)| Ban {
+            id,
+            user_id,
+            banned_by,
             reason,
             expires_at,
             created_at,
-        })
-    })
-    .transpose()
+        },
+    ))
 }
 
 pub async fn remove_ban(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
     let result = sqlx::query("DELETE FROM bans WHERE user_id = $1")
-        .bind(user_id.to_string())
+        .bind(user_id)
         .execute(pool)
         .await?;
     require_rows_affected(result, "No active ban found for this user")
 }
 
 pub async fn get_all_bans(pool: &PgPool) -> Result<Vec<Ban>, AppError> {
-    let rows: Vec<(
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<DateTime<Utc>>,
-        DateTime<Utc>,
-    )> = sqlx::query_as(
+    let rows: Vec<BanMuteRow> = sqlx::query_as(
         "SELECT id, user_id, banned_by, reason, expires_at, created_at FROM bans
          WHERE expires_at IS NULL OR expires_at > NOW()
          ORDER BY created_at DESC",
@@ -731,18 +707,19 @@ pub async fn get_all_bans(pool: &PgPool) -> Result<Vec<Ban>, AppError> {
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
-        .map(|(id, user_id, banned_by, reason, expires_at, created_at)| {
-            Ok(Ban {
-                id: parse_uuid(&id)?,
-                user_id: parse_uuid(&user_id)?,
-                banned_by: parse_uuid(&banned_by)?,
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, user_id, banned_by, reason, expires_at, created_at)| Ban {
+                id,
+                user_id,
+                banned_by,
                 reason,
                 expires_at,
                 created_at,
-            })
-        })
-        .collect()
+            },
+        )
+        .collect())
 }
 
 pub async fn cleanup_expired_bans(pool: &PgPool) -> Result<u64, AppError> {
@@ -757,7 +734,7 @@ pub async fn cleanup_expired_bans(pool: &PgPool) -> Result<u64, AppError> {
 
 pub async fn create_mute(pool: &PgPool, mute: &Mute) -> Result<(), AppError> {
     sqlx::query("DELETE FROM mutes WHERE user_id = $1")
-        .bind(mute.user_id.to_string())
+        .bind(mute.user_id)
         .execute(pool)
         .await?;
 
@@ -765,9 +742,9 @@ pub async fn create_mute(pool: &PgPool, mute: &Mute) -> Result<(), AppError> {
         "INSERT INTO mutes (id, user_id, muted_by, reason, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)",
     )
-    .bind(mute.id.to_string())
-    .bind(mute.user_id.to_string())
-    .bind(mute.muted_by.to_string())
+    .bind(mute.id)
+    .bind(mute.user_id)
+    .bind(mute.muted_by)
     .bind(&mute.reason)
     .bind(mute.expires_at)
     .bind(mute.created_at)
@@ -778,51 +755,36 @@ pub async fn create_mute(pool: &PgPool, mute: &Mute) -> Result<(), AppError> {
 }
 
 pub async fn get_active_mute(pool: &PgPool, user_id: Uuid) -> Result<Option<Mute>, AppError> {
-    let row: Option<(
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<DateTime<Utc>>,
-        DateTime<Utc>,
-    )> = sqlx::query_as(
+    let row: Option<BanMuteRow> = sqlx::query_as(
         "SELECT id, user_id, muted_by, reason, expires_at, created_at FROM mutes
          WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
     )
-    .bind(user_id.to_string())
+    .bind(user_id)
     .fetch_optional(pool)
     .await?;
 
-    row.map(|(id, user_id, muted_by, reason, expires_at, created_at)| {
-        Ok(Mute {
-            id: parse_uuid(&id)?,
-            user_id: parse_uuid(&user_id)?,
-            muted_by: parse_uuid(&muted_by)?,
+    Ok(row.map(
+        |(id, user_id, muted_by, reason, expires_at, created_at)| Mute {
+            id,
+            user_id,
+            muted_by,
             reason,
             expires_at,
             created_at,
-        })
-    })
-    .transpose()
+        },
+    ))
 }
 
 pub async fn remove_mute(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
     let result = sqlx::query("DELETE FROM mutes WHERE user_id = $1")
-        .bind(user_id.to_string())
+        .bind(user_id)
         .execute(pool)
         .await?;
     require_rows_affected(result, "No active mute found for this user")
 }
 
 pub async fn get_all_mutes(pool: &PgPool) -> Result<Vec<Mute>, AppError> {
-    let rows: Vec<(
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<DateTime<Utc>>,
-        DateTime<Utc>,
-    )> = sqlx::query_as(
+    let rows: Vec<BanMuteRow> = sqlx::query_as(
         "SELECT id, user_id, muted_by, reason, expires_at, created_at FROM mutes
          WHERE expires_at IS NULL OR expires_at > NOW()
          ORDER BY created_at DESC",
@@ -830,18 +792,19 @@ pub async fn get_all_mutes(pool: &PgPool) -> Result<Vec<Mute>, AppError> {
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
-        .map(|(id, user_id, muted_by, reason, expires_at, created_at)| {
-            Ok(Mute {
-                id: parse_uuid(&id)?,
-                user_id: parse_uuid(&user_id)?,
-                muted_by: parse_uuid(&muted_by)?,
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, user_id, muted_by, reason, expires_at, created_at)| Mute {
+                id,
+                user_id,
+                muted_by,
                 reason,
                 expires_at,
                 created_at,
-            })
-        })
-        .collect()
+            },
+        )
+        .collect())
 }
 
 pub async fn cleanup_expired_mutes(pool: &PgPool) -> Result<u64, AppError> {
@@ -859,9 +822,9 @@ pub async fn create_invite(pool: &PgPool, invite: &Invite) -> Result<(), AppErro
         "INSERT INTO invites (id, code, created_by, max_uses, expires_at, created_at)
          VALUES ($1, $2, $3, $4, $5, $6)",
     )
-    .bind(invite.id.to_string())
+    .bind(invite.id)
     .bind(&invite.code)
-    .bind(invite.created_by.to_string())
+    .bind(invite.created_by)
     .bind(invite.max_uses)
     .bind(invite.expires_at)
     .bind(invite.created_at)
@@ -894,7 +857,7 @@ pub async fn use_invite_code(pool: &PgPool, code: &str) -> Result<(), AppError> 
 
 pub async fn revoke_invite(pool: &PgPool, invite_id: Uuid) -> Result<(), AppError> {
     let result = sqlx::query("UPDATE invites SET revoked = TRUE WHERE id = $1")
-        .bind(invite_id.to_string())
+        .bind(invite_id)
         .execute(pool)
         .await?;
     require_rows_affected(result, "Invite not found")
@@ -902,9 +865,9 @@ pub async fn revoke_invite(pool: &PgPool, invite_id: Uuid) -> Result<(), AppErro
 
 pub async fn get_invite_by_code(pool: &PgPool, code: &str) -> Result<Option<Invite>, AppError> {
     type InviteRow = (
+        Uuid,
         String,
-        String,
-        String,
+        Uuid,
         Option<i32>,
         i32,
         Option<DateTime<Utc>>,
@@ -920,28 +883,25 @@ pub async fn get_invite_by_code(pool: &PgPool, code: &str) -> Result<Option<Invi
     .fetch_optional(pool)
     .await?;
 
-    row.map(
-        |(id, code, created_by, max_uses, uses, expires_at, revoked, created_at)| {
-            Ok(Invite {
-                id: parse_uuid(&id)?,
-                code,
-                created_by: parse_uuid(&created_by)?,
-                max_uses,
-                uses,
-                expires_at,
-                revoked,
-                created_at,
-            })
+    Ok(row.map(
+        |(id, code, created_by, max_uses, uses, expires_at, revoked, created_at)| Invite {
+            id,
+            code,
+            created_by,
+            max_uses,
+            uses,
+            expires_at,
+            revoked,
+            created_at,
         },
-    )
-    .transpose()
+    ))
 }
 
 pub async fn get_all_invites(pool: &PgPool) -> Result<Vec<Invite>, AppError> {
     type InviteRow = (
+        Uuid,
         String,
-        String,
-        String,
+        Uuid,
         Option<i32>,
         i32,
         Option<DateTime<Utc>>,
@@ -956,22 +916,21 @@ pub async fn get_all_invites(pool: &PgPool) -> Result<Vec<Invite>, AppError> {
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
+    Ok(rows
+        .into_iter()
         .map(
-            |(id, code, created_by, max_uses, uses, expires_at, revoked, created_at)| {
-                Ok(Invite {
-                    id: parse_uuid(&id)?,
-                    code,
-                    created_by: parse_uuid(&created_by)?,
-                    max_uses,
-                    uses,
-                    expires_at,
-                    revoked,
-                    created_at,
-                })
+            |(id, code, created_by, max_uses, uses, expires_at, revoked, created_at)| Invite {
+                id,
+                code,
+                created_by,
+                max_uses,
+                uses,
+                expires_at,
+                revoked,
+                created_at,
             },
         )
-        .collect()
+        .collect())
 }
 
 // --- Server settings ---
@@ -1016,10 +975,10 @@ pub async fn create_mod_log_entry(pool: &PgPool, entry: &ModLogEntry) -> Result<
         "INSERT INTO moderation_log (id, action, moderator_id, target_user_id, reason, details, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
-    .bind(entry.id.to_string())
+    .bind(entry.id)
     .bind(&entry.action)
-    .bind(entry.moderator_id.to_string())
-    .bind(entry.target_user_id.to_string())
+    .bind(entry.moderator_id)
+    .bind(entry.target_user_id)
     .bind(&entry.reason)
     .bind(&entry.details)
     .bind(entry.created_at)
@@ -1030,15 +989,7 @@ pub async fn create_mod_log_entry(pool: &PgPool, entry: &ModLogEntry) -> Result<
 }
 
 pub async fn get_mod_log(pool: &PgPool, limit: i64) -> Result<Vec<ModLogEntry>, AppError> {
-    let rows: Vec<(
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        Option<String>,
-        DateTime<Utc>,
-    )> = sqlx::query_as(
+    let rows: Vec<ModLogRow> = sqlx::query_as(
         "SELECT id, action, moderator_id, target_user_id, reason, details, created_at
          FROM moderation_log ORDER BY created_at DESC LIMIT $1",
     )
@@ -1046,19 +997,18 @@ pub async fn get_mod_log(pool: &PgPool, limit: i64) -> Result<Vec<ModLogEntry>, 
     .fetch_all(pool)
     .await?;
 
-    rows.into_iter()
+    Ok(rows
+        .into_iter()
         .map(
-            |(id, action, moderator_id, target_user_id, reason, details, created_at)| {
-                Ok(ModLogEntry {
-                    id: parse_uuid(&id)?,
-                    action,
-                    moderator_id: parse_uuid(&moderator_id)?,
-                    target_user_id: parse_uuid(&target_user_id)?,
-                    reason,
-                    details,
-                    created_at,
-                })
+            |(id, action, moderator_id, target_user_id, reason, details, created_at)| ModLogEntry {
+                id,
+                action,
+                moderator_id,
+                target_user_id,
+                reason,
+                details,
+                created_at,
             },
         )
-        .collect()
+        .collect())
 }

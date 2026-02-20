@@ -1,6 +1,8 @@
-use axum::extract::Query;
+use axum::extract::{Query, State};
 use serde::Deserialize;
+use std::sync::Arc;
 
+use crate::models::AppState;
 use crate::shared::AppError;
 use crate::shared::validation::MAX_IMAGE_PROXY_SIZE;
 
@@ -11,6 +13,7 @@ pub struct ImageProxyQuery {
 }
 
 pub async fn proxy_image(
+    State(state): State<Arc<AppState>>,
     Query(query): Query<ImageProxyQuery>,
 ) -> Result<axum::response::Response, AppError> {
     use axum::body::Body;
@@ -32,11 +35,8 @@ pub async fn proxy_image(
         return Err(AppError::forbidden("Invalid signature"));
     }
 
-    // Fetch the image
-    let client = crate::shared::http::create_http_client(10)
-        .map_err(|e| AppError::internal(e.to_string()))?;
-
-    let response = client
+    let response = state
+        .http_client
         .get(&image_url)
         .send()
         .await
@@ -54,12 +54,18 @@ pub async fn proxy_image(
         return Err(AppError::bad_request("Not an image"));
     }
 
+    // Reject early if Content-Length header exceeds limit
+    if let Some(content_length) = response.content_length()
+        && content_length as usize > MAX_IMAGE_PROXY_SIZE
+    {
+        return Err(AppError::bad_request("Image too large"));
+    }
+
     let bytes = response
         .bytes()
         .await
         .map_err(|e| AppError::internal(e.to_string()))?;
 
-    // Limit size to 10MB
     if bytes.len() > MAX_IMAGE_PROXY_SIZE {
         return Err(AppError::bad_request("Image too large"));
     }

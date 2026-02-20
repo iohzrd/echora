@@ -7,8 +7,8 @@ pub async fn create_pool() -> Result<PgPool, sqlx::Error> {
     tracing::info!("Connecting to database");
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
+        .max_connections(20)
+        .min_connections(2)
         .acquire_timeout(Duration::from_secs(5))
         .idle_timeout(Duration::from_secs(300))
         .max_lifetime(Duration::from_secs(1800))

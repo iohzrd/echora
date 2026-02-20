@@ -77,10 +77,6 @@ impl AuthUser {
             .parse()
             .map_err(|_| AppError::bad_request("Invalid user ID"))
     }
-
-    pub fn role(&self) -> &str {
-        &self.0.role
-    }
 }
 
 impl<S> FromRequestParts<S> for AuthUser

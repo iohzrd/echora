@@ -93,7 +93,8 @@ pub async fn delete_message(
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id()?;
-    let role = permissions::Role::from_str(auth_user.role());
+    let actor_role_str = database::get_user_role(&state.db, user_id).await?;
+    let role = permissions::Role::from_str(&actor_role_str);
 
     if role >= Role::Moderator {
         verify_message_in_channel(&state.db, message_id, channel_id).await?;

@@ -83,8 +83,8 @@ pub async fn validate_invite(
     let valid = match invite {
         Some(inv) => {
             !inv.revoked
-                && inv.expires_at.map_or(true, |e| e > Utc::now())
-                && inv.max_uses.map_or(true, |max| inv.uses < max)
+                && inv.expires_at.is_none_or(|e| e > Utc::now())
+                && inv.max_uses.is_none_or(|max| inv.uses < max)
         }
         None => false,
     };

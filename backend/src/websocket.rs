@@ -195,36 +195,87 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, claims: auth::Claims
                     None => std::future::pending().await,
                 }
             } => {
-                if let Ok(text) = msg
-                    && sender.send(Message::Text(text.into())).await.is_err() {
-                    break;
+                match msg {
+                    Ok(text) => {
+                        if sender.send(Message::Text(text.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("Channel broadcast: client {} lagged by {} messages", user_id, n);
+                        let _ = sender.send(Message::Text(
+                            r#"{"type":"sync_required","data":{"reason":"lagged"}}"#.into()
+                        )).await;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        broadcast_rx = None;
+                    }
                 }
             }
 
             msg = global_rx.recv() => {
-                if let Ok(ref text) = msg {
-                    // Check if this is a kick/ban targeting us
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-                        let event_type = parsed.get("type").and_then(|t| t.as_str());
-                        let target_id = parsed
-                            .get("data")
-                            .and_then(|d| d.get("user_id"))
-                            .and_then(|u| u.as_str());
+                match msg {
+                    Ok(ref text) => {
+                        // Check if this is a kick/ban targeting us
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
+                            let event_type = parsed.get("type").and_then(|t| t.as_str());
+                            let target_id = parsed
+                                .get("data")
+                                .and_then(|d| d.get("user_id"))
+                                .and_then(|u| u.as_str());
 
-                        if matches!(event_type, Some("user_kicked") | Some("user_banned"))
-                            && target_id == Some(&user_id.to_string())
-                        {
-                            let _ = sender.send(Message::Text(text.clone().into())).await;
+                            if matches!(event_type, Some("user_kicked") | Some("user_banned"))
+                                && target_id == Some(&user_id.to_string())
+                            {
+                                let _ = sender.send(Message::Text(text.clone().into())).await;
+                                break;
+                            }
+                        }
+                        if sender.send(Message::Text(text.clone().into())).await.is_err() {
                             break;
                         }
                     }
-                }
-                if let Ok(text) = msg
-                    && sender.send(Message::Text(text.into())).await.is_err() {
-                    break;
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("Global broadcast: client {} lagged by {} messages", user_id, n);
+                        let _ = sender.send(Message::Text(
+                            r#"{"type":"sync_required","data":{"reason":"lagged"}}"#.into()
+                        )).await;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
                 }
             }
         }
+    }
+
+    // Clean up voice states on disconnect
+    let mut left_channels = Vec::new();
+    for mut channel_entry in state.voice_states.iter_mut() {
+        let channel_id = *channel_entry.key();
+        if channel_entry.value_mut().remove(&user_id).is_some() {
+            left_channels.push(channel_id);
+        }
+    }
+    for channel_id in &left_channels {
+        if let Some(entry) = state.voice_states.get(channel_id)
+            && entry.is_empty()
+        {
+            drop(entry);
+            state.voice_states.remove(channel_id);
+        }
+        state.voice_sessions.retain(|_, session| {
+            !(session.user_id == user_id && session.channel_id == *channel_id)
+        });
+        state
+            .sfu_service
+            .close_user_connections(*channel_id, user_id)
+            .await;
+        state.broadcast_global(
+            "voice_user_left",
+            serde_json::json!({
+                "user_id": user_id,
+                "channel_id": channel_id,
+            }),
+        );
     }
 
     // Clean up presence on disconnect
