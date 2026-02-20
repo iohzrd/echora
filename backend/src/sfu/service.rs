@@ -113,6 +113,22 @@ impl SfuService {
         })
     }
 
+    /// Verify the authenticated user owns the given transport.
+    pub fn verify_transport_owner(
+        &self,
+        transport_id: &str,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
+        let conn = self
+            .connections
+            .get(transport_id)
+            .ok_or_else(|| AppError::not_found("Transport not found"))?;
+        if conn.user_id != user_id {
+            return Err(AppError::forbidden("Transport belongs to another user"));
+        }
+        Ok(())
+    }
+
     pub async fn get_or_create_router(&self, channel_id: Uuid) -> Result<Arc<Router>, AppError> {
         if let Some(router) = self.routers.get(&channel_id) {
             return Ok(router.clone());

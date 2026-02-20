@@ -22,7 +22,7 @@ pub async fn get_moderation_log(
     Query(query): Query<ModLogQuery>,
 ) -> AppResult<Json<Vec<ModLogEntry>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
-    permissions::require_role(&actor_role, Role::Moderator)?;
+    permissions::require_role(actor_role, Role::Moderator)?;
 
     let limit = query.limit.unwrap_or(100).clamp(1, 500);
     let log = database::get_mod_log(&state.db, limit).await?;

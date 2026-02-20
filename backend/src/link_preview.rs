@@ -37,12 +37,12 @@ pub fn extract_urls(content: &str) -> Vec<String> {
 }
 
 /// Check if a URL scheme is safe (http/https only)
-fn is_safe_scheme(url: &str) -> bool {
+pub fn is_safe_scheme(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
 }
 
 /// Check if an IP address is private/reserved (SSRF protection)
-fn is_private_ip(ip: IpAddr) -> bool {
+pub fn is_private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ipv4) => {
             ipv4.is_loopback()
@@ -72,7 +72,7 @@ fn is_private_ip(ip: IpAddr) -> bool {
 }
 
 /// Validate a URL is safe to fetch (SSRF protection)
-async fn is_safe_url(url: &str) -> bool {
+pub async fn is_safe_url(url: &str) -> bool {
     if !is_safe_scheme(url) {
         return false;
     }
@@ -286,15 +286,22 @@ pub fn spawn_preview_fetch(
     }
 
     tokio::spawn(async move {
-        let jwt_secret = crate::auth::jwt_secret_str();
-        let mut previews = Vec::new();
+        let hmac_secret = crate::auth::hmac_secret();
 
-        for url in &urls {
-            match fetch_preview(&state.http_client, url).await {
+        // Fetch all URLs concurrently
+        let fetch_results: Vec<_> = futures_util::future::join_all(urls.iter().map(|url| {
+            let client = &state.http_client;
+            async move { (url.clone(), fetch_preview(client, url).await) }
+        }))
+        .await;
+
+        let mut previews = Vec::new();
+        for (url, result) in fetch_results {
+            match result {
                 Ok(mut data) => {
                     // Sign image URL for proxy if present
                     if let Some(ref img_url) = data.image_url {
-                        let (encoded, sig) = sign_image_url(img_url, jwt_secret);
+                        let (encoded, sig) = sign_image_url(img_url, hmac_secret);
                         data.image_url = Some(format!("/api/proxy/image?url={encoded}&sig={sig}"));
                     }
 

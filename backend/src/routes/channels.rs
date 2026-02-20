@@ -27,7 +27,7 @@ pub async fn create_channel(
 ) -> AppResult<Json<Channel>> {
     let user_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, user_id).await?;
-    permissions::require_role(&actor_role, Role::Admin)?;
+    permissions::require_role(actor_role, Role::Admin)?;
 
     let name = validate_channel_name(&payload.name)?;
 
@@ -52,7 +52,7 @@ pub async fn update_channel(
 ) -> AppResult<Json<Channel>> {
     let user_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, user_id).await?;
-    permissions::require_role(&actor_role, Role::Admin)?;
+    permissions::require_role(actor_role, Role::Admin)?;
 
     let name = validate_channel_name(&payload.name)?;
 
@@ -74,7 +74,7 @@ pub async fn delete_channel(
 ) -> AppResult<()> {
     let user_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, user_id).await?;
-    permissions::require_role(&actor_role, Role::Admin)?;
+    permissions::require_role(actor_role, Role::Admin)?;
 
     database::delete_channel(&state.db, channel_id).await?;
 

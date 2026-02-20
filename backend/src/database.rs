@@ -6,9 +6,10 @@ use uuid::Uuid;
 use crate::auth::User;
 use crate::link_preview::LinkPreviewData;
 use crate::models::{
-    Ban, Channel, Invite, LinkPreview, Message, ModLogEntry, Mute, Reaction, ReplyPreview,
-    UserSummary,
+    Ban, Channel, ChannelType, Invite, LinkPreview, Message, ModLogEntry, Mute, Reaction,
+    ReplyPreview, UserSummary,
 };
+use crate::permissions::Role;
 use crate::shared::AppError;
 use crate::shared::truncate_string;
 use crate::shared::validation::REPLY_PREVIEW_LENGTH;
@@ -165,6 +166,15 @@ pub async fn get_channel_by_id(
     Ok(channel)
 }
 
+pub async fn get_channel_type(pool: &PgPool, channel_id: Uuid) -> Result<ChannelType, AppError> {
+    let row: (ChannelType,) = sqlx::query_as("SELECT channel_type FROM channels WHERE id = $1")
+        .bind(channel_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|_| AppError::not_found("Channel not found"))?;
+    Ok(row.0)
+}
+
 pub async fn create_channel(
     pool: &PgPool,
     channel: &Channel,
@@ -257,24 +267,22 @@ pub async fn get_messages(
         }
     }
 
-    // Batch-fetch reactions
+    // Batch-fetch reactions and link previews concurrently
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
     if !message_ids.is_empty() {
-        let reactions_map =
-            get_reactions_for_messages(pool, &message_ids, requesting_user_id).await?;
+        let (reactions_map, previews_map) = tokio::join!(
+            get_reactions_for_messages(pool, &message_ids, requesting_user_id),
+            get_link_previews_for_messages(pool, &message_ids),
+        );
+        let reactions_map = reactions_map?;
+        let previews_map = previews_map?;
+
         for msg in &mut messages {
             if let Some(reactions) = reactions_map.get(&msg.id)
                 && !reactions.is_empty()
             {
                 msg.reactions = Some(reactions.clone());
             }
-        }
-    }
-
-    // Batch-fetch link previews
-    if !message_ids.is_empty() {
-        let previews_map = get_link_previews_for_messages(pool, &message_ids).await?;
-        for msg in &mut messages {
             if let Some(previews) = previews_map.get(&msg.id)
                 && !previews.is_empty()
             {
@@ -541,7 +549,7 @@ pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
     .bind(&user.username)
     .bind(&user.email)
     .bind(&user.password_hash)
-    .bind(&user.role)
+    .bind(user.role)
     .bind(user.created_at)
     .execute(pool)
     .await
@@ -584,17 +592,6 @@ pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Optio
     Ok(user)
 }
 
-pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
-    let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE email = $1",
-    )
-    .bind(email)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(user)
-}
-
 pub async fn get_user_count(pool: &PgPool) -> Result<i64, AppError> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
@@ -602,8 +599,8 @@ pub async fn get_user_count(pool: &PgPool) -> Result<i64, AppError> {
     Ok(count)
 }
 
-pub async fn get_user_role(pool: &PgPool, user_id: Uuid) -> Result<String, AppError> {
-    let row: (String,) = sqlx::query_as("SELECT role FROM users WHERE id = $1")
+pub async fn get_user_role(pool: &PgPool, user_id: Uuid) -> Result<Role, AppError> {
+    let row: (Role,) = sqlx::query_as("SELECT role FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(pool)
         .await
@@ -611,7 +608,7 @@ pub async fn get_user_role(pool: &PgPool, user_id: Uuid) -> Result<String, AppEr
     Ok(row.0)
 }
 
-pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: &str) -> Result<(), AppError> {
+pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: Role) -> Result<(), AppError> {
     let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
         .bind(role)
         .bind(user_id)

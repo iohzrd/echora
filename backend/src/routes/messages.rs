@@ -93,8 +93,7 @@ pub async fn delete_message(
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id();
-    let actor_role_str = database::get_user_role(&state.db, user_id).await?;
-    let role: permissions::Role = actor_role_str.parse().unwrap();
+    let role = database::get_user_role(&state.db, user_id).await?;
 
     if role >= Role::Moderator {
         verify_message_in_channel(&state.db, message_id, channel_id).await?;

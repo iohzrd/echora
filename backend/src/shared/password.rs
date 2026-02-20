@@ -21,5 +21,5 @@ pub fn verify_password(password: &str, hash: &str) -> Result<(), AppError> {
 
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
-        .map_err(|_| AppError::authentication("Invalid password"))
+        .map_err(|_| AppError::authentication("Invalid credentials"))
 }

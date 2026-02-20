@@ -23,9 +23,17 @@ pub async fn get_init(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
 ) -> AppResult<Json<InitResponse>> {
-    let server_name = database::get_server_setting(&state.db, "server_name").await?;
+    let user_id = auth_user.user_id();
 
-    let channels = database::get_channels(&state.db).await?;
+    // Run independent DB queries concurrently
+    let (server_name, channels, actor_role) = tokio::join!(
+        database::get_server_setting(&state.db, "server_name"),
+        database::get_channels(&state.db),
+        database::get_user_role(&state.db, user_id),
+    );
+    let server_name = server_name?;
+    let channels = channels?;
+    let actor_role = actor_role?;
 
     let online_users: Vec<UserPresence> = state
         .online_users
@@ -36,9 +44,7 @@ pub async fn get_init(
     let voice_states: Vec<VoiceState> = state.all_voice_states();
 
     // Include user list for moderators+ (needed for role badges)
-    let user_id = auth_user.user_id();
-    let actor_role = database::get_user_role(&state.db, user_id).await?;
-    let users = if actor_role.parse::<Role>().unwrap() >= Role::Moderator {
+    let users = if actor_role >= Role::Moderator {
         Some(database::get_all_users(&state.db).await?)
     } else {
         None

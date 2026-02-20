@@ -8,7 +8,7 @@ use crate::auth::{
 };
 use crate::database;
 use crate::models::AppState;
-use crate::permissions;
+use crate::permissions::{self, Role};
 use crate::shared::password;
 use crate::shared::validation;
 use crate::shared::{AppError, AppResult};
@@ -35,14 +35,18 @@ pub async fn register(
 
     // First user becomes owner, rest are members
     let user_count = database::get_user_count(&state.db).await?;
-    let role = if user_count == 0 { "owner" } else { "member" };
+    let role = if user_count == 0 {
+        Role::Owner
+    } else {
+        Role::Member
+    };
 
     let user = User {
         id: Uuid::now_v7(),
         username,
         email,
         password_hash,
-        role: role.to_string(),
+        role,
         created_at: Utc::now(),
     };
 
@@ -50,7 +54,7 @@ pub async fn register(
     // to specific conflict errors (username taken, email in use)
     database::create_user(&state.db, &user).await?;
 
-    let token = create_jwt(user.id, &user.username, &user.role)?;
+    let token = create_jwt(user.id, &user.username, user.role)?;
 
     Ok(Json(AuthResponse {
         token,
@@ -82,7 +86,7 @@ pub async fn login(
 
     permissions::check_not_banned(&state.db, user.id).await?;
 
-    let token = create_jwt(user.id, &user.username, &user.role)?;
+    let token = create_jwt(user.id, &user.username, user.role)?;
 
     Ok(Json(AuthResponse {
         token,

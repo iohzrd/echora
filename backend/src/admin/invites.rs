@@ -28,7 +28,7 @@ pub async fn create_invite(
 ) -> AppResult<Json<Invite>> {
     let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
-    permissions::require_role(&actor_role, Role::Moderator)?;
+    permissions::require_role(actor_role, Role::Moderator)?;
 
     let expires_at = payload
         .expires_in_hours
@@ -56,7 +56,7 @@ pub async fn list_invites(
     auth_user: AuthUser,
 ) -> AppResult<Json<Vec<Invite>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
-    permissions::require_role(&actor_role, Role::Moderator)?;
+    permissions::require_role(actor_role, Role::Moderator)?;
 
     let invites = database::get_all_invites(&state.db).await?;
     Ok(Json(invites))
@@ -68,7 +68,7 @@ pub async fn revoke_invite(
     Path(invite_id): Path<Uuid>,
 ) -> AppResult<()> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
-    permissions::require_role(&actor_role, Role::Moderator)?;
+    permissions::require_role(actor_role, Role::Moderator)?;
 
     database::revoke_invite(&state.db, invite_id).await?;
 

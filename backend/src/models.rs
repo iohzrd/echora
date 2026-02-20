@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
+use crate::permissions::Role;
 use crate::sfu::service::SfuService;
 use crate::shared::validation::BROADCAST_CHANNEL_CAPACITY;
 
@@ -17,7 +18,7 @@ pub struct Channel {
     pub channel_type: ChannelType,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "text", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelType {
@@ -131,15 +132,6 @@ pub struct VoiceState {
     pub joined_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VoiceSession {
-    pub session_id: Uuid,
-    pub user_id: Uuid,
-    pub channel_id: Uuid,
-    pub peer_connection_id: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct JoinVoiceRequest {
     pub channel_id: Uuid,
@@ -175,7 +167,7 @@ pub struct UserSummary {
     pub id: Uuid,
     pub username: String,
     pub email: String,
-    pub role: String,
+    pub role: Role,
     pub created_at: DateTime<Utc>,
 }
 
@@ -230,6 +222,26 @@ pub struct ModLogEntry {
     pub created_at: DateTime<Utc>,
 }
 
+impl ModLogEntry {
+    pub fn new(
+        action: &str,
+        moderator_id: Uuid,
+        target_user_id: Uuid,
+        reason: Option<String>,
+        details: Option<String>,
+    ) -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            action: action.to_string(),
+            moderator_id,
+            target_user_id,
+            reason,
+            details,
+            created_at: Utc::now(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct BanRequest {
     pub user_id: Uuid,
@@ -252,7 +264,7 @@ pub struct KickRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct RoleChangeRequest {
-    pub role: String,
+    pub role: Role,
 }
 
 #[derive(Debug, Deserialize)]
@@ -274,7 +286,6 @@ pub struct AppState {
     pub global_broadcast: broadcast::Sender<String>,
     pub online_users: DashMap<Uuid, UserPresence>,
     pub voice_states: DashMap<Uuid, DashMap<Uuid, VoiceState>>,
-    pub voice_sessions: DashMap<Uuid, VoiceSession>,
     pub sfu_service: Arc<SfuService>,
 }
 
@@ -288,7 +299,6 @@ impl AppState {
             global_broadcast: global_tx,
             online_users: DashMap::new(),
             voice_states: DashMap::new(),
-            voice_sessions: DashMap::new(),
             sfu_service: Arc::new(sfu_service),
         }
     }

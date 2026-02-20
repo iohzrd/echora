@@ -59,10 +59,15 @@ pub async fn create_transport(
 
 pub async fn connect_transport(
     State(state): State<Arc<AppState>>,
-    _auth_user: AuthUser,
+    auth_user: AuthUser,
     Path(transport_id): Path<String>,
     Json(req): Json<ConnectTransportRequest>,
 ) -> AppResult<StatusCode> {
+    let user_id = auth_user.user_id();
+    state
+        .sfu_service
+        .verify_transport_owner(&transport_id, user_id)?;
+
     state
         .sfu_service
         .connect_transport(&transport_id, req.dtls_parameters)
@@ -72,10 +77,15 @@ pub async fn connect_transport(
 
 pub async fn produce(
     State(state): State<Arc<AppState>>,
-    _auth_user: AuthUser,
+    auth_user: AuthUser,
     Path(transport_id): Path<String>,
     Json(req): Json<ProduceRequest>,
 ) -> AppResult<Json<ProduceResponse>> {
+    let user_id = auth_user.user_id();
+    state
+        .sfu_service
+        .verify_transport_owner(&transport_id, user_id)?;
+
     let info = state
         .sfu_service
         .produce(&transport_id, req.kind, req.rtp_parameters, req.label)
@@ -102,10 +112,15 @@ pub async fn produce(
 
 pub async fn consume(
     State(state): State<Arc<AppState>>,
-    _auth_user: AuthUser,
+    auth_user: AuthUser,
     Path(transport_id): Path<String>,
     Json(req): Json<ConsumeRequest>,
 ) -> AppResult<Json<ConsumerData>> {
+    let user_id = auth_user.user_id();
+    state
+        .sfu_service
+        .verify_transport_owner(&transport_id, user_id)?;
+
     state
         .sfu_service
         .consume(&transport_id, &req.producer_id, req.rtp_capabilities)
@@ -115,9 +130,14 @@ pub async fn consume(
 
 pub async fn close_connection(
     State(state): State<Arc<AppState>>,
-    _auth_user: AuthUser,
+    auth_user: AuthUser,
     Path(transport_id): Path<String>,
 ) -> AppResult<StatusCode> {
+    let user_id = auth_user.user_id();
+    state
+        .sfu_service
+        .verify_transport_owner(&transport_id, user_id)?;
+
     state
         .sfu_service
         .close_connection(&transport_id)

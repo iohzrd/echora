@@ -141,7 +141,7 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
                                 broadcast_rx = None;
                             }
                             "typing" => {
-                                handle_typing(&state, envelope.payload, user_id, &username, current_channel);
+                                handle_typing(&state, envelope.payload, user_id, &username);
                             }
                             "voice_state_update" => {
                                 handle_voice_state_update(&state, envelope.payload, user_id);
@@ -248,9 +248,6 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
             drop(entry);
             state.voice_states.remove(channel_id);
         }
-        state.voice_sessions.retain(|_, session| {
-            !(session.user_id == user_id && session.channel_id == *channel_id)
-        });
         state
             .sfu_service
             .close_user_connections(*channel_id, user_id)
@@ -338,24 +335,17 @@ fn handle_join(
     *broadcast_rx = Some(tx.subscribe());
 }
 
-fn handle_typing(
-    state: &Arc<AppState>,
-    payload: serde_json::Value,
-    user_id: Uuid,
-    username: &str,
-    current_channel: Option<Uuid>,
-) {
+fn handle_typing(state: &Arc<AppState>, payload: serde_json::Value, user_id: Uuid, username: &str) {
     let Ok(target) = serde_json::from_value::<ChannelTarget>(payload) else {
         return;
     };
-    let channel_id = current_channel.unwrap_or(target.channel_id);
     state.broadcast_channel(
-        channel_id,
+        target.channel_id,
         "typing",
         serde_json::json!({
             "user_id": user_id,
             "username": username,
-            "channel_id": channel_id,
+            "channel_id": target.channel_id,
         }),
     );
 }

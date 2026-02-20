@@ -7,8 +7,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::auth::AuthUser;
-use crate::models::{AppState, JoinVoiceRequest, LeaveVoiceRequest, VoiceSession, VoiceState};
-use crate::shared::AppResult;
+use crate::database;
+use crate::models::{AppState, ChannelType, JoinVoiceRequest, LeaveVoiceRequest, VoiceState};
+use crate::shared::{AppError, AppResult};
 
 pub async fn join_voice_channel(
     State(state): State<Arc<AppState>>,
@@ -16,6 +17,24 @@ pub async fn join_voice_channel(
     Json(request): Json<JoinVoiceRequest>,
 ) -> AppResult<Json<VoiceState>> {
     let user_id = auth_user.user_id();
+
+    // Verify the channel exists and is a voice channel
+    let channel_type = database::get_channel_type(&state.db, request.channel_id).await?;
+    if channel_type != ChannelType::Voice {
+        return Err(AppError::bad_request("Cannot join a non-voice channel"));
+    }
+
+    // Clean up existing voice state/SFU connections if user is re-joining
+    if let Some(channel_users) = state.voice_states.get(&request.channel_id)
+        && channel_users.get(&user_id).is_some()
+    {
+        drop(channel_users);
+        state
+            .sfu_service
+            .close_user_connections(request.channel_id, user_id)
+            .await;
+    }
+
     let session_id = Uuid::new_v4();
     let now = Utc::now();
 
@@ -31,21 +50,11 @@ pub async fn join_voice_channel(
         joined_at: now,
     };
 
-    let voice_session = VoiceSession {
-        session_id,
-        user_id,
-        channel_id: request.channel_id,
-        peer_connection_id: None,
-        created_at: now,
-    };
-
     state
         .voice_states
         .entry(request.channel_id)
         .or_default()
         .insert(user_id, voice_state.clone());
-
-    state.voice_sessions.insert(session_id, voice_session);
 
     state.broadcast_global("voice_user_joined", serde_json::json!(voice_state));
 
@@ -73,11 +82,6 @@ pub async fn leave_voice_channel(
             state.voice_states.remove(&request.channel_id);
         }
     }
-
-    // Remove voice session
-    state.voice_sessions.retain(|_, session| {
-        !(session.user_id == user_id && session.channel_id == request.channel_id)
-    });
 
     // Close all SFU transports for this user in this channel
     state

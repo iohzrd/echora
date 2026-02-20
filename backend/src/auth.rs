@@ -4,6 +4,7 @@ use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::permissions::Role;
 use crate::shared::AppError;
 
 use std::sync::OnceLock;
@@ -18,11 +19,19 @@ pub fn jwt_secret() -> &'static [u8] {
     jwt_secret_str().as_bytes()
 }
 
+static HMAC_SECRET: OnceLock<String> = OnceLock::new();
+
+pub fn hmac_secret() -> &'static str {
+    HMAC_SECRET.get_or_init(|| {
+        std::env::var("HMAC_SECRET").unwrap_or_else(|_| jwt_secret_str().to_string())
+    })
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: Uuid,
     pub username: String,
-    pub role: String,
+    pub role: Role,
     pub exp: i64,
 }
 
@@ -32,7 +41,7 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub password_hash: String,
-    pub role: String,
+    pub role: Role,
     pub created_at: chrono::DateTime<Utc>,
 }
 
@@ -61,7 +70,7 @@ pub struct UserInfo {
     pub id: Uuid,
     pub username: String,
     pub email: String,
-    pub role: String,
+    pub role: Role,
 }
 
 pub struct AuthUser(pub Claims);
@@ -100,7 +109,7 @@ where
     }
 }
 
-pub fn create_jwt(user_id: Uuid, username: &str, role: &str) -> Result<String, AppError> {
+pub fn create_jwt(user_id: Uuid, username: &str, role: Role) -> Result<String, AppError> {
     let expiration = Utc::now()
         .checked_add_signed(TimeDelta::days(7))
         .ok_or_else(|| AppError::internal("Failed to compute token expiration"))?
@@ -109,7 +118,7 @@ pub fn create_jwt(user_id: Uuid, username: &str, role: &str) -> Result<String, A
     let claims = Claims {
         sub: user_id,
         username: username.to_string(),
-        role: role.to_string(),
+        role,
         exp: expiration,
     };
 

@@ -12,7 +12,7 @@ pub async fn get_settings(
     auth_user: AuthUser,
 ) -> AppResult<Json<std::collections::HashMap<String, String>>> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
-    permissions::require_role(&actor_role, Role::Admin)?;
+    permissions::require_role(actor_role, Role::Admin)?;
 
     let settings = database::get_all_server_settings(&state.db).await?;
     Ok(Json(settings))
@@ -24,7 +24,7 @@ pub async fn update_setting(
     Json(payload): Json<ServerSettingUpdate>,
 ) -> AppResult<()> {
     let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
-    permissions::require_role(&actor_role, Role::Admin)?;
+    permissions::require_role(actor_role, Role::Admin)?;
 
     // Validate known settings
     match payload.key.as_str() {
