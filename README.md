@@ -71,12 +71,12 @@ npm run tauri:dev
 
 Environment variables (set in `backend/.env`):
 
-| Variable       | Description                     | Default                                             |
-| -------------- | ------------------------------- | --------------------------------------------------- |
+| Variable       | Description                     | Default                                          |
+| -------------- | ------------------------------- | ------------------------------------------------ |
 | `DATABASE_URL` | PostgreSQL connection string    | `postgres://echora:echora@localhost:5432/echora` |
-| `JWT_SECRET`   | Secret key for JWT signing      | (required, no default)                              |
-| `BIND_ADDR`    | Server bind address             | `127.0.0.1:3000`                                    |
-| `CORS_ORIGINS` | Comma-separated allowed origins | Permissive (all origins)                            |
+| `JWT_SECRET`   | Secret key for JWT signing      | (required, no default)                           |
+| `BIND_ADDR`    | Server bind address             | `127.0.0.1:3000`                                 |
+| `CORS_ORIGINS` | Comma-separated allowed origins | Permissive (all origins)                         |
 
 Frontend environment (set in `frontend/.env` / `.env.production`):
 
@@ -135,18 +135,18 @@ cd frontend && npm run build
 - [x] Markdown & code blocks
 - [x] Message replies & threads
 - [x] Reactions & custom emoji
-- [ ] User profiles & avatars
-- [ ] Roles & permissions
-- [ ] File uploads
+- [x] Roles & permissions
+- [x] Moderation (kick, ban, mute/timeout, audit log)
+- [x] Invite system
 - [ ] Message pinning
 - [ ] Search
 - [ ] Notifications (@mentions, unread indicators)
-- [ ] Moderation (kick, ban, timeout, audit log)
-- [ ] Invite system
-- [ ] Webhooks
-- [ ] Polls
-- [ ] One-click deployment(s)
 - [ ] Direct messages & group DMs
+- [ ] Polls
+- [ ] File uploads
+- [ ] User profiles & avatars
+- [ ] One-click deployment(s)
+- [ ] Webhooks
 
 ## License
 

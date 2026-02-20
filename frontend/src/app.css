@@ -582,9 +582,10 @@ body {
 
 .voice-controls {
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 	margin: 8px 0;
-	padding: 0 16px;
+	padding: 0 8px;
+	flex-wrap: wrap;
 }
 
 .voice-control-btn {
@@ -592,10 +593,17 @@ body {
 	border: none;
 	color: var(--text-secondary);
 	cursor: pointer;
-	padding: 6px 8px;
+	padding: 6px;
 	border-radius: var(--radius-md);
 	font-size: 14px;
+	line-height: 1;
 	transition: background-color 0.2s, color 0.2s;
+	flex: 1;
+	min-width: 0;
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .voice-control-btn:hover {
@@ -658,22 +666,26 @@ body {
 
 .mute-indicator,
 .deafen-indicator,
-.screen-indicator {
+.screen-indicator,
+.camera-indicator {
 	font-size: 10px;
 	opacity: 0.7;
 }
 
-.screen-indicator {
+.screen-indicator,
+.camera-indicator {
 	color: var(--status-positive);
 	opacity: 1;
 	font-weight: 600;
 }
 
-.voice-user.screen-sharing {
+.voice-user.screen-sharing,
+.voice-user.camera-sharing {
 	cursor: pointer;
 }
 
-.voice-user.screen-sharing:hover {
+.voice-user.screen-sharing:hover,
+.voice-user.camera-sharing:hover {
 	background-color: var(--bg-input);
 	border-radius: var(--radius-md);
 }
@@ -683,6 +695,83 @@ body {
 }
 
 .voice-control-btn.screen.active {
+	background: var(--status-positive);
+	color: var(--text-white);
+}
+
+/* Voice Panel (bottom of sidebar) */
+.voice-panel {
+	border-top: 1px solid var(--border-primary);
+	padding: 8px;
+	background-color: var(--bg-tertiary);
+	flex-shrink: 0;
+}
+
+.voice-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.voice-panel-status {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--status-positive);
+	text-transform: uppercase;
+}
+
+.voice-panel-leave {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: var(--radius-sm);
+	font-size: 11px;
+	display: flex;
+	align-items: center;
+	transition: color 0.15s, background-color 0.15s;
+}
+
+.voice-panel-leave:hover {
+	color: var(--status-negative);
+	background-color: var(--bg-input);
+}
+
+.voice-panel-controls {
+	display: flex;
+	gap: 4px;
+}
+
+.voice-panel-settings {
+	margin-top: 6px;
+}
+
+.voice-panel-settings .voice-settings {
+	padding: 0;
+	margin: 0 0 4px;
+}
+
+.voice-panel-settings .audio-settings {
+	padding: 0;
+	margin: 0;
+}
+
+.voice-control-btn.settings-toggle {
+	background: var(--bg-tertiary);
+	border: 1px solid var(--border-subtle);
+}
+
+.voice-control-btn.settings-toggle:hover {
+	background: var(--bg-input);
+}
+
+.voice-control-btn.camera {
+	background: var(--bg-input);
+}
+
+.voice-control-btn.camera.active {
 	background: var(--status-positive);
 	color: var(--text-white);
 }

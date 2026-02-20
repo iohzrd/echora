@@ -60,6 +60,12 @@ struct ScreenShareUpdate {
     is_screen_sharing: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct CameraUpdate {
+    channel_id: Uuid,
+    is_camera_sharing: bool,
+}
+
 pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     Query(query): Query<WsQuery>,
@@ -158,6 +164,9 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, claims: auth::Claims
                             }
                             "screen_share_update" => {
                                 handle_screen_share_update(&state, envelope.payload, user_id);
+                            }
+                            "camera_update" => {
+                                handle_camera_update(&state, envelope.payload, user_id);
                             }
                             "ping" => {
                                 // Respond to client ping with pong
@@ -402,6 +411,15 @@ fn handle_screen_share_update(state: &Arc<AppState>, payload: serde_json::Value,
             vs.is_screen_sharing = update.is_screen_sharing;
         },
     );
+}
+
+fn handle_camera_update(state: &Arc<AppState>, payload: serde_json::Value, user_id: Uuid) {
+    let Ok(update) = serde_json::from_value::<CameraUpdate>(payload) else {
+        return;
+    };
+    modify_voice_state(state, update.channel_id, user_id, "camera_updated", |vs| {
+        vs.is_camera_sharing = update.is_camera_sharing;
+    });
 }
 
 fn get_or_create_broadcast(state: &Arc<AppState>, channel_id: Uuid) -> broadcast::Sender<String> {

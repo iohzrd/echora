@@ -24,6 +24,7 @@ export class VoiceManager {
   private remoteAudioElements: Map<string, HTMLAudioElement> = new Map();
   private localStream: MediaStream | null = null;
   private screenStream: MediaStream | null = null;
+  private cameraStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private gainNode: GainNode | null = null;
@@ -32,6 +33,7 @@ export class VoiceManager {
   private isMuted = false;
   private isDeafened = false;
   private isScreenSharing = false;
+  private isCameraSharing = false;
   private isConnected = false;
   private currentChannelId: string | null = null;
   private voiceStates: VoiceState[] = [];
@@ -57,6 +59,7 @@ export class VoiceManager {
   private onStateChanged: (() => void) | null = null;
   private onScreenTrackReceived: ((track: MediaStreamTrack, userId: string) => void) | null = null;
   private onScreenTrackRemoved: ((userId: string) => void) | null = null;
+  private onCameraTrackReceived: ((track: MediaStreamTrack, userId: string) => void) | null = null;
 
   async joinVoiceChannel(channelId: string): Promise<void> {
     const currentUser = get(user);
@@ -124,9 +127,12 @@ export class VoiceManager {
     if (!this.currentChannelId) return;
 
     try {
-      // Stop screen sharing before leaving
+      // Stop screen sharing and camera before leaving
       if (this.isScreenSharing) {
         await this.stopScreenShare();
+      }
+      if (this.isCameraSharing) {
+        await this.stopCamera();
       }
 
       // Close mediasoup transports (server-side cleanup)
@@ -151,9 +157,10 @@ export class VoiceManager {
     try {
       const producers = await getChannelProducers(channelId);
       for (const producer of producers) {
-        // Skip our own producers and screen share producers (consumed on demand when watching)
+        // Skip our own producers and screen/camera producers (consumed on demand when watching)
         if (producer.user_id === myUserId) continue;
         if (producer.label === 'screen') continue;
+        if (producer.label === 'camera') continue;
 
         try {
           await this.mediasoup?.consume(producer.producer_id, producer.user_id, producer.label);
@@ -193,6 +200,12 @@ export class VoiceManager {
     // Screen share tracks (video or audio) go to the screen track handler
     if (label === 'screen') {
       this.onScreenTrackReceived?.(track, userId);
+      return;
+    }
+
+    // Camera tracks go to the camera track handler
+    if (label === 'camera') {
+      this.onCameraTrackReceived?.(track, userId);
       return;
     }
 
@@ -388,6 +401,55 @@ export class VoiceManager {
     this.onStateChanged?.();
   }
 
+  async startCamera(): Promise<void> {
+    if (!this.mediasoup || !this.isConnected || !this.currentChannelId) {
+      throw new Error('Must be in a voice channel to share camera');
+    }
+
+    try {
+      this.cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+      });
+
+      const videoTrack = this.cameraStream.getVideoTracks()[0];
+      if (!videoTrack) {
+        throw new Error('No video track from camera');
+      }
+
+      videoTrack.addEventListener('ended', () => {
+        this.stopCamera();
+      });
+
+      await this.mediasoup.produceCamera(videoTrack);
+
+      if (this.ws) {
+        this.ws.sendCameraUpdate(this.currentChannelId, true);
+      }
+      this.isCameraSharing = true;
+      this.onStateChanged?.();
+    } catch (error) {
+      this.cameraStream = stopStream(this.cameraStream);
+      throw error;
+    }
+  }
+
+  async stopCamera(): Promise<void> {
+    if (!this.isCameraSharing) return;
+
+    if (this.mediasoup) {
+      this.mediasoup.closeCameraProducers();
+    }
+
+    this.cameraStream = stopStream(this.cameraStream);
+
+    if (this.currentChannelId && this.ws) {
+      this.ws.sendCameraUpdate(this.currentChannelId, false);
+    }
+
+    this.isCameraSharing = false;
+    this.onStateChanged?.();
+  }
+
   async toggleMute(): Promise<void> {
     // In PTT mode, toggleMute acts as a force-mute override
     if (this.inputMode === 'push-to-talk') {
@@ -536,9 +598,10 @@ export class VoiceManager {
     this.remoteAudioElements.forEach(detachAudioElement);
     this.remoteAudioElements.clear();
 
-    // Stop local and screen streams
+    // Stop local, screen, and camera streams
     this.localStream = stopStream(this.localStream);
     this.screenStream = stopStream(this.screenStream);
+    this.cameraStream = stopStream(this.cameraStream);
 
     // Close audio context
     if (this.audioContext) {
@@ -553,6 +616,7 @@ export class VoiceManager {
     this.isMuted = false;
     this.isDeafened = false;
     this.isScreenSharing = false;
+    this.isCameraSharing = false;
     this.currentChannelId = null;
     this.voiceStates = [];
 
@@ -563,6 +627,7 @@ export class VoiceManager {
   get isMutedState(): boolean { return this.isMuted; }
   get isDeafenedState(): boolean { return this.isDeafened; }
   get isScreenSharingState(): boolean { return this.isScreenSharing; }
+  get isCameraSharingState(): boolean { return this.isCameraSharing; }
   get isConnectedState(): boolean { return this.isConnected; }
   get currentChannel(): string | null { return this.currentChannelId; }
   get currentVoiceStates(): VoiceState[] { return this.voiceStates; }
@@ -592,6 +657,10 @@ export class VoiceManager {
 
   onScreenTrackRemove(handler: (userId: string) => void): void {
     this.onScreenTrackRemoved = handler;
+  }
+
+  onCameraTrack(handler: (track: MediaStreamTrack, userId: string) => void): void {
+    this.onCameraTrackReceived = handler;
   }
 }
 

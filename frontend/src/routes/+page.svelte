@@ -47,6 +47,7 @@
   import LoginForm from "../lib/components/LoginForm.svelte";
   import RegisterForm from "../lib/components/RegisterForm.svelte";
   import AdminPanel from "../lib/components/AdminPanel.svelte";
+  import VoicePanel from "../lib/components/VoicePanel.svelte";
 
   let selectedChannelId = "";
   let showAdminPanel = false;
@@ -92,6 +93,12 @@
   let screenVideoElement: HTMLVideoElement;
   let screenAudioElement: HTMLAudioElement | null = null;
 
+  // Camera state
+  let isCameraSharing = false;
+  let watchingCameraUserId: string | null = null;
+  let watchingCameraUsername: string = "";
+  let cameraVideoElement: HTMLVideoElement;
+
   // Message editing state
   let editingMessageId: string | null = null;
   let editMessageContent = "";
@@ -136,6 +143,7 @@
     isMuted = voiceManager.isMutedState;
     isDeafened = voiceManager.isDeafenedState;
     isScreenSharing = voiceManager.isScreenSharingState;
+    isCameraSharing = voiceManager.isCameraSharingState;
     voiceInputMode = voiceManager.currentInputMode;
     pttActive = voiceManager.isPTTActive;
   }
@@ -280,7 +288,8 @@
         data.type === "new_producer" &&
         data.data.channel_id === currentVoiceChannel &&
         data.data.user_id !== $user?.id &&
-        data.data.label !== "screen"
+        data.data.label !== "screen" &&
+        data.data.label !== "camera"
       ) {
         voiceManager.consumeProducer(
           data.data.producer_id,
@@ -326,6 +335,23 @@
           watchingScreenUserId === data.data.user_id
         ) {
           stopWatching();
+        }
+      }
+
+      // Camera events
+      if (data.type === "camera_updated") {
+        voiceStates = voiceStates.map((vs) =>
+          vs.user_id === data.data.user_id &&
+          vs.channel_id === data.data.channel_id
+            ? { ...vs, is_camera_sharing: data.data.is_camera_sharing }
+            : vs,
+        );
+
+        if (
+          !data.data.is_camera_sharing &&
+          watchingCameraUserId === data.data.user_id
+        ) {
+          stopWatchingCamera();
         }
       }
 
@@ -413,6 +439,17 @@
         screenAudioElement
           .play()
           .catch((e) => console.warn("Screen audio autoplay prevented:", e));
+      }
+    });
+
+    voiceManager.onCameraTrack((track, userId) => {
+      if (track.kind === "video" && cameraVideoElement) {
+        cameraVideoElement.srcObject = new MediaStream([track]);
+        cameraVideoElement
+          .play()
+          .catch((e) =>
+            console.warn("Camera video autoplay prevented:", e),
+          );
       }
     });
   }
@@ -797,6 +834,49 @@
     }
   }
 
+  async function toggleCamera() {
+    try {
+      if (isCameraSharing) {
+        await voiceManager.stopCamera();
+      } else {
+        await voiceManager.startCamera();
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "NotAllowedError") return;
+      console.error("Failed to toggle camera:", error);
+    }
+  }
+
+  async function watchCamera(userId: string, username: string) {
+    watchingCameraUserId = userId;
+    watchingCameraUsername = username;
+
+    if (!currentVoiceChannel) return;
+
+    try {
+      const producers = await getChannelProducers(currentVoiceChannel);
+      for (const producer of producers) {
+        if (producer.user_id === userId && producer.label === "camera") {
+          await voiceManager.consumeProducer(
+            producer.producer_id,
+            userId,
+            producer.label,
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to consume camera producer:", error);
+    }
+  }
+
+  function stopWatchingCamera() {
+    watchingCameraUserId = null;
+    watchingCameraUsername = "";
+    if (cameraVideoElement) {
+      cameraVideoElement.srcObject = null;
+    }
+  }
+
   // Message/channel selection
   async function selectChannel(channelId: string, channelName: string) {
     selectedChannelId = channelId;
@@ -976,47 +1056,55 @@
             {currentVoiceChannel}
             {voiceStates}
             {speakingUsers}
-            {isMuted}
-            {isDeafened}
-            {isScreenSharing}
-            {voiceInputMode}
-            {pttKey}
-            {pttActive}
             currentUserId={$user?.id || ""}
             userRole={$user?.role || "member"}
-            {inputDeviceId}
-            {outputDeviceId}
-            {inputGain}
-            {outputVolume}
-            {vadSensitivity}
-            {noiseSuppression}
-            {inputDevices}
-            {outputDevices}
-            {showOutputDevice}
             onSelectChannel={selectChannel}
             onCreateChannel={handleCreateChannel}
             onUpdateChannel={handleUpdateChannel}
             onDeleteChannel={handleDeleteChannel}
             onJoinVoice={joinVoiceChannel}
-            onLeaveVoice={leaveVoiceChannel}
-            onToggleMute={toggleMute}
-            onToggleDeafen={toggleDeafen}
-            onToggleScreenShare={toggleScreenShare}
             onWatchScreen={watchScreen}
-            onSwitchInputMode={handleSwitchInputMode}
-            onChangePTTKey={handleChangePTTKey}
-            onInputDeviceChange={handleInputDeviceChange}
-            onOutputDeviceChange={handleOutputDeviceChange}
-            onInputGainChange={handleInputGainChange}
-            onOutputVolumeChange={handleOutputVolumeChange}
-            onVadSensitivityChange={handleVadSensitivityChange}
-            onNoiseSuppressionToggle={handleNoiseSuppressionToggle}
+            onWatchCamera={watchCamera}
             onUserVolumeChange={handleUserVolumeChange}
             getUserVolume={handleGetUserVolume}
           />
 
           <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} />
         </div>
+
+        <VoicePanel
+          {currentVoiceChannel}
+          {isMuted}
+          {isDeafened}
+          {isScreenSharing}
+          {isCameraSharing}
+          {voiceInputMode}
+          {pttKey}
+          {pttActive}
+          {inputDeviceId}
+          {outputDeviceId}
+          {inputGain}
+          {outputVolume}
+          {vadSensitivity}
+          {noiseSuppression}
+          {inputDevices}
+          {outputDevices}
+          {showOutputDevice}
+          onLeaveVoice={leaveVoiceChannel}
+          onToggleMute={toggleMute}
+          onToggleDeafen={toggleDeafen}
+          onToggleScreenShare={toggleScreenShare}
+          onToggleCamera={toggleCamera}
+          onSwitchInputMode={handleSwitchInputMode}
+          onChangePTTKey={handleChangePTTKey}
+          onInputDeviceChange={handleInputDeviceChange}
+          onOutputDeviceChange={handleOutputDeviceChange}
+          onInputGainChange={handleInputGainChange}
+          onOutputVolumeChange={handleOutputVolumeChange}
+          onVadSensitivityChange={handleVadSensitivityChange}
+          onNoiseSuppressionToggle={handleNoiseSuppressionToggle}
+        />
+
         <div class="version-bar">
           <span class="version-info">frontend v{FRONTEND_VERSION}</span>
           <span class="version-info">backend v{backendVersion || "..."}</span>
@@ -1040,6 +1128,12 @@
           username={watchingScreenUsername}
           onClose={stopWatching}
           bind:videoElement={screenVideoElement}
+        />
+      {:else if watchingCameraUserId}
+        <ScreenShareViewer
+          username={watchingCameraUsername}
+          onClose={stopWatchingCamera}
+          bind:videoElement={cameraVideoElement}
         />
       {:else}
         <MessageList

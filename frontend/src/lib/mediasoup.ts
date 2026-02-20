@@ -100,6 +100,7 @@ export class MediasoupManager {
   private recvTransport: mediasoupClient.types.Transport | null = null;
   private producers: Map<string, mediasoupClient.types.Producer> = new Map();
   private screenProducers: mediasoupClient.types.Producer[] = [];
+  private cameraProducers: mediasoupClient.types.Producer[] = [];
   private consumers: Map<string, mediasoupClient.types.Consumer> = new Map();
   private consumedProducerIds: Set<string> = new Set();
 
@@ -283,6 +284,28 @@ export class MediasoupManager {
     this.screenProducers = [];
   }
 
+  async produceCamera(track: MediaStreamTrack) {
+    if (!this.sendTransport) {
+      throw new Error('Send transport not initialized');
+    }
+
+    const producer = await this.sendTransport.produce({
+      track,
+      appData: { label: 'camera' },
+    });
+    this.cameraProducers.push(producer);
+    this.producers.set(producer.id, producer);
+    return producer.id;
+  }
+
+  closeCameraProducers() {
+    for (const producer of this.cameraProducers) {
+      producer.close();
+      this.producers.delete(producer.id);
+    }
+    this.cameraProducers = [];
+  }
+
   async consume(producerId: string, userId: string, label?: string) {
     if (!this.recvTransport || !this.device) {
       throw new Error('Receive transport or device not initialized');
@@ -383,6 +406,7 @@ export class MediasoupManager {
     }
 
     this.screenProducers = [];
+    this.cameraProducers = [];
     this.producers.clear();
     this.consumers.clear();
     this.consumedProducerIds.clear();

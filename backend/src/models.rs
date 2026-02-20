@@ -132,6 +132,7 @@ pub struct VoiceState {
     pub is_muted: bool,
     pub is_deafened: bool,
     pub is_screen_sharing: bool,
+    pub is_camera_sharing: bool,
     pub joined_at: DateTime<Utc>,
 }
 

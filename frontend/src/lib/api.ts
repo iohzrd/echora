@@ -56,6 +56,7 @@ export interface VoiceState {
   is_muted: boolean;
   is_deafened: boolean;
   is_screen_sharing: boolean;
+  is_camera_sharing: boolean;
   joined_at: string;
 }
 
@@ -120,8 +121,8 @@ export interface ServerSettings {
   [key: string]: string;
 }
 
-declare const __APP_VERSION__: string;
-export const FRONTEND_VERSION = __APP_VERSION__;
+import { version } from '$app/environment';
+export const FRONTEND_VERSION = version;
 
 export class API {
   static async request<T>(
@@ -322,6 +323,7 @@ export type WsOutgoingMessage =
   | { message_type: 'voice_state_update'; channel_id: string; is_muted?: boolean; is_deafened?: boolean }
   | { message_type: 'voice_speaking'; channel_id: string; is_speaking: boolean }
   | { message_type: 'screen_share_update'; channel_id: string; is_screen_sharing: boolean }
+  | { message_type: 'camera_update'; channel_id: string; is_camera_sharing: boolean }
   | { message_type: 'ping'; channel_id: ''; content: '' };
 
 export interface WsIncomingMessage {
@@ -459,6 +461,10 @@ export class WebSocketManager {
 
   sendScreenShareUpdate(channelId: string, isScreenSharing: boolean) {
     this.send({ message_type: 'screen_share_update', channel_id: channelId, is_screen_sharing: isScreenSharing });
+  }
+
+  sendCameraUpdate(channelId: string, isCameraSharing: boolean) {
+    this.send({ message_type: 'camera_update', channel_id: channelId, is_camera_sharing: isCameraSharing });
   }
 }
 

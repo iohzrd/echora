@@ -28,6 +28,7 @@ pub async fn join_voice_channel(
         is_muted: false,
         is_deafened: false,
         is_screen_sharing: false,
+        is_camera_sharing: false,
         joined_at: now,
     };
 
