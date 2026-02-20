@@ -67,19 +67,22 @@ body {
 }
 
 .server-header {
-	padding: 12px 16px 8px;
+	height: 48px;
+	padding: 0 10px 0 16px;
 	display: flex;
-	flex-direction: column;
-	gap: 6px;
+	align-items: center;
+	gap: 8px;
 	border-bottom: 1px solid var(--border-primary);
 }
 
 .server-header .server-name {
 	font-weight: 600;
-	font-size: 16px;
+	font-size: 15px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	flex: 1;
+	min-width: 0;
 }
 
 .version-bar {
@@ -97,20 +100,26 @@ body {
 	cursor: default;
 }
 
-.logout-btn {
+.header-icon-btn {
 	background: none;
 	border: none;
 	color: var(--text-muted);
-	font-size: 16px;
 	cursor: pointer;
-	padding: 4px 8px;
+	padding: 6px;
 	border-radius: var(--radius-md);
-	transition: background-color 0.15s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.logout-btn:hover {
+.header-icon-btn:hover {
 	background-color: var(--bg-hover);
 	color: var(--text-normal);
+}
+
+.header-icon-btn.logout:hover {
+	color: var(--status-danger);
 }
 
 .channels-list {
@@ -1898,23 +1907,8 @@ body {
 .header-actions {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-}
-
-.admin-btn {
-	background: none;
-	border: none;
-	color: var(--text-muted);
-	font-size: 13px;
-	cursor: pointer;
-	padding: 4px 8px;
-	border-radius: var(--radius-md);
-	transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.admin-btn:hover {
-	background-color: var(--bg-hover);
-	color: var(--text-normal);
+	gap: 2px;
+	flex-shrink: 0;
 }
 
 /* Role Badges */

@@ -12,7 +12,7 @@ use crate::auth::AuthUser;
 use crate::database;
 use crate::models::{
     AppState, Channel, CreateChannelRequest, EditMessageRequest, Message, SendMessageRequest,
-    UpdateChannelRequest, UserPresence,
+    UpdateChannelRequest, UserPresence, UserSummary, VoiceState,
 };
 use crate::permissions::{self, Role};
 use crate::shared::validation::{
@@ -27,13 +27,60 @@ pub struct MessageQuery {
     pub before: Option<DateTime<Utc>>,
 }
 
-pub async fn get_server_info(
+#[derive(Serialize)]
+pub struct InitResponse {
+    pub server_name: String,
+    pub version: String,
+    pub channels: Vec<Channel>,
+    pub online_users: Vec<UserPresence>,
+    pub voice_states: Vec<VoiceState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub users: Option<Vec<UserSummary>>,
+}
+
+pub async fn get_init(
+    auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
-) -> AppResult<Json<serde_json::Value>> {
-    let name = database::get_server_setting(&state.db, "server_name").await?;
-    Ok(Json(serde_json::json!({
-        "name": name,
-    })))
+) -> AppResult<Json<InitResponse>> {
+    let server_name = database::get_server_setting(&state.db, "server_name").await?;
+
+    let channels = database::get_channels(&state.db).await?;
+
+    let online_users: Vec<UserPresence> = state
+        .online_users
+        .iter()
+        .map(|entry| entry.value().clone())
+        .collect();
+
+    let voice_states: Vec<VoiceState> = state
+        .voice_states
+        .iter()
+        .flat_map(|entry| {
+            entry
+                .value()
+                .iter()
+                .map(|r| r.value().clone())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    // Include user list for moderators+ (needed for role badges)
+    let user_id = auth_user.user_id()?;
+    let actor_role = database::get_user_role(&state.db, user_id).await?;
+    let users = if Role::from_str(&actor_role) >= Role::Moderator {
+        Some(database::get_all_users(&state.db).await?)
+    } else {
+        None
+    };
+
+    Ok(Json(InitResponse {
+        server_name,
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        channels,
+        online_users,
+        voice_states,
+        users,
+    }))
 }
 
 pub async fn get_channels(

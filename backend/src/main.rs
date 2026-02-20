@@ -54,7 +54,7 @@ async fn main() {
     });
 
     let app = Router::new()
-        .route("/api/server/info", get(routes::get_server_info))
+        .route("/api/init", get(routes::get_init))
         .route("/api/health", get(health_check))
         .route("/api/auth/register", post(auth_routes::register))
         .route("/api/auth/login", post(auth_routes::login))

@@ -156,25 +156,15 @@ export class API {
     }, errorMessage);
   }
 
-  static async getBackendVersion(): Promise<string> {
-    try {
-      const response = await appFetch(`${getApiBase()}/health`);
-      if (!response.ok) return 'unknown';
-      const data = await response.json();
-      return data.version || 'unknown';
-    } catch {
-      return 'unknown';
-    }
-  }
-
-  static async getServerInfo(): Promise<{ name: string }> {
-    try {
-      const response = await appFetch(`${getApiBase()}/server/info`);
-      if (!response.ok) return { name: 'Echora' };
-      return await response.json();
-    } catch {
-      return { name: 'Echora' };
-    }
+  static async getInit(): Promise<{
+    server_name: string;
+    version: string;
+    channels: Channel[];
+    online_users: UserPresence[];
+    voice_states: VoiceState[];
+    users?: UserSummary[];
+  }> {
+    return this.request('/init', {}, 'Failed to initialize');
   }
 
   static async getChannels(): Promise<Channel[]> {
