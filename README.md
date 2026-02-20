@@ -69,6 +69,8 @@ cd frontend
 npm run tauri:dev
 ```
 
+> **Known issue (Arch Linux):** The `webkit2gtk` package on Arch Linux is built without `ENABLE_WEB_RTC`, so voice channels will not work in the Tauri desktop app. This is an upstream packaging decision. The web browser version is unaffected.
+
 ## Configuration
 
 Backend environment variables (set in `backend/.env`):
