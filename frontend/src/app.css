@@ -39,17 +39,20 @@
 	box-sizing: border-box;
 }
 
+html, body {
+	height: 100%;
+}
+
 body {
 	font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 	background-color: var(--bg-primary);
 	color: var(--text-normal);
-	height: 100vh;
 	overflow: hidden;
 }
 
 .discord-layout {
 	display: flex;
-	height: 100vh;
+	height: 100%;
 }
 
 .sidebar {
@@ -210,10 +213,6 @@ body {
 	flex-direction: column;
 	gap: 8px;
 	min-height: 0;
-}
-
-.messages-area > :first-child {
-	margin-top: auto;
 }
 
 .message {
