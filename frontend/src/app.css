@@ -52,7 +52,8 @@ body {
 
 .discord-layout {
 	display: flex;
-	height: 100%;
+	position: fixed;
+	inset: 0;
 }
 
 .sidebar {
