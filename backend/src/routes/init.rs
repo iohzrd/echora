@@ -46,9 +46,9 @@ pub async fn get_init(
         .collect();
 
     // Include user list for moderators+ (needed for role badges)
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, user_id).await?;
-    let users = if Role::from_str(&actor_role) >= Role::Moderator {
+    let users = if actor_role.parse::<Role>().unwrap() >= Role::Moderator {
         Some(database::get_all_users(&state.db).await?)
     } else {
         None

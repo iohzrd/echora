@@ -12,19 +12,19 @@ use crate::shared::AppError;
 
 use std::sync::OnceLock;
 
-static JWT_SECRET: OnceLock<Vec<u8>> = OnceLock::new();
+static JWT_SECRET: OnceLock<String> = OnceLock::new();
+
+pub fn jwt_secret_str() -> &'static str {
+    JWT_SECRET.get_or_init(|| std::env::var("JWT_SECRET").expect("JWT_SECRET must be set"))
+}
 
 pub fn jwt_secret() -> &'static [u8] {
-    JWT_SECRET.get_or_init(|| {
-        std::env::var("JWT_SECRET")
-            .expect("JWT_SECRET must be set")
-            .into_bytes()
-    })
+    jwt_secret_str().as_bytes()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,
+    pub sub: Uuid,
     pub username: String,
     pub role: String,
     pub exp: i64,
@@ -71,11 +71,8 @@ pub struct UserInfo {
 pub struct AuthUser(pub Claims);
 
 impl AuthUser {
-    pub fn user_id(&self) -> Result<Uuid, AppError> {
-        self.0
-            .sub
-            .parse()
-            .map_err(|_| AppError::bad_request("Invalid user ID"))
+    pub fn user_id(&self) -> Uuid {
+        self.0.sub
     }
 }
 
@@ -109,7 +106,7 @@ pub fn create_jwt(user_id: Uuid, username: &str, role: &str) -> Result<String, A
         .timestamp();
 
     let claims = Claims {
-        sub: user_id.to_string(),
+        sub: user_id,
         username: username.to_string(),
         role: role.to_string(),
         exp: expiration,

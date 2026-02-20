@@ -53,7 +53,7 @@ pub async fn create_transport(
     auth_user: AuthUser,
     Json(req): Json<CreateTransportRequest>,
 ) -> AppResult<Json<TransportOptions>> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
 
     state
         .sfu_service

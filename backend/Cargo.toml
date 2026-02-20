@@ -7,12 +7,11 @@ edition = "2024"
 anyhow = "1"
 argon2 = "0.5"
 base64 = "0.22"
-axum = { version = "0", features = ["ws"] }
-axum-extra = { version = "0", features = ["typed-header"] }
-bytes = "1"
-chrono = { version = "0", features = ["serde"] }
+axum = { version = "0.8", features = ["ws"] }
+axum-extra = { version = "0.12", features = ["typed-header"] }
+chrono = { version = "0.4", features = ["serde"] }
 dashmap = "6"
-dotenvy = "0"
+dotenvy = "0.15"
 futures-util = "0.3"
 hex = "0.4"
 hmac = "0.12"
@@ -21,20 +20,18 @@ linkify = "0.10"
 mediasoup = "0.20"
 mediasoup-types = "0.2"
 rand = "0.9"
-reqwest = { version = "0.13", features = ["json"] }
+reqwest = { version = "0.13", features = ["json", "stream"] }
 scraper = "0.25"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 serde_json = "1"
-sqlx = { version = "0", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
-tokio-stream = "0"
-tokio-tungstenite = "0"
-tower = "0"
-tower_governor = "0"
-tower-http = { version = "0", features = ["cors", "fs", "limit"] }
-tracing = "0"
-tracing-subscriber = { version = "0", features = ["env-filter"] }
+tower = "0.5"
+tower_governor = "0.8"
+tower-http = { version = "0.6", features = ["cors", "fs", "limit"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }

@@ -17,7 +17,7 @@ pub async fn kick_user(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<KickRequest>,
 ) -> AppResult<()> {
-    let actor_id = auth_user.user_id()?;
+    let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
@@ -54,7 +54,7 @@ pub async fn ban_user(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<BanRequest>,
 ) -> AppResult<()> {
-    let actor_id = auth_user.user_id()?;
+    let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
@@ -108,7 +108,7 @@ pub async fn unban_user(
     Path(target_user_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let actor_id = auth_user.user_id()?;
+    let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
@@ -140,7 +140,7 @@ pub async fn list_bans(
     auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<Ban>>> {
-    let actor_role = database::get_user_role(&state.db, auth_user.user_id()?).await?;
+    let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
     let bans = database::get_all_bans(&state.db).await?;
@@ -152,7 +152,7 @@ pub async fn mute_user(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<MuteRequest>,
 ) -> AppResult<()> {
-    let actor_id = auth_user.user_id()?;
+    let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
@@ -207,7 +207,7 @@ pub async fn unmute_user(
     Path(target_user_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let actor_id = auth_user.user_id()?;
+    let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
@@ -239,7 +239,7 @@ pub async fn list_mutes(
     auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<Mute>>> {
-    let actor_role = database::get_user_role(&state.db, auth_user.user_id()?).await?;
+    let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
     let mutes = database::get_all_mutes(&state.db).await?;

@@ -3,7 +3,6 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::Utc;
-use dashmap::DashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -16,7 +15,7 @@ pub async fn join_voice_channel(
     auth_user: AuthUser,
     Json(request): Json<JoinVoiceRequest>,
 ) -> AppResult<Json<VoiceState>> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
     let session_id = Uuid::new_v4().to_string();
     let now = Utc::now();
 
@@ -43,7 +42,7 @@ pub async fn join_voice_channel(
     state
         .voice_states
         .entry(request.channel_id)
-        .or_insert_with(DashMap::new)
+        .or_default()
         .insert(user_id, voice_state.clone());
 
     state.voice_sessions.insert(session_id, voice_session);
@@ -64,7 +63,7 @@ pub async fn leave_voice_channel(
     auth_user: AuthUser,
     Json(request): Json<LeaveVoiceRequest>,
 ) -> AppResult<()> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
 
     // Remove from voice states
     if let Some(channel_users) = state.voice_states.get(&request.channel_id) {

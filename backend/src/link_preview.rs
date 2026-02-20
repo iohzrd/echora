@@ -138,27 +138,57 @@ async fn fetch_preview(client: &reqwest::Client, url: &str) -> Result<LinkPrevie
         return Err("Content too large".to_string());
     }
 
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-
-    if bytes.len() > MAX_BODY_SIZE {
-        let html = String::from_utf8_lossy(&bytes[..MAX_BODY_SIZE]).to_string();
-        return Ok(parse_og_tags(&html, url));
+    // Stream the body with a hard size cap to avoid buffering huge responses
+    let mut buf = Vec::with_capacity(MAX_BODY_SIZE.min(64 * 1024));
+    use futures_util::StreamExt;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e: reqwest::Error| e.to_string())?;
+        let remaining = MAX_BODY_SIZE.saturating_sub(buf.len());
+        if remaining == 0 {
+            break;
+        }
+        buf.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
     }
 
-    let html = String::from_utf8_lossy(&bytes).to_string();
+    let html = String::from_utf8_lossy(&buf).to_string();
     Ok(parse_og_tags(&html, url))
 }
+
+/// Cached CSS selectors for OG tag parsing (parsed once, reused across calls)
+struct OgSelectors {
+    og_title: Selector,
+    twitter_title: Selector,
+    title: Selector,
+    og_description: Selector,
+    twitter_description: Selector,
+    meta_description: Selector,
+    og_image: Selector,
+    twitter_image: Selector,
+    og_site_name: Selector,
+}
+
+static OG_SELECTORS: std::sync::LazyLock<OgSelectors> = std::sync::LazyLock::new(|| OgSelectors {
+    og_title: Selector::parse("meta[property='og:title']").unwrap(),
+    twitter_title: Selector::parse("meta[name='twitter:title']").unwrap(),
+    title: Selector::parse("title").unwrap(),
+    og_description: Selector::parse("meta[property='og:description']").unwrap(),
+    twitter_description: Selector::parse("meta[name='twitter:description']").unwrap(),
+    meta_description: Selector::parse("meta[name='description']").unwrap(),
+    og_image: Selector::parse("meta[property='og:image']").unwrap(),
+    twitter_image: Selector::parse("meta[name='twitter:image']").unwrap(),
+    og_site_name: Selector::parse("meta[property='og:site_name']").unwrap(),
+});
 
 /// Parse OpenGraph, Twitter Card, and HTML meta tags from HTML
 fn parse_og_tags(html: &str, url: &str) -> LinkPreviewData {
     let document = Html::parse_document(html);
+    let sel = &*OG_SELECTORS;
 
-    // Helper to extract meta content by property or name
-    let meta_content = |attr: &str, value: &str| -> Option<String> {
-        let selector_str = format!("meta[{attr}='{value}']");
-        let selector = Selector::parse(&selector_str).ok()?;
+    // Helper to extract meta content attribute from first match
+    let meta_content = |selector: &Selector| -> Option<String> {
         document
-            .select(&selector)
+            .select(selector)
             .next()?
             .value()
             .attr("content")
@@ -167,11 +197,14 @@ fn parse_og_tags(html: &str, url: &str) -> LinkPreviewData {
     };
 
     // Title: og:title -> twitter:title -> <title>
-    let title = meta_content("property", "og:title")
-        .or_else(|| meta_content("name", "twitter:title"))
+    let title = meta_content(&sel.og_title)
+        .or_else(|| meta_content(&sel.twitter_title))
         .or_else(|| {
-            let sel = Selector::parse("title").ok()?;
-            let text = document.select(&sel).next()?.text().collect::<String>();
+            let text = document
+                .select(&sel.title)
+                .next()?
+                .text()
+                .collect::<String>();
             let trimmed = text.trim().to_string();
             if trimmed.is_empty() {
                 None
@@ -181,14 +214,14 @@ fn parse_og_tags(html: &str, url: &str) -> LinkPreviewData {
         });
 
     // Description: og:description -> twitter:description -> <meta name="description">
-    let description = meta_content("property", "og:description")
-        .or_else(|| meta_content("name", "twitter:description"))
-        .or_else(|| meta_content("name", "description"))
+    let description = meta_content(&sel.og_description)
+        .or_else(|| meta_content(&sel.twitter_description))
+        .or_else(|| meta_content(&sel.meta_description))
         .map(|d| crate::shared::truncate_string(&d, 300));
 
     // Image: og:image -> twitter:image
-    let image_url = meta_content("property", "og:image")
-        .or_else(|| meta_content("name", "twitter:image"))
+    let image_url = meta_content(&sel.og_image)
+        .or_else(|| meta_content(&sel.twitter_image))
         .and_then(|img| {
             // Resolve relative URLs
             if img.starts_with("http://") || img.starts_with("https://") {
@@ -201,7 +234,7 @@ fn parse_og_tags(html: &str, url: &str) -> LinkPreviewData {
         });
 
     // Site name: og:site_name -> hostname
-    let site_name = meta_content("property", "og:site_name").or_else(|| {
+    let site_name = meta_content(&sel.og_site_name).or_else(|| {
         url::Url::parse(url)
             .ok()
             .and_then(|u| u.host_str().map(|h| h.to_string()))
@@ -229,14 +262,15 @@ pub fn sign_image_url(image_url: &str, secret: &str) -> (String, String) {
     (encoded_url, sig)
 }
 
-/// Verify an HMAC signature for a proxied image URL
+/// Verify an HMAC signature for a proxied image URL (constant-time comparison)
 pub fn verify_image_signature(image_url: &str, sig: &str, secret: &str) -> bool {
+    let Ok(sig_bytes) = hex::decode(sig) else {
+        return false;
+    };
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
     mac.update(image_url.as_bytes());
-
-    let expected = hex::encode(mac.finalize().into_bytes());
-    expected == sig
+    mac.verify_slice(&sig_bytes).is_ok()
 }
 
 /// Spawn an async task to fetch link previews for a message
@@ -252,10 +286,7 @@ pub fn spawn_preview_fetch(
     }
 
     tokio::spawn(async move {
-        let Ok(jwt_secret) = std::str::from_utf8(crate::auth::jwt_secret()) else {
-            error!("JWT_SECRET is not valid UTF-8");
-            return;
-        };
+        let jwt_secret = crate::auth::jwt_secret_str();
         let mut previews = Vec::new();
 
         for url in &urls {

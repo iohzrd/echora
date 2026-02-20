@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use std::fmt;
 use uuid::Uuid;
 
 use crate::database;
@@ -13,43 +14,46 @@ pub enum Role {
     Owner = 3,
 }
 
-impl Role {
-    pub fn from_str(s: &str) -> Self {
-        match s {
+impl fmt::Display for Role {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Owner => f.write_str("owner"),
+            Self::Admin => f.write_str("admin"),
+            Self::Moderator => f.write_str("moderator"),
+            Self::Member => f.write_str("member"),
+        }
+    }
+}
+
+impl std::str::FromStr for Role {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
             "owner" => Self::Owner,
             "admin" => Self::Admin,
             "moderator" => Self::Moderator,
             _ => Self::Member,
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Owner => "owner",
-            Self::Admin => "admin",
-            Self::Moderator => "moderator",
-            Self::Member => "member",
-        }
+        })
     }
 }
 
 /// Check that the user's role meets the minimum required level.
 pub fn require_role(user_role: &str, minimum: Role) -> Result<Role, AppError> {
-    let role = Role::from_str(user_role);
+    let role: Role = user_role.parse().unwrap();
     if role >= minimum {
         Ok(role)
     } else {
         Err(AppError::forbidden(format!(
-            "Requires {} role or higher",
-            minimum.as_str()
+            "Requires {minimum} role or higher",
         )))
     }
 }
 
 /// Check that actor has a strictly higher role than target (for moderation actions).
 pub fn require_higher_role(actor_role: &str, target_role: &str) -> Result<(), AppError> {
-    let actor = Role::from_str(actor_role);
-    let target = Role::from_str(target_role);
+    let actor: Role = actor_role.parse().unwrap();
+    let target: Role = target_role.parse().unwrap();
     if actor > target {
         Ok(())
     } else {
@@ -61,8 +65,8 @@ pub fn require_higher_role(actor_role: &str, target_role: &str) -> Result<(), Ap
 
 /// Check that actor can assign the given role (must be strictly above it, cannot assign owner).
 pub fn can_assign_role(actor_role: &str, target_new_role: &str) -> Result<(), AppError> {
-    let actor = Role::from_str(actor_role);
-    let new_role = Role::from_str(target_new_role);
+    let actor: Role = actor_role.parse().unwrap();
+    let new_role: Role = target_new_role.parse().unwrap();
 
     if new_role == Role::Owner {
         return Err(AppError::forbidden("Cannot assign the owner role"));

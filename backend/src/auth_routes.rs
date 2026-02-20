@@ -106,7 +106,7 @@ pub async fn me(
     State(state): State<Arc<AppState>>,
     auth_user: crate::auth::AuthUser,
 ) -> AppResult<Json<UserInfo>> {
-    let user = database::get_user_by_username(&state.db, &auth_user.0.username)
+    let user = database::get_user_by_id(&state.db, auth_user.user_id())
         .await?
         .ok_or_else(|| AppError::not_found("User not found"))?;
 

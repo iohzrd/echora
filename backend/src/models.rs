@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::fmt;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use uuid::Uuid;
@@ -23,19 +24,23 @@ pub enum ChannelType {
     Voice,
 }
 
-impl ChannelType {
-    pub fn as_str(&self) -> &'static str {
+impl fmt::Display for ChannelType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Text => "text",
-            Self::Voice => "voice",
+            Self::Text => f.write_str("text"),
+            Self::Voice => f.write_str("voice"),
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
-        match s {
+impl std::str::FromStr for ChannelType {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
             "voice" => Self::Voice,
             _ => Self::Text,
-        }
+        })
     }
 }
 

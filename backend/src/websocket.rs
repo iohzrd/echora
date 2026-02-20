@@ -71,42 +71,29 @@ pub async fn websocket_handler(
     Query(query): Query<WsQuery>,
     State(state): State<Arc<AppState>>,
 ) -> Response {
-    match auth::decode_jwt(&query.token) {
-        Ok(claims) => {
-            let user_id: Uuid = match claims.sub.parse() {
-                Ok(id) => id,
-                Err(_) => {
-                    return (axum::http::StatusCode::UNAUTHORIZED, "Invalid user ID")
-                        .into_response();
-                }
-            };
-            // Check ban status before accepting connection
-            match permissions::check_not_banned(&state.db, user_id).await {
-                Ok(()) => ws.on_upgrade(move |socket| websocket(socket, state, claims)),
-                Err(crate::shared::AppError::Forbidden(_)) => {
-                    (axum::http::StatusCode::FORBIDDEN, "You are banned").into_response()
-                }
-                Err(_) => (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Server error",
-                )
-                    .into_response(),
-            }
+    let claims = match auth::decode_jwt(&query.token) {
+        Ok(c) => c,
+        Err(_) => {
+            return (axum::http::StatusCode::UNAUTHORIZED, "Invalid token").into_response();
         }
-        Err(_) => (axum::http::StatusCode::UNAUTHORIZED, "Invalid token").into_response(),
+    };
+
+    let user_id = claims.sub;
+
+    match permissions::check_not_banned(&state.db, user_id).await {
+        Ok(()) => ws.on_upgrade(move |socket| websocket(socket, state, user_id, claims.username)),
+        Err(crate::shared::AppError::Forbidden(_)) => {
+            (axum::http::StatusCode::FORBIDDEN, "You are banned").into_response()
+        }
+        Err(_) => (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Server error",
+        )
+            .into_response(),
     }
 }
 
-async fn websocket(socket: WebSocket, state: Arc<AppState>, claims: auth::Claims) {
-    let user_id: Uuid = match claims.sub.parse() {
-        Ok(id) => id,
-        Err(_) => {
-            error!("Invalid UUID in JWT claims: {}", claims.sub);
-            return;
-        }
-    };
-    let username = claims.username;
-
+async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, username: String) {
     info!("WebSocket connected: {} ({})", username, user_id);
 
     // Track online presence

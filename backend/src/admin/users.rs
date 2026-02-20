@@ -16,7 +16,7 @@ pub async fn get_all_users(
     auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<UserSummary>>> {
-    let actor_role = database::get_user_role(&state.db, auth_user.user_id()?).await?;
+    let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Moderator)?;
 
     let users = database::get_all_users(&state.db).await?;
@@ -29,7 +29,7 @@ pub async fn change_user_role(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<RoleChangeRequest>,
 ) -> AppResult<()> {
-    let actor_id = auth_user.user_id()?;
+    let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(&actor_role, Role::Admin)?;
 

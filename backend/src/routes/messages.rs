@@ -27,7 +27,7 @@ pub async fn get_messages(
     Query(query): Query<MessageQuery>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<Message>>> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
 
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
     let messages =
@@ -41,7 +41,7 @@ pub async fn send_message(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<SendMessageRequest>,
 ) -> AppResult<Json<Message>> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
     permissions::check_not_muted(&state.db, user_id).await?;
 
     let result = crate::services::message::create_message(
@@ -67,7 +67,7 @@ pub async fn edit_message(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<EditMessageRequest>,
 ) -> AppResult<Json<Message>> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
     verify_message_ownership(&state.db, message_id, channel_id, user_id).await?;
 
     validate_message_content(&payload.content)?;
@@ -92,9 +92,9 @@ pub async fn delete_message(
     Path((channel_id, message_id)): Path<(Uuid, Uuid)>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
     let actor_role_str = database::get_user_role(&state.db, user_id).await?;
-    let role = permissions::Role::from_str(&actor_role_str);
+    let role: permissions::Role = actor_role_str.parse().unwrap();
 
     if role >= Role::Moderator {
         verify_message_in_channel(&state.db, message_id, channel_id).await?;
@@ -126,7 +126,7 @@ pub async fn add_reaction(
     Path((channel_id, message_id, emoji)): Path<(Uuid, Uuid, String)>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
 
     if emoji.is_empty() || emoji.len() > MAX_EMOJI_LENGTH {
         return Err(AppError::bad_request(
@@ -157,7 +157,7 @@ pub async fn remove_reaction(
     Path((channel_id, message_id, emoji)): Path<(Uuid, Uuid, String)>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
-    let user_id = auth_user.user_id()?;
+    let user_id = auth_user.user_id();
 
     verify_message_in_channel(&state.db, message_id, channel_id).await?;
 

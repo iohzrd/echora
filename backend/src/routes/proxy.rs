@@ -20,8 +20,7 @@ pub async fn proxy_image(
     use axum::response::Response;
     use base64::Engine;
 
-    let secret = std::str::from_utf8(crate::auth::jwt_secret())
-        .map_err(|_| AppError::internal("JWT_SECRET is not valid UTF-8"))?;
+    let secret = crate::auth::jwt_secret_str();
 
     // Decode base64url-encoded URL
     let image_url = base64::engine::general_purpose::URL_SAFE_NO_PAD

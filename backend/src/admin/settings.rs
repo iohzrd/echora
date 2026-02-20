@@ -11,7 +11,7 @@ pub async fn get_settings(
     auth_user: AuthUser,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<std::collections::HashMap<String, String>>> {
-    let actor_role = database::get_user_role(&state.db, auth_user.user_id()?).await?;
+    let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Admin)?;
 
     let settings = database::get_all_server_settings(&state.db).await?;
@@ -23,7 +23,7 @@ pub async fn update_setting(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ServerSettingUpdate>,
 ) -> AppResult<()> {
-    let actor_role = database::get_user_role(&state.db, auth_user.user_id()?).await?;
+    let actor_role = database::get_user_role(&state.db, auth_user.user_id()).await?;
     permissions::require_role(&actor_role, Role::Admin)?;
 
     // Validate known settings
@@ -33,6 +33,11 @@ pub async fn update_setting(
                 return Err(AppError::bad_request(
                     "registration_mode must be 'open' or 'invite_only'",
                 ));
+            }
+        }
+        "server_name" => {
+            if payload.value.trim().is_empty() {
+                return Err(AppError::bad_request("server_name cannot be empty"));
             }
         }
         _ => {
