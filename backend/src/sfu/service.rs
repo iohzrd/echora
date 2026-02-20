@@ -30,7 +30,10 @@ async fn auto_detect_public_ip() -> Result<String, AppError> {
         "https://ifconfig.me/ip",
     ];
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| AppError::internal(format!("Failed to create HTTP client: {e}")))?;
     for service in services {
         match client.get(service).send().await {
             Ok(response) => {
@@ -247,7 +250,6 @@ impl SfuService {
         let connection = ParticipantConnection {
             channel_id,
             user_id,
-            transport_id: transport_id.clone(),
             producers: Vec::new(),
             consumer_ids: Vec::new(),
             created_at: current_timestamp(),
@@ -428,15 +430,19 @@ impl SfuService {
 
     async fn cleanup_stale_transports(&self, channel_id: Uuid, user_id: Uuid) {
         let now = current_timestamp();
-        let stale_transport_ids: Vec<String> = self
-            .connections
-            .iter()
-            .filter(|conn| {
-                conn.channel_id == channel_id
-                    && conn.user_id == user_id
-                    && now - conn.created_at > STALE_TRANSPORT_THRESHOLD_SECS
+        let transport_ids: Vec<String> = self
+            .user_connections
+            .get(&(channel_id, user_id))
+            .map(|ids| ids.value().clone())
+            .unwrap_or_default();
+
+        let stale_transport_ids: Vec<String> = transport_ids
+            .into_iter()
+            .filter(|tid| {
+                self.connections
+                    .get(tid)
+                    .is_some_and(|conn| now - conn.created_at > STALE_TRANSPORT_THRESHOLD_SECS)
             })
-            .map(|conn| conn.transport_id.clone())
             .collect();
 
         for transport_id in stale_transport_ids {
@@ -472,9 +478,17 @@ impl SfuService {
 
         if let Some(mut transport_ids) = self.channel_connections.get_mut(&channel_id) {
             transport_ids.retain(|id| id != transport_id);
+            if transport_ids.is_empty() {
+                drop(transport_ids);
+                self.channel_connections.remove(&channel_id);
+            }
         }
         if let Some(mut transport_ids) = self.user_connections.get_mut(&(channel_id, user_id)) {
             transport_ids.retain(|id| id != transport_id);
+            if transport_ids.is_empty() {
+                drop(transport_ids);
+                self.user_connections.remove(&(channel_id, user_id));
+            }
         }
 
         Ok((channel_id, user_id))

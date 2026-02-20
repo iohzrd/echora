@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::database;
-use crate::models::{AppState, ModLogEntry, RoleChangeRequest, UserSummary};
+use crate::models::{AppState, ModAction, ModLogEntry, RoleChangeRequest, UserSummary};
 use crate::permissions::{self, Role};
 use crate::shared::{AppError, AppResult};
 
@@ -46,7 +46,7 @@ pub async fn change_user_role(
     database::create_mod_log_entry(
         &state.db,
         &ModLogEntry::new(
-            "role_change",
+            ModAction::RoleChange,
             actor_id,
             target_user_id,
             None,

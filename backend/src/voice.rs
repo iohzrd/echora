@@ -24,15 +24,29 @@ pub async fn join_voice_channel(
         return Err(AppError::bad_request("Cannot join a non-voice channel"));
     }
 
-    // Clean up existing voice state/SFU connections if user is re-joining
-    if let Some(channel_users) = state.voice_states.get(&request.channel_id)
-        && channel_users.get(&user_id).is_some()
-    {
-        drop(channel_users);
+    // Leave all voice channels the user is currently in (including the target channel for re-joins)
+    let mut left_channels = Vec::new();
+    for mut channel_entry in state.voice_states.iter_mut() {
+        let channel_id = *channel_entry.key();
+        if channel_entry.value_mut().remove(&user_id).is_some() {
+            left_channels.push(channel_id);
+        }
+    }
+    for channel_id in &left_channels {
+        state
+            .voice_states
+            .remove_if(channel_id, |_, users| users.is_empty());
         state
             .sfu_service
-            .close_user_connections(request.channel_id, user_id)
+            .close_user_connections(*channel_id, user_id)
             .await;
+        state.broadcast_global(
+            "voice_user_left",
+            serde_json::json!({
+                "user_id": user_id,
+                "channel_id": channel_id,
+            }),
+        );
     }
 
     let session_id = Uuid::new_v4();
@@ -77,10 +91,10 @@ pub async fn leave_voice_channel(
     // Remove from voice states
     if let Some(channel_users) = state.voice_states.get(&request.channel_id) {
         channel_users.remove(&user_id);
-        if channel_users.is_empty() {
-            drop(channel_users);
-            state.voice_states.remove(&request.channel_id);
-        }
+        drop(channel_users);
+        state
+            .voice_states
+            .remove_if(&request.channel_id, |_, users| users.is_empty());
     }
 
     // Close all SFU transports for this user in this channel

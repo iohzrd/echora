@@ -11,7 +11,8 @@ use crate::auth::AuthUser;
 use crate::database;
 use crate::models::{AppState, CreateInviteRequest, Invite};
 use crate::permissions::{self, Role};
-use crate::shared::AppResult;
+use crate::shared::validation;
+use crate::shared::{AppError, AppResult};
 
 fn generate_invite_code() -> String {
     const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -29,6 +30,13 @@ pub async fn create_invite(
     let actor_id = auth_user.user_id();
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(actor_role, Role::Moderator)?;
+
+    validation::validate_positive_duration(payload.expires_in_hours, "expires_in_hours")?;
+    if let Some(max) = payload.max_uses
+        && max <= 0
+    {
+        return Err(AppError::bad_request("max_uses must be a positive number"));
+    }
 
     let expires_at = payload
         .expires_in_hours

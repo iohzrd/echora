@@ -36,8 +36,15 @@ pub async fn update_setting(
             }
         }
         "server_name" => {
-            if payload.value.trim().is_empty() {
+            let trimmed = payload.value.trim();
+            if trimmed.is_empty() {
                 return Err(AppError::bad_request("server_name cannot be empty"));
+            }
+            if trimmed.len() > crate::shared::validation::MAX_SERVER_NAME_LENGTH {
+                return Err(AppError::bad_request(format!(
+                    "server_name must be at most {} characters",
+                    crate::shared::validation::MAX_SERVER_NAME_LENGTH
+                )));
             }
         }
         _ => {

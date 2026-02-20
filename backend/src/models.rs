@@ -209,10 +209,35 @@ pub struct Invite {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "text", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ModAction {
+    Kick,
+    Ban,
+    Unban,
+    Mute,
+    Unmute,
+    RoleChange,
+}
+
+impl fmt::Display for ModAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Kick => f.write_str("kick"),
+            Self::Ban => f.write_str("ban"),
+            Self::Unban => f.write_str("unban"),
+            Self::Mute => f.write_str("mute"),
+            Self::Unmute => f.write_str("unmute"),
+            Self::RoleChange => f.write_str("role_change"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ModLogEntry {
     pub id: Uuid,
-    pub action: String,
+    pub action: ModAction,
     pub moderator_id: Uuid,
     pub target_user_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -224,7 +249,7 @@ pub struct ModLogEntry {
 
 impl ModLogEntry {
     pub fn new(
-        action: &str,
+        action: ModAction,
         moderator_id: Uuid,
         target_user_id: Uuid,
         reason: Option<String>,
@@ -232,7 +257,7 @@ impl ModLogEntry {
     ) -> Self {
         Self {
             id: Uuid::now_v7(),
-            action: action.to_string(),
+            action,
             moderator_id,
             target_user_id,
             reason,
@@ -322,15 +347,15 @@ impl AppState {
     }
 
     pub fn all_voice_states(&self) -> Vec<VoiceState> {
-        self.voice_states
-            .iter()
-            .flat_map(|entry| {
-                entry
-                    .value()
-                    .iter()
-                    .map(|r| r.value().clone())
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+        // Collect outer keys first, then iterate one at a time to avoid
+        // holding nested DashMap shard locks simultaneously.
+        let channel_ids: Vec<Uuid> = self.voice_states.iter().map(|e| *e.key()).collect();
+        let mut result = Vec::new();
+        for channel_id in channel_ids {
+            if let Some(channel_users) = self.voice_states.get(&channel_id) {
+                result.extend(channel_users.iter().map(|r| r.value().clone()));
+            }
+        }
+        result
     }
 }

@@ -199,7 +199,10 @@ fn build_cors_layer() -> CorsLayer {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers(tower_http::cors::Any)
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ])
         .allow_credentials(false)
 }
 

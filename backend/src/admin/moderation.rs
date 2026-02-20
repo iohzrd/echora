@@ -8,9 +8,12 @@ use uuid::Uuid;
 
 use crate::auth::AuthUser;
 use crate::database;
-use crate::models::{AppState, Ban, BanRequest, KickRequest, ModLogEntry, Mute, MuteRequest};
+use crate::models::{
+    AppState, Ban, BanRequest, KickRequest, ModAction, ModLogEntry, Mute, MuteRequest,
+};
 use crate::permissions::{self, Role};
 use crate::shared::AppResult;
+use crate::shared::validation;
 
 pub async fn kick_user(
     State(state): State<Arc<AppState>>,
@@ -21,13 +24,15 @@ pub async fn kick_user(
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(actor_role, Role::Moderator)?;
 
+    validation::validate_reason(&payload.reason)?;
+
     let target_role = database::get_user_role(&state.db, payload.user_id).await?;
     permissions::require_higher_role(actor_role, target_role)?;
 
     database::create_mod_log_entry(
         &state.db,
         &ModLogEntry::new(
-            "kick",
+            ModAction::Kick,
             actor_id,
             payload.user_id,
             payload.reason.clone(),
@@ -56,6 +61,9 @@ pub async fn ban_user(
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(actor_role, Role::Moderator)?;
 
+    validation::validate_reason(&payload.reason)?;
+    validation::validate_positive_duration(payload.duration_hours, "duration_hours")?;
+
     let target_role = database::get_user_role(&state.db, payload.user_id).await?;
     permissions::require_higher_role(actor_role, target_role)?;
 
@@ -78,7 +86,7 @@ pub async fn ban_user(
     database::create_mod_log_entry(
         &state.db,
         &ModLogEntry::new(
-            "ban",
+            ModAction::Ban,
             actor_id,
             payload.user_id,
             payload.reason.clone(),
@@ -113,7 +121,7 @@ pub async fn unban_user(
 
     database::create_mod_log_entry(
         &state.db,
-        &ModLogEntry::new("unban", actor_id, target_user_id, None, None),
+        &ModLogEntry::new(ModAction::Unban, actor_id, target_user_id, None, None),
     )
     .await?;
 
@@ -145,6 +153,9 @@ pub async fn mute_user(
     let actor_role = database::get_user_role(&state.db, actor_id).await?;
     permissions::require_role(actor_role, Role::Moderator)?;
 
+    validation::validate_reason(&payload.reason)?;
+    validation::validate_positive_duration(payload.duration_hours, "duration_hours")?;
+
     let target_role = database::get_user_role(&state.db, payload.user_id).await?;
     permissions::require_higher_role(actor_role, target_role)?;
 
@@ -167,7 +178,7 @@ pub async fn mute_user(
     database::create_mod_log_entry(
         &state.db,
         &ModLogEntry::new(
-            "mute",
+            ModAction::Mute,
             actor_id,
             payload.user_id,
             payload.reason.clone(),
@@ -203,7 +214,7 @@ pub async fn unmute_user(
 
     database::create_mod_log_entry(
         &state.db,
-        &ModLogEntry::new("unmute", actor_id, target_user_id, None, None),
+        &ModLogEntry::new(ModAction::Unmute, actor_id, target_user_id, None, None),
     )
     .await?;
 

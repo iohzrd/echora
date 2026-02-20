@@ -80,7 +80,9 @@ pub async fn proxy_image(
 
     Response::builder()
         .header("Content-Type", content_type)
+        .header("Content-Length", buf.len())
         .header("Cache-Control", "public, max-age=86400")
+        .header("X-Content-Type-Options", "nosniff")
         .body(Body::from(buf))
         .map_err(|e| AppError::internal(e.to_string()))
 }

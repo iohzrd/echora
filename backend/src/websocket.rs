@@ -242,12 +242,9 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
         }
     }
     for channel_id in &left_channels {
-        if let Some(entry) = state.voice_states.get(channel_id)
-            && entry.is_empty()
-        {
-            drop(entry);
-            state.voice_states.remove(channel_id);
-        }
+        state
+            .voice_states
+            .remove_if(channel_id, |_, users| users.is_empty());
         state
             .sfu_service
             .close_user_connections(*channel_id, user_id)
@@ -283,7 +280,9 @@ async fn handle_chat_message(
         return;
     };
 
-    if permissions::is_muted(&state.db, user_id).await {
+    if permissions::is_banned(&state.db, user_id).await
+        || permissions::is_muted(&state.db, user_id).await
+    {
         return;
     }
 
@@ -396,6 +395,14 @@ fn handle_voice_speaking(state: &Arc<AppState>, payload: serde_json::Value, user
     let Ok(update) = serde_json::from_value::<VoiceSpeakingUpdate>(payload) else {
         return;
     };
+    // Verify user is actually in this voice channel before broadcasting
+    let in_channel = state
+        .voice_states
+        .get(&update.channel_id)
+        .is_some_and(|users| users.contains_key(&user_id));
+    if !in_channel {
+        return;
+    }
     state.broadcast_global(
         "voice_speaking",
         serde_json::json!({

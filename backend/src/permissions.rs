@@ -96,6 +96,15 @@ pub async fn check_not_muted(db: &PgPool, user_id: Uuid) -> Result<(), AppError>
     Ok(())
 }
 
+/// Returns true if user is banned. Swallows DB errors. For WebSocket code.
+pub async fn is_banned(db: &PgPool, user_id: Uuid) -> bool {
+    database::get_active_ban(db, user_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+}
+
 /// Returns true if user is muted. Swallows DB errors. For WebSocket code.
 pub async fn is_muted(db: &PgPool, user_id: Uuid) -> bool {
     database::get_active_mute(db, user_id)

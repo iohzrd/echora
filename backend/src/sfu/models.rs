@@ -12,7 +12,6 @@ pub struct ProducerEntry {
 pub struct ParticipantConnection {
     pub channel_id: Uuid,
     pub user_id: Uuid,
-    pub transport_id: String,
     pub producers: Vec<ProducerEntry>,
     pub consumer_ids: Vec<String>,
     pub created_at: u64,

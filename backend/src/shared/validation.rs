@@ -8,6 +8,8 @@ pub const MIN_PASSWORD_LENGTH: usize = 8;
 pub const MAX_PASSWORD_LENGTH: usize = 128;
 pub const MAX_EMOJI_LENGTH: usize = 32;
 pub const REPLY_PREVIEW_LENGTH: usize = 200;
+pub const MAX_REASON_LENGTH: usize = 500;
+pub const MAX_SERVER_NAME_LENGTH: usize = 100;
 pub const MAX_IMAGE_PROXY_SIZE: usize = 10 * 1024 * 1024;
 pub const BROADCAST_CHANNEL_CAPACITY: usize = 256;
 
@@ -43,11 +45,18 @@ pub fn validate_email(email: &str) -> Result<String, AppError> {
     if email.is_empty() || email.len() > MAX_EMAIL_LENGTH {
         return Err(AppError::bad_request("Invalid email address"));
     }
-    if !email.contains('@') || !email.contains('.') {
+    let Some((local, domain)) = email.split_once('@') else {
         return Err(AppError::bad_request("Invalid email address"));
-    }
-    let parts: Vec<&str> = email.splitn(2, '@').collect();
-    if parts.len() != 2 || parts[0].is_empty() || parts[1].len() < 3 {
+    };
+    if local.is_empty()
+        || local.contains(' ')
+        || domain.len() < 3
+        || domain.contains(' ')
+        || !domain.contains('.')
+        || domain.starts_with('.')
+        || domain.ends_with('.')
+        || domain.contains("..")
+    {
         return Err(AppError::bad_request("Invalid email address"));
     }
     Ok(email)
@@ -63,6 +72,29 @@ pub fn validate_password(password: &str) -> Result<(), AppError> {
         return Err(AppError::bad_request(
             "Password must be at most 128 characters",
         ));
+    }
+    Ok(())
+}
+
+pub fn validate_reason(reason: &Option<String>) -> Result<(), AppError> {
+    if let Some(r) = reason
+        && r.len() > MAX_REASON_LENGTH
+    {
+        return Err(AppError::bad_request(format!(
+            "Reason must be at most {} characters",
+            MAX_REASON_LENGTH
+        )));
+    }
+    Ok(())
+}
+
+pub fn validate_positive_duration(hours: Option<i64>, field_name: &str) -> Result<(), AppError> {
+    if let Some(h) = hours
+        && h <= 0
+    {
+        return Err(AppError::bad_request(format!(
+            "{field_name} must be a positive number"
+        )));
     }
     Ok(())
 }

@@ -869,7 +869,7 @@ pub async fn create_mod_log_entry(pool: &PgPool, entry: &ModLogEntry) -> Result<
          VALUES ($1, $2, $3, $4, $5, $6, $7)",
     )
     .bind(entry.id)
-    .bind(&entry.action)
+    .bind(entry.action)
     .bind(entry.moderator_id)
     .bind(entry.target_user_id)
     .bind(&entry.reason)

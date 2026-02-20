@@ -23,7 +23,12 @@ static HMAC_SECRET: OnceLock<String> = OnceLock::new();
 
 pub fn hmac_secret() -> &'static str {
     HMAC_SECRET.get_or_init(|| {
-        std::env::var("HMAC_SECRET").unwrap_or_else(|_| jwt_secret_str().to_string())
+        std::env::var("HMAC_SECRET").unwrap_or_else(|_| {
+            tracing::warn!(
+                "HMAC_SECRET not set, falling back to JWT_SECRET. Set HMAC_SECRET for proper key separation."
+            );
+            jwt_secret_str().to_string()
+        })
     })
 }
 
