@@ -59,20 +59,20 @@ impl AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
-            AppError::Database(ref e) => {
-                tracing::error!("Database error: {:?}", e);
+            AppError::Database(e) => {
+                tracing::error!("Database error: {e:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Database operation failed".to_string(),
                 )
             }
-            AppError::Authentication(ref msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
-            AppError::Forbidden(ref msg) => (StatusCode::FORBIDDEN, msg.clone()),
-            AppError::NotFound(ref msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Conflict(ref msg) => (StatusCode::CONFLICT, msg.clone()),
-            AppError::Internal(ref msg) => {
-                tracing::error!("Internal error: {}", msg);
+            AppError::Authentication(msg) => (StatusCode::UNAUTHORIZED, msg),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            AppError::Internal(msg) => {
+                tracing::error!("Internal error: {msg}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Internal server error".to_string(),

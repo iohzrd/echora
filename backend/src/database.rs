@@ -232,10 +232,14 @@ pub async fn get_messages(
     before: Option<DateTime<Utc>>,
     requesting_user_id: Uuid,
 ) -> Result<Vec<Message>, AppError> {
+    // Subquery fetches newest N messages DESC, outer query re-sorts ASC
+    // to return messages in chronological order without a .reverse() in Rust.
     let rows: Vec<MessageRow> = if let Some(before_ts) = before {
         sqlx::query_as(
-            "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
-             FROM messages WHERE channel_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT $3",
+            "SELECT * FROM (
+                 SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+                 FROM messages WHERE channel_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT $3
+             ) sub ORDER BY created_at ASC",
         )
         .bind(channel_id)
         .bind(before_ts)
@@ -244,8 +248,10 @@ pub async fn get_messages(
         .await?
     } else {
         sqlx::query_as(
-            "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
-             FROM messages WHERE channel_id = $1 ORDER BY created_at DESC LIMIT $2",
+            "SELECT * FROM (
+                 SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+                 FROM messages WHERE channel_id = $1 ORDER BY created_at DESC LIMIT $2
+             ) sub ORDER BY created_at ASC",
         )
         .bind(channel_id)
         .bind(limit)
@@ -254,7 +260,6 @@ pub async fn get_messages(
     };
 
     let mut messages: Vec<Message> = rows.into_iter().map(Message::from).collect();
-    messages.reverse();
 
     // Batch-fetch reply previews
     let reply_ids: Vec<Uuid> = messages.iter().filter_map(|m| m.reply_to_id).collect();

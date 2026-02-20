@@ -234,29 +234,7 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
     }
 
     // Clean up voice states on disconnect
-    let mut left_channels = Vec::new();
-    for mut channel_entry in state.voice_states.iter_mut() {
-        let channel_id = *channel_entry.key();
-        if channel_entry.value_mut().remove(&user_id).is_some() {
-            left_channels.push(channel_id);
-        }
-    }
-    for channel_id in &left_channels {
-        state
-            .voice_states
-            .remove_if(channel_id, |_, users| users.is_empty());
-        state
-            .sfu_service
-            .close_user_connections(*channel_id, user_id)
-            .await;
-        state.broadcast_global(
-            "voice_user_left",
-            serde_json::json!({
-                "user_id": user_id,
-                "channel_id": channel_id,
-            }),
-        );
-    }
+    state.remove_user_from_voice(user_id).await;
 
     // Clean up presence on disconnect
     state.online_users.remove(&user_id);
@@ -280,9 +258,11 @@ async fn handle_chat_message(
         return;
     };
 
-    if permissions::is_banned(&state.db, user_id).await
-        || permissions::is_muted(&state.db, user_id).await
-    {
+    let (banned, muted) = tokio::join!(
+        permissions::is_banned(&state.db, user_id),
+        permissions::is_muted(&state.db, user_id),
+    );
+    if banned || muted {
         return;
     }
 
@@ -315,7 +295,7 @@ async fn handle_chat_message(
             );
         }
         Err(e) => {
-            error!("Failed to create message: {}", e);
+            error!("Failed to create message: {e}");
         }
     }
 }

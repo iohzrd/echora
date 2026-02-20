@@ -1,6 +1,5 @@
 use dashmap::DashMap;
 use mediasoup::prelude::*;
-use mediasoup_types::rtp_parameters::{RtpHeaderExtension, RtpHeaderExtensionDirection};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
@@ -39,12 +38,12 @@ async fn auto_detect_public_ip() -> Result<String, AppError> {
             Ok(response) => {
                 if let Ok(ip) = response.text().await {
                     let ip = ip.trim().to_string();
-                    tracing::info!("Detected public IP: {} (from {})", ip, service);
+                    tracing::info!("Detected public IP: {ip} (from {service})");
                     return Ok(ip);
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to query {}: {}", service, e);
+                tracing::warn!("Failed to query {service}: {e}");
                 continue;
             }
         }
@@ -57,7 +56,7 @@ async fn auto_detect_public_ip() -> Result<String, AppError> {
 
 async fn get_announced_ip() -> String {
     if let Ok(ip) = std::env::var("MEDIASOUP_ANNOUNCED_IP") {
-        tracing::info!("Using announced IP from MEDIASOUP_ANNOUNCED_IP: {}", ip);
+        tracing::info!("Using announced IP from MEDIASOUP_ANNOUNCED_IP: {ip}");
         return ip;
     }
 
@@ -141,50 +140,7 @@ impl SfuService {
 
         let unfrozen_capabilities = RtpCapabilities {
             codecs: media_codecs.clone(),
-            header_extensions: vec![
-                RtpHeaderExtension {
-                    kind: MediaKind::Audio,
-                    uri: RtpHeaderExtensionUri::Mid,
-                    preferred_id: 1,
-                    preferred_encrypt: false,
-                    direction: RtpHeaderExtensionDirection::SendRecv,
-                },
-                RtpHeaderExtension {
-                    kind: MediaKind::Video,
-                    uri: RtpHeaderExtensionUri::Mid,
-                    preferred_id: 1,
-                    preferred_encrypt: false,
-                    direction: RtpHeaderExtensionDirection::SendRecv,
-                },
-                RtpHeaderExtension {
-                    kind: MediaKind::Audio,
-                    uri: RtpHeaderExtensionUri::AbsSendTime,
-                    preferred_id: 4,
-                    preferred_encrypt: false,
-                    direction: RtpHeaderExtensionDirection::SendRecv,
-                },
-                RtpHeaderExtension {
-                    kind: MediaKind::Video,
-                    uri: RtpHeaderExtensionUri::AbsSendTime,
-                    preferred_id: 4,
-                    preferred_encrypt: false,
-                    direction: RtpHeaderExtensionDirection::SendRecv,
-                },
-                RtpHeaderExtension {
-                    kind: MediaKind::Audio,
-                    uri: RtpHeaderExtensionUri::TransportWideCcDraft01,
-                    preferred_id: 5,
-                    preferred_encrypt: false,
-                    direction: RtpHeaderExtensionDirection::RecvOnly,
-                },
-                RtpHeaderExtension {
-                    kind: MediaKind::Video,
-                    uri: RtpHeaderExtensionUri::TransportWideCcDraft01,
-                    preferred_id: 5,
-                    preferred_encrypt: false,
-                    direction: RtpHeaderExtensionDirection::SendRecv,
-                },
-            ],
+            header_extensions: crate::sfu::codec::create_default_header_extensions(),
         };
 
         self.router_capabilities

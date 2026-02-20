@@ -25,29 +25,7 @@ pub async fn join_voice_channel(
     }
 
     // Leave all voice channels the user is currently in (including the target channel for re-joins)
-    let mut left_channels = Vec::new();
-    for mut channel_entry in state.voice_states.iter_mut() {
-        let channel_id = *channel_entry.key();
-        if channel_entry.value_mut().remove(&user_id).is_some() {
-            left_channels.push(channel_id);
-        }
-    }
-    for channel_id in &left_channels {
-        state
-            .voice_states
-            .remove_if(channel_id, |_, users| users.is_empty());
-        state
-            .sfu_service
-            .close_user_connections(*channel_id, user_id)
-            .await;
-        state.broadcast_global(
-            "voice_user_left",
-            serde_json::json!({
-                "user_id": user_id,
-                "channel_id": channel_id,
-            }),
-        );
-    }
+    state.remove_user_from_voice(user_id).await;
 
     let session_id = Uuid::new_v4();
     let now = Utc::now();
@@ -111,7 +89,7 @@ pub async fn leave_voice_channel(
         }),
     );
 
-    tracing::info!("User {} left voice channel {}", user_id, request.channel_id);
+    tracing::info!("User {user_id} left voice channel {}", request.channel_id);
 
     Ok(())
 }

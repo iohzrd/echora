@@ -358,4 +358,30 @@ impl AppState {
         }
         result
     }
+
+    /// Remove a user from all voice channels, close their SFU connections,
+    /// and broadcast departure events.
+    pub async fn remove_user_from_voice(&self, user_id: Uuid) {
+        let mut left_channels = Vec::new();
+        for mut channel_entry in self.voice_states.iter_mut() {
+            let channel_id = *channel_entry.key();
+            if channel_entry.value_mut().remove(&user_id).is_some() {
+                left_channels.push(channel_id);
+            }
+        }
+        for channel_id in &left_channels {
+            self.voice_states
+                .remove_if(channel_id, |_, users| users.is_empty());
+            self.sfu_service
+                .close_user_connections(*channel_id, user_id)
+                .await;
+            self.broadcast_global(
+                "voice_user_left",
+                serde_json::json!({
+                    "user_id": user_id,
+                    "channel_id": channel_id,
+                }),
+            );
+        }
+    }
 }

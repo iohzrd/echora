@@ -132,7 +132,7 @@ pub fn create_jwt(user_id: Uuid, username: &str, role: Role) -> Result<String, A
         &claims,
         &EncodingKey::from_secret(jwt_secret()),
     )
-    .map_err(|e| AppError::internal(format!("Failed to create JWT: {}", e)))
+    .map_err(|e| AppError::internal(format!("Failed to create JWT: {e}")))
 }
 
 pub fn decode_jwt(token: &str) -> Result<Claims, AppError> {

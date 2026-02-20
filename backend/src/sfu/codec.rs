@@ -1,4 +1,5 @@
 use mediasoup::prelude::*;
+use mediasoup_types::rtp_parameters::{RtpHeaderExtension, RtpHeaderExtensionDirection};
 use std::num::{NonZeroU8, NonZeroU32};
 
 pub const OPUS_CLOCK_RATE: u32 = 48000;
@@ -30,6 +31,53 @@ pub fn create_default_codecs() -> Vec<RtpCodecCapability> {
                 RtcpFeedback::GoogRemb,
                 RtcpFeedback::TransportCc,
             ],
+        },
+    ]
+}
+
+pub fn create_default_header_extensions() -> Vec<RtpHeaderExtension> {
+    vec![
+        RtpHeaderExtension {
+            kind: MediaKind::Audio,
+            uri: RtpHeaderExtensionUri::Mid,
+            preferred_id: 1,
+            preferred_encrypt: false,
+            direction: RtpHeaderExtensionDirection::SendRecv,
+        },
+        RtpHeaderExtension {
+            kind: MediaKind::Video,
+            uri: RtpHeaderExtensionUri::Mid,
+            preferred_id: 1,
+            preferred_encrypt: false,
+            direction: RtpHeaderExtensionDirection::SendRecv,
+        },
+        RtpHeaderExtension {
+            kind: MediaKind::Audio,
+            uri: RtpHeaderExtensionUri::AbsSendTime,
+            preferred_id: 4,
+            preferred_encrypt: false,
+            direction: RtpHeaderExtensionDirection::SendRecv,
+        },
+        RtpHeaderExtension {
+            kind: MediaKind::Video,
+            uri: RtpHeaderExtensionUri::AbsSendTime,
+            preferred_id: 4,
+            preferred_encrypt: false,
+            direction: RtpHeaderExtensionDirection::SendRecv,
+        },
+        RtpHeaderExtension {
+            kind: MediaKind::Audio,
+            uri: RtpHeaderExtensionUri::TransportWideCcDraft01,
+            preferred_id: 5,
+            preferred_encrypt: false,
+            direction: RtpHeaderExtensionDirection::RecvOnly,
+        },
+        RtpHeaderExtension {
+            kind: MediaKind::Video,
+            uri: RtpHeaderExtensionUri::TransportWideCcDraft01,
+            preferred_id: 5,
+            preferred_encrypt: false,
+            direction: RtpHeaderExtensionDirection::SendRecv,
         },
     ]
 }

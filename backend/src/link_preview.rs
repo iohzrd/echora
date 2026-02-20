@@ -151,7 +151,7 @@ async fn fetch_preview(client: &reqwest::Client, url: &str) -> Result<LinkPrevie
         buf.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
     }
 
-    let html = String::from_utf8_lossy(&buf).to_string();
+    let html = String::from_utf8_lossy(&buf).into_owned();
     Ok(parse_og_tags(&html, url))
 }
 
@@ -317,7 +317,7 @@ pub fn spawn_preview_fetch(
                             )
                             .await
                             {
-                                error!("Failed to attach preview to message: {}", e);
+                                error!("Failed to attach preview to message: {e}");
                                 continue;
                             }
                             previews.push(crate::models::LinkPreview {
@@ -330,12 +330,12 @@ pub fn spawn_preview_fetch(
                             });
                         }
                         Err(e) => {
-                            error!("Failed to save link preview: {}", e);
+                            error!("Failed to save link preview: {e}");
                         }
                     }
                 }
                 Err(e) => {
-                    info!("Failed to fetch preview for {}: {}", url, e);
+                    info!("Failed to fetch preview for {url}: {e}");
                 }
             }
         }
