@@ -8,7 +8,9 @@
 <div class="screen-share-viewer">
   <div class="screen-share-header">
     <span class="screen-share-title">Watching {username}'s screen</span>
-    <button class="screen-share-back-btn" on:click={onClose}>Back to chat</button>
+    <button class="screen-share-back-btn" on:click={onClose}
+      >Back to chat</button
+    >
   </div>
   <div class="screen-share-video-container">
     <video

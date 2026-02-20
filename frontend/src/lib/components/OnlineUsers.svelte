@@ -7,18 +7,18 @@
 
   function getRoleBadge(userId: string): string {
     const role = userRoles[userId];
-    if (role === 'owner') return 'OWN';
-    if (role === 'admin') return 'ADM';
-    if (role === 'moderator') return 'MOD';
-    return '';
+    if (role === "owner") return "OWN";
+    if (role === "admin") return "ADM";
+    if (role === "moderator") return "MOD";
+    return "";
   }
 
   function getRoleClass(userId: string): string {
     const role = userRoles[userId];
-    if (role === 'owner') return 'role-owner';
-    if (role === 'admin') return 'role-admin';
-    if (role === 'moderator') return 'role-mod';
-    return '';
+    if (role === "owner") return "role-owner";
+    if (role === "admin") return "role-admin";
+    if (role === "moderator") return "role-mod";
+    return "";
   }
 </script>
 
@@ -34,7 +34,9 @@
       </div>
       <span class="online-username">{u.username}</span>
       {#if getRoleBadge(u.user_id)}
-        <span class="role-badge {getRoleClass(u.user_id)}">{getRoleBadge(u.user_id)}</span>
+        <span class="role-badge {getRoleClass(u.user_id)}"
+          >{getRoleBadge(u.user_id)}</span
+        >
       {/if}
     </div>
   {/each}

@@ -12,13 +12,17 @@
   import { voiceManager } from "../lib/voice";
   import type { VoiceInputMode } from "../lib/voice";
   import { getChannelProducers } from "../lib/mediasoup";
-  import { initPTT, switchInputMode, changePTTKey, loadVoiceSettings } from "../lib/ptt";
+  import {
+    initPTT,
+    switchInputMode,
+    changePTTKey,
+    loadVoiceSettings,
+  } from "../lib/ptt";
   import {
     loadAudioSettings,
     saveAudioSettings,
     enumerateAudioDevices,
     onDeviceChange,
-    supportsOutputDeviceSelection,
     loadPerUserVolumes,
     savePerUserVolume,
     getPerUserVolume,
@@ -84,7 +88,6 @@
   let noiseSuppression = true;
   let inputDevices: AudioDevice[] = [];
   let outputDevices: AudioDevice[] = [];
-  let showOutputDevice = true;
   let removeDeviceListener: (() => void) | null = null;
 
   // Screen share viewing state
@@ -206,9 +209,7 @@
         channels = [...channels, data.data];
       }
       if (data.type === "channel_updated") {
-        channels = channels.map((c) =>
-          c.id === data.data.id ? data.data : c,
-        );
+        channels = channels.map((c) => (c.id === data.data.id ? data.data : c));
         if (selectedChannelId === data.data.id) {
           selectedChannelName = data.data.name;
         }
@@ -244,9 +245,7 @@
         data.type === "message_edited" &&
         data.data.channel_id === selectedChannelId
       ) {
-        messages = messages.map((m) =>
-          m.id === data.data.id ? data.data : m,
-        );
+        messages = messages.map((m) => (m.id === data.data.id ? data.data : m));
       }
       if (
         data.type === "message_deleted" &&
@@ -257,10 +256,20 @@
 
       // Reaction events
       if (data.type === "reaction_added" && selectedChannelId) {
-        updateMessageReaction(data.data.message_id, data.data.emoji, data.data.user_id, true);
+        updateMessageReaction(
+          data.data.message_id,
+          data.data.emoji,
+          data.data.user_id,
+          true,
+        );
       }
       if (data.type === "reaction_removed" && selectedChannelId) {
-        updateMessageReaction(data.data.message_id, data.data.emoji, data.data.user_id, false);
+        updateMessageReaction(
+          data.data.message_id,
+          data.data.emoji,
+          data.data.user_id,
+          false,
+        );
       }
 
       // Link preview events
@@ -378,7 +387,10 @@
           user.set({ ...$user, role: data.data.new_role });
         }
         // Update roles map for online user badges
-        userRolesMap = { ...userRolesMap, [data.data.user_id]: data.data.new_role };
+        userRolesMap = {
+          ...userRolesMap,
+          [data.data.user_id]: data.data.new_role,
+        };
       }
 
       // Typing indicator events
@@ -423,9 +435,7 @@
           screenVideoElement.srcObject = new MediaStream([track]);
           screenVideoElement
             .play()
-            .catch((e) =>
-              console.warn("Screen video autoplay prevented:", e),
-            );
+            .catch((e) => console.warn("Screen video autoplay prevented:", e));
         }
       } else if (track.kind === "audio") {
         if (screenAudioElement) {
@@ -448,9 +458,7 @@
         cameraVideoElement.srcObject = new MediaStream([track]);
         cameraVideoElement
           .play()
-          .catch((e) =>
-            console.warn("Camera video autoplay prevented:", e),
-          );
+          .catch((e) => console.warn("Camera video autoplay prevented:", e));
       }
     });
   }
@@ -547,9 +555,6 @@
     for (const [userId, vol] of Object.entries(perUserVols)) {
       voiceManager.setUserVolume(userId, vol);
     }
-
-    // Check output device support
-    showOutputDevice = supportsOutputDeviceSelection();
 
     // Enumerate devices
     await refreshDeviceList();
@@ -669,7 +674,10 @@
 
   async function deleteMessage(messageId: string) {
     if (!confirm("Delete this message?")) return;
-    tryAction(() => API.deleteMessage(selectedChannelId, messageId), "delete message");
+    tryAction(
+      () => API.deleteMessage(selectedChannelId, messageId),
+      "delete message",
+    );
   }
 
   // Reply functions
@@ -697,7 +705,10 @@
 
   // Voice functions
   function joinVoiceChannel(channelId: string) {
-    tryAction(() => voiceManager.joinVoiceChannel(channelId), "join voice channel");
+    tryAction(
+      () => voiceManager.joinVoiceChannel(channelId),
+      "join voice channel",
+    );
   }
 
   function leaveVoiceChannel() {
@@ -959,7 +970,8 @@
 
   $: activeServerName = serverName || $activeServer?.name || "Echora";
   $: userRole = $user?.role || "member";
-  $: isMod = userRole === "moderator" || userRole === "admin" || userRole === "owner";
+  $: isMod =
+    userRole === "moderator" || userRole === "admin" || userRole === "owner";
   $: onlineUserRoles = userRolesMap;
 </script>
 
@@ -986,7 +998,10 @@
       <div class="empty-state-message">
         <h2>Welcome to Echora</h2>
         <p>Add a server to get started.</p>
-        <button class="submit-btn" on:click={() => (showAddServerDialog = true)}>
+        <button
+          class="submit-btn"
+          on:click={() => (showAddServerDialog = true)}
+        >
           Add Server
         </button>
       </div>
@@ -1011,10 +1026,16 @@
           <div class="auth-toggle">
             {#if tauriAuthIsLogin}
               <span>Need an account?</span>
-              <button on:click={() => (tauriAuthIsLogin = false)} class="toggle-btn">Register</button>
+              <button
+                on:click={() => (tauriAuthIsLogin = false)}
+                class="toggle-btn">Register</button
+              >
             {:else}
               <span>Already have an account?</span>
-              <button on:click={() => (tauriAuthIsLogin = true)} class="toggle-btn">Login</button>
+              <button
+                on:click={() => (tauriAuthIsLogin = true)}
+                class="toggle-btn">Login</button
+              >
             {/if}
           </div>
         </div>
@@ -1028,12 +1049,36 @@
           <span class="server-name">{activeServerName}</span>
           <div class="header-actions">
             {#if isMod}
-              <button class="header-icon-btn" on:click={() => (showAdminPanel = true)} title="Admin Panel">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.98l2.49 1.01c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg>
+              <button
+                class="header-icon-btn"
+                on:click={() => (showAdminPanel = true)}
+                title="Admin Panel"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  ><path
+                    d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.98l2.49 1.01c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"
+                  /></svg
+                >
               </button>
             {/if}
-            <button class="header-icon-btn logout" on:click={logout} title="Logout">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h7v-2H5V5zm16 7l-4-4v3H9v2h8v3l4-4z"/></svg>
+            <button
+              class="header-icon-btn logout"
+              on:click={logout}
+              title="Logout"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                ><path
+                  d="M5 5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h7v-2H5V5zm16 7l-4-4v3H9v2h8v3l4-4z"
+                /></svg
+              >
             </button>
           </div>
         </div>
@@ -1078,7 +1123,6 @@
           {noiseSuppression}
           {inputDevices}
           {outputDevices}
-          {showOutputDevice}
           onLeaveVoice={leaveVoiceChannel}
           onToggleMute={toggleMute}
           onToggleDeafen={toggleDeafen}

@@ -7,10 +7,10 @@
   import EmojiPicker from "./EmojiPicker.svelte";
 
   function resolveUrl(url: string): string {
-    if (isTauri && url.startsWith('/')) {
+    if (isTauri && url.startsWith("/")) {
       const apiBase = getApiBase();
       // Strip /api suffix to get the server origin
-      const origin = apiBase.replace(/\/api$/, '');
+      const origin = apiBase.replace(/\/api$/, "");
       return origin + url;
     }
     return url;
@@ -28,7 +28,10 @@
   export let onCancelEdit: () => void = () => {};
   export let onDeleteMessage: (messageId: string) => void = () => {};
   export let onReply: (message: Message) => void = () => {};
-  export let onToggleReaction: (messageId: string, emoji: string) => void = () => {};
+  export let onToggleReaction: (
+    messageId: string,
+    emoji: string,
+  ) => void = () => {};
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
@@ -83,7 +86,6 @@
     }
   }
 
-
   function toggleEmojiPicker(messageId: string) {
     if (emojiPickerMessageId === messageId) {
       emojiPickerMessageId = null;
@@ -98,11 +100,7 @@
   }
 </script>
 
-<div
-  class="messages-area"
-  bind:this={messagesArea}
-  on:scroll={handleScroll}
->
+<div class="messages-area" bind:this={messagesArea} on:scroll={handleScroll}>
   {#if loadingMore}
     <div class="loading-more">Loading older messages...</div>
   {/if}
@@ -124,7 +122,9 @@
         {#if message.reply_to}
           <div class="reply-preview">
             <span class="reply-author">{message.reply_to.author}</span>
-            <span class="reply-content">{truncateContent(message.reply_to.content)}</span>
+            <span class="reply-content"
+              >{truncateContent(message.reply_to.content)}</span
+            >
           </div>
         {:else if message.reply_to_id}
           <div class="reply-preview reply-deleted">
@@ -139,34 +139,46 @@
               on:keydown={handleEditKeydown}
             ></textarea>
             <div class="edit-message-actions">
-              <button
-                class="edit-action-btn cancel"
-                on:click={onCancelEdit}>Cancel</button
+              <button class="edit-action-btn cancel" on:click={onCancelEdit}
+                >Cancel</button
               >
-              <button
-                class="edit-action-btn save"
-                on:click={onSaveEdit}>Save</button
+              <button class="edit-action-btn save" on:click={onSaveEdit}
+                >Save</button
               >
             </div>
           </div>
         {:else}
-          <div class="message-text">{@html renderMarkdown(message.content)}</div>
+          <div class="message-text">
+            {@html renderMarkdown(message.content)}
+          </div>
         {/if}
         {#if message.link_previews && message.link_previews.length > 0}
           {#each message.link_previews as preview}
             <div class="link-preview-card">
               {#if preview.image_url}
-                <img class="link-preview-image" src={resolveUrl(preview.image_url)} alt={preview.title || ''} loading="lazy" />
+                <img
+                  class="link-preview-image"
+                  src={resolveUrl(preview.image_url)}
+                  alt={preview.title || ""}
+                  loading="lazy"
+                />
               {/if}
               <div class="link-preview-text">
                 {#if preview.site_name}
                   <div class="link-preview-site">{preview.site_name}</div>
                 {/if}
                 {#if preview.title}
-                  <a class="link-preview-title" href={preview.url} target="_blank" rel="noopener noreferrer">{preview.title}</a>
+                  <a
+                    class="link-preview-title"
+                    href={preview.url}
+                    target="_blank"
+                    rel="noopener noreferrer">{preview.title}</a
+                  >
                 {/if}
                 {#if preview.description}
-                  <div class="link-preview-description">{preview.description}</div>
+                  <div class="link-preview-description">
+                    {preview.description}
+                  </div>
                 {/if}
               </div>
             </div>
@@ -180,16 +192,19 @@
                 on:click={() => onToggleReaction(message.id, reaction.emoji)}
                 title={reaction.emoji}
               >
-                {reaction.emoji} {reaction.count}
+                {reaction.emoji}
+                {reaction.count}
               </button>
             {/each}
             <button
               class="reaction-btn add-reaction"
               on:click={() => toggleEmojiPicker(message.id)}
-              title="Add reaction"
-            >+</button>
+              title="Add reaction">+</button
+            >
             {#if emojiPickerMessageId === message.id}
-              <EmojiPicker onSelect={(emoji) => selectEmoji(message.id, emoji)} />
+              <EmojiPicker
+                onSelect={(emoji) => selectEmoji(message.id, emoji)}
+              />
             {/if}
           </div>
         {/if}
@@ -213,7 +228,7 @@
               title="Edit">E</button
             >
           {/if}
-          {#if message.author_id === currentUserId || userRole === 'moderator' || userRole === 'admin' || userRole === 'owner'}
+          {#if message.author_id === currentUserId || userRole === "moderator" || userRole === "admin" || userRole === "owner"}
             <button
               class="msg-action-btn delete"
               on:click={() => onDeleteMessage(message.id)}
@@ -222,7 +237,10 @@
           {/if}
         </div>
         {#if emojiPickerMessageId === message.id && !(message.reactions && message.reactions.length > 0)}
-          <EmojiPicker floating onSelect={(emoji) => selectEmoji(message.id, emoji)} />
+          <EmojiPicker
+            floating
+            onSelect={(emoji) => selectEmoji(message.id, emoji)}
+          />
         {/if}
       {/if}
     </div>

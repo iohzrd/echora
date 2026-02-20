@@ -33,7 +33,8 @@
     }
 
     const resolvedUrl = result.resolvedUrl || url;
-    const name = serverName.trim() || result.name || new URL(resolvedUrl).hostname;
+    const name =
+      serverName.trim() || result.name || new URL(resolvedUrl).hostname;
     validating = false;
     onAdd(resolvedUrl, name);
   }
@@ -58,7 +59,9 @@
     tabindex="-1"
   >
     <h2>Add Server</h2>
-    <p class="dialog-subtitle">Enter the URL of an Echora instance to connect to it.</p>
+    <p class="dialog-subtitle">
+      Enter the URL of an Echora instance to connect to it.
+    </p>
 
     <div class="form-group">
       <label for="server-url">Server URL</label>
@@ -90,10 +93,18 @@
     {/if}
 
     <div class="dialog-actions">
-      <button class="dialog-btn cancel" on:click={onCancel} disabled={validating}>
+      <button
+        class="dialog-btn cancel"
+        on:click={onCancel}
+        disabled={validating}
+      >
         Cancel
       </button>
-      <button class="dialog-btn submit" on:click={handleSubmit} disabled={validating}>
+      <button
+        class="dialog-btn submit"
+        on:click={handleSubmit}
+        disabled={validating}
+      >
         {validating ? "Connecting..." : "Add Server"}
       </button>
     </div>

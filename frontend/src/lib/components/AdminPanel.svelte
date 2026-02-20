@@ -1,11 +1,19 @@
 <script lang="ts">
-  import { API, type UserSummary, type Ban, type Mute, type Invite, type ModLogEntry } from '../api';
-  import { user } from '../auth';
-  import { formatTimestamp } from '../utils';
+  import {
+    API,
+    type UserSummary,
+    type Ban,
+    type Mute,
+    type Invite,
+    type ModLogEntry,
+  } from "../api";
+  import { user } from "../auth";
+  import { formatTimestamp } from "../utils";
 
   export let onClose: () => void = () => {};
 
-  let activeTab: 'users' | 'moderation' | 'invites' | 'settings' | 'modlog' = 'users';
+  let activeTab: "users" | "moderation" | "invites" | "settings" | "modlog" =
+    "users";
   let users: UserSummary[] = [];
   let bans: Ban[] = [];
   let mutes: Mute[] = [];
@@ -14,30 +22,34 @@
   let settings: Record<string, string> = {};
 
   let loading = false;
-  let error = '';
+  let error = "";
 
   // Form state
-  let banUserId = '';
-  let banReason = '';
-  let banDuration = '';
-  let muteUserId = '';
-  let muteReason = '';
-  let muteDuration = '';
-  let kickUserId = '';
-  let kickReason = '';
-  let inviteMaxUses = '';
-  let inviteExpiry = '';
+  let banUserId = "";
+  let banReason = "";
+  let banDuration = "";
+  let muteUserId = "";
+  let muteReason = "";
+  let muteDuration = "";
+  let kickUserId = "";
+  let kickReason = "";
+  let inviteMaxUses = "";
+  let inviteExpiry = "";
   let lastCreatedInvite: Invite | null = null;
 
-  const currentRole = $user?.role || 'member';
-  const isAdmin = currentRole === 'admin' || currentRole === 'owner';
+  const currentRole = $user?.role || "member";
+  const isAdmin = currentRole === "admin" || currentRole === "owner";
 
   function roleLevel(role: string): number {
     switch (role) {
-      case 'owner': return 3;
-      case 'admin': return 2;
-      case 'moderator': return 1;
-      default: return 0;
+      case "owner":
+        return 3;
+      case "admin":
+        return 2;
+      case "moderator":
+        return 1;
+      default:
+        return 0;
     }
   }
 
@@ -47,37 +59,37 @@
 
   function assignableRoles(): string[] {
     const roles: string[] = [];
-    if (roleLevel(currentRole) > 0) roles.push('member');
-    if (roleLevel(currentRole) > 1) roles.push('moderator');
-    if (roleLevel(currentRole) > 2) roles.push('admin');
+    if (roleLevel(currentRole) > 0) roles.push("member");
+    if (roleLevel(currentRole) > 1) roles.push("moderator");
+    if (roleLevel(currentRole) > 2) roles.push("admin");
     return roles;
   }
 
   async function loadTab(tab: string) {
     loading = true;
-    error = '';
+    error = "";
     try {
       switch (tab) {
-        case 'users':
+        case "users":
           users = await API.getUsers();
           break;
-        case 'moderation':
+        case "moderation":
           [bans, mutes] = await Promise.all([API.getBans(), API.getMutes()]);
           if (users.length === 0) users = await API.getUsers();
           break;
-        case 'invites':
+        case "invites":
           invites = await API.getInvites();
           break;
-        case 'settings':
+        case "settings":
           settings = await API.getSettings();
           break;
-        case 'modlog':
+        case "modlog":
           modLog = await API.getModLog();
           if (users.length === 0) users = await API.getUsers();
           break;
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to load data';
+      error = err instanceof Error ? err.message : "Failed to load data";
     } finally {
       loading = false;
     }
@@ -89,15 +101,15 @@
   }
 
   function getUsernameById(id: string): string {
-    return users.find(u => u.id === id)?.username || id.slice(0, 8);
+    return users.find((u) => u.id === id)?.username || id.slice(0, 8);
   }
 
   async function handleChangeRole(userId: string, newRole: string) {
     try {
       await API.changeUserRole(userId, newRole);
-      await loadTab('users');
+      await loadTab("users");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to change role';
+      error = err instanceof Error ? err.message : "Failed to change role";
     }
   }
 
@@ -105,11 +117,11 @@
     if (!kickUserId) return;
     try {
       await API.kickUser(kickUserId, kickReason || undefined);
-      kickUserId = '';
-      kickReason = '';
-      error = '';
+      kickUserId = "";
+      kickReason = "";
+      error = "";
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to kick user';
+      error = err instanceof Error ? err.message : "Failed to kick user";
     }
   }
 
@@ -118,21 +130,21 @@
     try {
       const duration = banDuration ? parseInt(banDuration) : undefined;
       await API.banUser(banUserId, banReason || undefined, duration);
-      banUserId = '';
-      banReason = '';
-      banDuration = '';
-      await loadTab('moderation');
+      banUserId = "";
+      banReason = "";
+      banDuration = "";
+      await loadTab("moderation");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to ban user';
+      error = err instanceof Error ? err.message : "Failed to ban user";
     }
   }
 
   async function handleUnban(userId: string) {
     try {
       await API.unbanUser(userId);
-      await loadTab('moderation');
+      await loadTab("moderation");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to unban user';
+      error = err instanceof Error ? err.message : "Failed to unban user";
     }
   }
 
@@ -141,21 +153,21 @@
     try {
       const duration = muteDuration ? parseInt(muteDuration) : undefined;
       await API.muteUser(muteUserId, muteReason || undefined, duration);
-      muteUserId = '';
-      muteReason = '';
-      muteDuration = '';
-      await loadTab('moderation');
+      muteUserId = "";
+      muteReason = "";
+      muteDuration = "";
+      await loadTab("moderation");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to mute user';
+      error = err instanceof Error ? err.message : "Failed to mute user";
     }
   }
 
   async function handleUnmute(userId: string) {
     try {
       await API.unmuteUser(userId);
-      await loadTab('moderation');
+      await loadTab("moderation");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to unmute user';
+      error = err instanceof Error ? err.message : "Failed to unmute user";
     }
   }
 
@@ -164,29 +176,29 @@
       const maxUses = inviteMaxUses ? parseInt(inviteMaxUses) : undefined;
       const expiry = inviteExpiry ? parseInt(inviteExpiry) : undefined;
       lastCreatedInvite = await API.createInvite(maxUses, expiry);
-      inviteMaxUses = '';
-      inviteExpiry = '';
-      await loadTab('invites');
+      inviteMaxUses = "";
+      inviteExpiry = "";
+      await loadTab("invites");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to create invite';
+      error = err instanceof Error ? err.message : "Failed to create invite";
     }
   }
 
   async function handleRevokeInvite(inviteId: string) {
     try {
       await API.revokeInvite(inviteId);
-      await loadTab('invites');
+      await loadTab("invites");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to revoke invite';
+      error = err instanceof Error ? err.message : "Failed to revoke invite";
     }
   }
 
   async function handleUpdateSetting(key: string, value: string) {
     try {
       await API.updateSetting(key, value);
-      await loadTab('settings');
+      await loadTab("settings");
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to update setting';
+      error = err instanceof Error ? err.message : "Failed to update setting";
     }
   }
 
@@ -206,13 +218,28 @@
     </div>
 
     <div class="admin-tabs">
-      <button class="admin-tab {activeTab === 'users' ? 'active' : ''}" on:click={() => switchTab('users')}>Users</button>
-      <button class="admin-tab {activeTab === 'moderation' ? 'active' : ''}" on:click={() => switchTab('moderation')}>Moderation</button>
-      <button class="admin-tab {activeTab === 'invites' ? 'active' : ''}" on:click={() => switchTab('invites')}>Invites</button>
+      <button
+        class="admin-tab {activeTab === 'users' ? 'active' : ''}"
+        on:click={() => switchTab("users")}>Users</button
+      >
+      <button
+        class="admin-tab {activeTab === 'moderation' ? 'active' : ''}"
+        on:click={() => switchTab("moderation")}>Moderation</button
+      >
+      <button
+        class="admin-tab {activeTab === 'invites' ? 'active' : ''}"
+        on:click={() => switchTab("invites")}>Invites</button
+      >
       {#if isAdmin}
-        <button class="admin-tab {activeTab === 'settings' ? 'active' : ''}" on:click={() => switchTab('settings')}>Settings</button>
+        <button
+          class="admin-tab {activeTab === 'settings' ? 'active' : ''}"
+          on:click={() => switchTab("settings")}>Settings</button
+        >
       {/if}
-      <button class="admin-tab {activeTab === 'modlog' ? 'active' : ''}" on:click={() => switchTab('modlog')}>Mod Log</button>
+      <button
+        class="admin-tab {activeTab === 'modlog' ? 'active' : ''}"
+        on:click={() => switchTab("modlog")}>Mod Log</button
+      >
     </div>
 
     {#if error}
@@ -222,7 +249,7 @@
     <div class="admin-content">
       {#if loading}
         <div class="admin-loading">Loading...</div>
-      {:else if activeTab === 'users'}
+      {:else if activeTab === "users"}
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
@@ -245,11 +272,14 @@
                     {#if isAdmin && canModerate(u.role) && u.id !== $user?.id}
                       <select
                         value={u.role}
-                        on:change={(e) => handleChangeRole(u.id, e.currentTarget.value)}
+                        on:change={(e) =>
+                          handleChangeRole(u.id, e.currentTarget.value)}
                         class="role-select"
                       >
                         {#each assignableRoles() as role}
-                          <option value={role} selected={u.role === role}>{role}</option>
+                          <option value={role} selected={u.role === role}
+                            >{role}</option
+                          >
                         {/each}
                       </select>
                     {/if}
@@ -259,8 +289,7 @@
             </tbody>
           </table>
         </div>
-
-      {:else if activeTab === 'moderation'}
+      {:else if activeTab === "moderation"}
         <div class="mod-section">
           <h3>Quick Actions</h3>
           <div class="mod-forms">
@@ -268,38 +297,75 @@
               <h4>Kick User</h4>
               <select bind:value={kickUserId} class="mod-input">
                 <option value="">Select user...</option>
-                {#each users.filter(u => canModerate(u.role) && u.id !== $user?.id) as u}
+                {#each users.filter((u) => canModerate(u.role) && u.id !== $user?.id) as u}
                   <option value={u.id}>{u.username}</option>
                 {/each}
               </select>
-              <input type="text" bind:value={kickReason} placeholder="Reason (optional)" class="mod-input" />
-              <button class="mod-action-btn kick" on:click={handleKick} disabled={!kickUserId}>Kick</button>
+              <input
+                type="text"
+                bind:value={kickReason}
+                placeholder="Reason (optional)"
+                class="mod-input"
+              />
+              <button
+                class="mod-action-btn kick"
+                on:click={handleKick}
+                disabled={!kickUserId}>Kick</button
+              >
             </div>
 
             <div class="mod-form">
               <h4>Ban User</h4>
               <select bind:value={banUserId} class="mod-input">
                 <option value="">Select user...</option>
-                {#each users.filter(u => canModerate(u.role) && u.id !== $user?.id) as u}
+                {#each users.filter((u) => canModerate(u.role) && u.id !== $user?.id) as u}
                   <option value={u.id}>{u.username}</option>
                 {/each}
               </select>
-              <input type="text" bind:value={banReason} placeholder="Reason (optional)" class="mod-input" />
-              <input type="number" bind:value={banDuration} placeholder="Duration in hours (empty = permanent)" class="mod-input" />
-              <button class="mod-action-btn ban" on:click={handleBan} disabled={!banUserId}>Ban</button>
+              <input
+                type="text"
+                bind:value={banReason}
+                placeholder="Reason (optional)"
+                class="mod-input"
+              />
+              <input
+                type="number"
+                bind:value={banDuration}
+                placeholder="Duration in hours (empty = permanent)"
+                class="mod-input"
+              />
+              <button
+                class="mod-action-btn ban"
+                on:click={handleBan}
+                disabled={!banUserId}>Ban</button
+              >
             </div>
 
             <div class="mod-form">
               <h4>Mute User</h4>
               <select bind:value={muteUserId} class="mod-input">
                 <option value="">Select user...</option>
-                {#each users.filter(u => canModerate(u.role) && u.id !== $user?.id) as u}
+                {#each users.filter((u) => canModerate(u.role) && u.id !== $user?.id) as u}
                   <option value={u.id}>{u.username}</option>
                 {/each}
               </select>
-              <input type="text" bind:value={muteReason} placeholder="Reason (optional)" class="mod-input" />
-              <input type="number" bind:value={muteDuration} placeholder="Duration in hours (empty = permanent)" class="mod-input" />
-              <button class="mod-action-btn mute" on:click={handleMute} disabled={!muteUserId}>Mute</button>
+              <input
+                type="text"
+                bind:value={muteReason}
+                placeholder="Reason (optional)"
+                class="mod-input"
+              />
+              <input
+                type="number"
+                bind:value={muteDuration}
+                placeholder="Duration in hours (empty = permanent)"
+                class="mod-input"
+              />
+              <button
+                class="mod-action-btn mute"
+                on:click={handleMute}
+                disabled={!muteUserId}>Mute</button
+              >
             </div>
           </div>
         </div>
@@ -312,10 +378,17 @@
                 <div class="mod-list-item">
                   <div class="mod-list-info">
                     <strong>{getUsernameById(ban.user_id)}</strong>
-                    {#if ban.reason}<span class="mod-reason">- {ban.reason}</span>{/if}
-                    {#if ban.expires_at}<span class="mod-expiry">Expires: {formatTimestamp(ban.expires_at)}</span>{:else}<span class="mod-expiry">Permanent</span>{/if}
+                    {#if ban.reason}<span class="mod-reason"
+                        >- {ban.reason}</span
+                      >{/if}
+                    {#if ban.expires_at}<span class="mod-expiry"
+                        >Expires: {formatTimestamp(ban.expires_at)}</span
+                      >{:else}<span class="mod-expiry">Permanent</span>{/if}
                   </div>
-                  <button class="mod-action-btn unban" on:click={() => handleUnban(ban.user_id)}>Unban</button>
+                  <button
+                    class="mod-action-btn unban"
+                    on:click={() => handleUnban(ban.user_id)}>Unban</button
+                  >
                 </div>
               {/each}
             </div>
@@ -330,28 +403,51 @@
                 <div class="mod-list-item">
                   <div class="mod-list-info">
                     <strong>{getUsernameById(mute.user_id)}</strong>
-                    {#if mute.reason}<span class="mod-reason">- {mute.reason}</span>{/if}
-                    {#if mute.expires_at}<span class="mod-expiry">Expires: {formatTimestamp(mute.expires_at)}</span>{:else}<span class="mod-expiry">Permanent</span>{/if}
+                    {#if mute.reason}<span class="mod-reason"
+                        >- {mute.reason}</span
+                      >{/if}
+                    {#if mute.expires_at}<span class="mod-expiry"
+                        >Expires: {formatTimestamp(mute.expires_at)}</span
+                      >{:else}<span class="mod-expiry">Permanent</span>{/if}
                   </div>
-                  <button class="mod-action-btn unmute" on:click={() => handleUnmute(mute.user_id)}>Unmute</button>
+                  <button
+                    class="mod-action-btn unmute"
+                    on:click={() => handleUnmute(mute.user_id)}>Unmute</button
+                  >
                 </div>
               {/each}
             </div>
           </div>
         {/if}
-
-      {:else if activeTab === 'invites'}
+      {:else if activeTab === "invites"}
         <div class="mod-section">
           <h3>Create Invite</h3>
           <div class="invite-form">
-            <input type="number" bind:value={inviteMaxUses} placeholder="Max uses (empty = unlimited)" class="mod-input" />
-            <input type="number" bind:value={inviteExpiry} placeholder="Expires in hours (empty = never)" class="mod-input" />
-            <button class="mod-action-btn create" on:click={handleCreateInvite}>Create Invite</button>
+            <input
+              type="number"
+              bind:value={inviteMaxUses}
+              placeholder="Max uses (empty = unlimited)"
+              class="mod-input"
+            />
+            <input
+              type="number"
+              bind:value={inviteExpiry}
+              placeholder="Expires in hours (empty = never)"
+              class="mod-input"
+            />
+            <button class="mod-action-btn create" on:click={handleCreateInvite}
+              >Create Invite</button
+            >
           </div>
           {#if lastCreatedInvite}
             <div class="invite-created">
               <span class="invite-code">{lastCreatedInvite.code}</span>
-              <button class="copy-btn" on:click={() => lastCreatedInvite && copyToClipboard(lastCreatedInvite.code)}>Copy</button>
+              <button
+                class="copy-btn"
+                on:click={() =>
+                  lastCreatedInvite && copyToClipboard(lastCreatedInvite.code)}
+                >Copy</button
+              >
             </div>
           {/if}
         </div>
@@ -372,14 +468,26 @@
                 </thead>
                 <tbody>
                   {#each invites as invite}
-                    <tr class={invite.revoked ? 'revoked' : ''}>
+                    <tr class={invite.revoked ? "revoked" : ""}>
                       <td><span class="invite-code">{invite.code}</span></td>
-                      <td>{invite.uses}{invite.max_uses ? `/${invite.max_uses}` : ''}</td>
-                      <td>{invite.expires_at ? formatTimestamp(invite.expires_at) : 'Never'}</td>
-                      <td>{invite.revoked ? 'Revoked' : 'Active'}</td>
+                      <td
+                        >{invite.uses}{invite.max_uses
+                          ? `/${invite.max_uses}`
+                          : ""}</td
+                      >
+                      <td
+                        >{invite.expires_at
+                          ? formatTimestamp(invite.expires_at)
+                          : "Never"}</td
+                      >
+                      <td>{invite.revoked ? "Revoked" : "Active"}</td>
                       <td>
                         {#if !invite.revoked}
-                          <button class="mod-action-btn revoke" on:click={() => handleRevokeInvite(invite.id)}>Revoke</button>
+                          <button
+                            class="mod-action-btn revoke"
+                            on:click={() => handleRevokeInvite(invite.id)}
+                            >Revoke</button
+                          >
                         {/if}
                       </td>
                     </tr>
@@ -389,8 +497,7 @@
             </div>
           </div>
         {/if}
-
-      {:else if activeTab === 'settings'}
+      {:else if activeTab === "settings"}
         <div class="mod-section">
           <h3>Registration Mode</h3>
           <div class="setting-row">
@@ -399,8 +506,9 @@
                 type="radio"
                 name="reg_mode"
                 value="open"
-                checked={settings.registration_mode === 'open'}
-                on:change={() => handleUpdateSetting('registration_mode', 'open')}
+                checked={settings.registration_mode === "open"}
+                on:change={() =>
+                  handleUpdateSetting("registration_mode", "open")}
               />
               Open Registration
             </label>
@@ -409,15 +517,15 @@
                 type="radio"
                 name="reg_mode"
                 value="invite_only"
-                checked={settings.registration_mode === 'invite_only'}
-                on:change={() => handleUpdateSetting('registration_mode', 'invite_only')}
+                checked={settings.registration_mode === "invite_only"}
+                on:change={() =>
+                  handleUpdateSetting("registration_mode", "invite_only")}
               />
               Invite Only
             </label>
           </div>
         </div>
-
-      {:else if activeTab === 'modlog'}
+      {:else if activeTab === "modlog"}
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
@@ -432,10 +540,14 @@
             <tbody>
               {#each modLog as entry}
                 <tr>
-                  <td><span class="mod-action-label {entry.action}">{entry.action}</span></td>
+                  <td
+                    ><span class="mod-action-label {entry.action}"
+                      >{entry.action}</span
+                    ></td
+                  >
                   <td>{getUsernameById(entry.moderator_id)}</td>
                   <td>{getUsernameById(entry.target_user_id)}</td>
-                  <td>{entry.reason || '-'}</td>
+                  <td>{entry.reason || "-"}</td>
                   <td>{formatTimestamp(entry.created_at)}</td>
                 </tr>
               {/each}
@@ -583,10 +695,23 @@
     text-transform: uppercase;
   }
 
-  .role-owner { background: #f0b232; color: #000; }
-  .role-admin { background: #5865f2; color: #fff; }
-  .role-moderator, .role-mod { background: #43b581; color: #fff; }
-  .role-member { background: var(--bg-tertiary); color: var(--text-muted); }
+  .role-owner {
+    background: #f0b232;
+    color: #000;
+  }
+  .role-admin {
+    background: #5865f2;
+    color: #fff;
+  }
+  .role-moderator,
+  .role-mod {
+    background: #43b581;
+    color: #fff;
+  }
+  .role-member {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+  }
 
   .role-select {
     background: var(--bg-tertiary);
@@ -656,12 +781,25 @@
     cursor: not-allowed;
   }
 
-  .mod-action-btn.kick { background: #faa61a; }
-  .mod-action-btn.ban { background: var(--status-negative); }
-  .mod-action-btn.mute { background: #747f8d; }
-  .mod-action-btn.unban, .mod-action-btn.unmute { background: var(--status-positive); }
-  .mod-action-btn.create { background: var(--brand-primary); }
-  .mod-action-btn.revoke { background: var(--status-negative); }
+  .mod-action-btn.kick {
+    background: #faa61a;
+  }
+  .mod-action-btn.ban {
+    background: var(--status-negative);
+  }
+  .mod-action-btn.mute {
+    background: #747f8d;
+  }
+  .mod-action-btn.unban,
+  .mod-action-btn.unmute {
+    background: var(--status-positive);
+  }
+  .mod-action-btn.create {
+    background: var(--brand-primary);
+  }
+  .mod-action-btn.revoke {
+    background: var(--status-negative);
+  }
 
   .mod-list {
     display: flex;
@@ -712,7 +850,7 @@
   }
 
   .invite-code {
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: "Consolas", "Monaco", monospace;
     color: var(--brand-primary);
     font-weight: 600;
     font-size: 14px;
@@ -757,10 +895,28 @@
     color: var(--text-muted);
   }
 
-  .mod-action-label.kick { background: #faa61a33; color: #faa61a; }
-  .mod-action-label.ban { background: #f0474733; color: var(--status-negative); }
-  .mod-action-label.unban { background: #43b58133; color: var(--status-positive); }
-  .mod-action-label.mute { background: #747f8d33; color: #747f8d; }
-  .mod-action-label.unmute { background: #43b58133; color: var(--status-positive); }
-  .mod-action-label.role_change { background: #5865f233; color: var(--brand-primary); }
+  .mod-action-label.kick {
+    background: #faa61a33;
+    color: #faa61a;
+  }
+  .mod-action-label.ban {
+    background: #f0474733;
+    color: var(--status-negative);
+  }
+  .mod-action-label.unban {
+    background: #43b58133;
+    color: var(--status-positive);
+  }
+  .mod-action-label.mute {
+    background: #747f8d33;
+    color: #747f8d;
+  }
+  .mod-action-label.unmute {
+    background: #43b58133;
+    color: var(--status-positive);
+  }
+  .mod-action-label.role_change {
+    background: #5865f233;
+    color: var(--brand-primary);
+  }
 </style>

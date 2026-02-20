@@ -37,7 +37,9 @@
 <div class="server-sidebar">
   {#each $servers as server (server.id)}
     <button
-      class="server-sidebar-icon {$activeServer?.id === server.id ? 'active' : ''}"
+      class="server-sidebar-icon {$activeServer?.id === server.id
+        ? 'active'
+        : ''}"
       title="{server.name}{server.username ? ` (${server.username})` : ''}"
       on:click={() => onSelectServer(server)}
       on:contextmenu={(e) => handleContextMenu(e, server.id)}
@@ -58,7 +60,7 @@
 </div>
 
 {#if contextMenuServerId}
-  {@const server = $servers.find(s => s.id === contextMenuServerId)}
+  {@const server = $servers.find((s) => s.id === contextMenuServerId)}
   {#if server}
     <div
       class="server-context-menu"

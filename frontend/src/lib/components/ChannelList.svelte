@@ -12,13 +12,25 @@
   export let userRole: string = "member";
 
   export let onSelectChannel: (id: string, name: string) => void = () => {};
-  export let onCreateChannel: (name: string, type: "text" | "voice") => void = () => {};
+  export let onCreateChannel: (
+    name: string,
+    type: "text" | "voice",
+  ) => void = () => {};
   export let onUpdateChannel: (id: string, name: string) => void = () => {};
   export let onDeleteChannel: (id: string) => void = () => {};
   export let onJoinVoice: (channelId: string) => void = () => {};
-  export let onWatchScreen: (userId: string, username: string) => void = () => {};
-  export let onWatchCamera: (userId: string, username: string) => void = () => {};
-  export let onUserVolumeChange: (userId: string, volume: number) => void = () => {};
+  export let onWatchScreen: (
+    userId: string,
+    username: string,
+  ) => void = () => {};
+  export let onWatchCamera: (
+    userId: string,
+    username: string,
+  ) => void = () => {};
+  export let onUserVolumeChange: (
+    userId: string,
+    volume: number,
+  ) => void = () => {};
   export let getUserVolume: (userId: string) => number = () => 1.0;
 
   // Local state for channel create/edit forms
@@ -40,7 +52,11 @@
     volumeMenuY = e.clientY;
   }
 
-  function formKeydown(event: KeyboardEvent, onSubmit: () => void, onCancel: () => void) {
+  function formKeydown(
+    event: KeyboardEvent,
+    onSubmit: () => void,
+    onCancel: () => void,
+  ) {
     if (event.key === "Enter") {
       event.preventDefault();
       onSubmit();
@@ -50,29 +66,37 @@
   }
 
   function handleCreateKeydown(event: KeyboardEvent) {
-    formKeydown(event, () => {
-      if (newChannelName.trim() && showCreateChannel) {
-        onCreateChannel(newChannelName.trim(), showCreateChannel);
-        newChannelName = "";
+    formKeydown(
+      event,
+      () => {
+        if (newChannelName.trim() && showCreateChannel) {
+          onCreateChannel(newChannelName.trim(), showCreateChannel);
+          newChannelName = "";
+          showCreateChannel = null;
+        }
+      },
+      () => {
         showCreateChannel = null;
-      }
-    }, () => {
-      showCreateChannel = null;
-      newChannelName = "";
-    });
+        newChannelName = "";
+      },
+    );
   }
 
   function handleEditKeydown(event: KeyboardEvent) {
-    formKeydown(event, () => {
-      if (editingChannelId && editChannelName.trim()) {
-        onUpdateChannel(editingChannelId, editChannelName.trim());
+    formKeydown(
+      event,
+      () => {
+        if (editingChannelId && editChannelName.trim()) {
+          onUpdateChannel(editingChannelId, editChannelName.trim());
+          editingChannelId = null;
+          editChannelName = "";
+        }
+      },
+      () => {
         editingChannelId = null;
         editChannelName = "";
-      }
-    }, () => {
-      editingChannelId = null;
-      editChannelName = "";
-    });
+      },
+    );
   }
 
   function startEdit(channel: Channel) {
@@ -84,7 +108,7 @@
     showCreateChannel = showCreateChannel === type ? null : type;
   }
 
-  $: isAdmin = userRole === 'admin' || userRole === 'owner';
+  $: isAdmin = userRole === "admin" || userRole === "owner";
 </script>
 
 <div class="channel-category">
@@ -222,7 +246,9 @@
           <div
             class="voice-user {speakingUsers.has(voiceState.user_id)
               ? 'speaking'
-              : ''} {voiceState.is_screen_sharing ? 'screen-sharing' : ''} {voiceState.is_camera_sharing ? 'camera-sharing' : ''}"
+              : ''} {voiceState.is_screen_sharing
+              ? 'screen-sharing'
+              : ''} {voiceState.is_camera_sharing ? 'camera-sharing' : ''}"
             on:click={() => {
               if (voiceState.user_id !== currentUserId) {
                 if (voiceState.is_screen_sharing)
@@ -236,8 +262,13 @@
                 openUserVolumeMenu(e, voiceState.user_id, voiceState.username);
               }
             }}
-            role={voiceState.is_screen_sharing || voiceState.is_camera_sharing ? "button" : "listitem"}
-            tabindex={voiceState.is_screen_sharing || voiceState.is_camera_sharing ? 0 : -1}
+            role={voiceState.is_screen_sharing || voiceState.is_camera_sharing
+              ? "button"
+              : "listitem"}
+            tabindex={voiceState.is_screen_sharing ||
+            voiceState.is_camera_sharing
+              ? 0
+              : -1}
           >
             <div class="user-avatar">
               {getInitial(voiceState.username)}

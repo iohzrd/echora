@@ -75,12 +75,14 @@
     </div>
 
     <div class="form-group">
-      <label for="invite_code">Invite Code{inviteRequired ? '' : ' (optional)'}</label>
+      <label for="invite_code"
+        >Invite Code{inviteRequired ? "" : " (optional)"}</label
+      >
       <input
         id="invite_code"
         type="text"
         bind:value={inviteCode}
-        placeholder={inviteRequired ? 'Required' : 'Enter invite code'}
+        placeholder={inviteRequired ? "Required" : "Enter invite code"}
         disabled={loading}
       />
     </div>

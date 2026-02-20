@@ -78,11 +78,6 @@ export function onDeviceChange(callback: () => void): () => void {
   navigator.mediaDevices.addEventListener('devicechange', callback);
   return () => navigator.mediaDevices.removeEventListener('devicechange', callback);
 }
-
-export function supportsOutputDeviceSelection(): boolean {
-  return typeof HTMLAudioElement !== 'undefined' && 'setSinkId' in HTMLAudioElement.prototype;
-}
-
 // --- Per-user volume (separate storage) ---
 
 export function loadPerUserVolumes(): Record<string, number> {

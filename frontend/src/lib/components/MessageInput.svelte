@@ -30,8 +30,14 @@
 <div class="message-input-area">
   {#if replyingTo}
     <div class="reply-bar">
-      <span class="reply-bar-text">Replying to <strong>{replyingTo.author}</strong></span>
-      <button class="reply-bar-cancel" on:click={onCancelReply} title="Cancel reply">X</button>
+      <span class="reply-bar-text"
+        >Replying to <strong>{replyingTo.author}</strong></span
+      >
+      <button
+        class="reply-bar-cancel"
+        on:click={onCancelReply}
+        title="Cancel reply">X</button
+      >
     </div>
   {/if}
   <textarea
