@@ -2,10 +2,12 @@
   import AuthService, { type RegisterRequest } from "../auth";
 
   export let onSuccess: () => void = () => {};
+  export let inviteRequired: boolean = false;
 
   let username = "";
   let email = "";
   let password = "";
+  let inviteCode = "";
   let loading = false;
   let error = "";
 
@@ -23,6 +25,7 @@
         username: username.trim(),
         email: email.trim(),
         password,
+        ...(inviteCode.trim() ? { invite_code: inviteCode.trim() } : {}),
       };
       await AuthService.register(registerData);
       onSuccess();
@@ -67,6 +70,17 @@
         type="password"
         bind:value={password}
         placeholder="Enter your password"
+        disabled={loading}
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="invite_code">Invite Code{inviteRequired ? '' : ' (optional)'}</label>
+      <input
+        id="invite_code"
+        type="text"
+        bind:value={inviteCode}
+        placeholder={inviteRequired ? 'Required' : 'Enter invite code'}
         disabled={loading}
       />
     </div>

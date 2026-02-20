@@ -18,6 +18,7 @@
 
   export let messages: Message[] = [];
   export let currentUserId: string = "";
+  export let userRole: string = "member";
   export let loadingMore: boolean = false;
   export let editingMessageId: string | null = null;
   export let editMessageContent: string = "";
@@ -211,6 +212,8 @@
               on:click={() => onStartEdit(message)}
               title="Edit">E</button
             >
+          {/if}
+          {#if message.author_id === currentUserId || userRole === 'moderator' || userRole === 'admin' || userRole === 'owner'}
             <button
               class="msg-action-btn delete"
               on:click={() => onDeleteMessage(message.id)}

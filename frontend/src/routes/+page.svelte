@@ -46,8 +46,10 @@
   import AddServerDialog from "../lib/components/AddServerDialog.svelte";
   import LoginForm from "../lib/components/LoginForm.svelte";
   import RegisterForm from "../lib/components/RegisterForm.svelte";
+  import AdminPanel from "../lib/components/AdminPanel.svelte";
 
   let selectedChannelId = "";
+  let showAdminPanel = false;
   let selectedChannelName = "";
 
   let channels: Channel[] = [];
@@ -99,6 +101,9 @@
 
   // Version info
   let backendVersion = "";
+
+  // User roles map (user_id -> role)
+  let userRolesMap: Record<string, string> = {};
 
   // Mobile sidebar state
   let sidebarOpen = false;
@@ -324,6 +329,31 @@
         }
       }
 
+      // Moderation events
+      if (data.type === "user_kicked") {
+        if (data.data.user_id === $user?.id) {
+          alert("You have been kicked from the server.");
+          AuthService.logout();
+          goto("/auth");
+          return;
+        }
+      }
+      if (data.type === "user_banned") {
+        if (data.data.user_id === $user?.id) {
+          alert("You have been banned from the server.");
+          AuthService.logout();
+          goto("/auth");
+          return;
+        }
+      }
+      if (data.type === "user_role_changed") {
+        if (data.data.user_id === $user?.id && $user) {
+          user.set({ ...$user, role: data.data.new_role });
+        }
+        // Update roles map for online user badges
+        userRolesMap = { ...userRolesMap, [data.data.user_id]: data.data.new_role };
+      }
+
       // Typing indicator events
       if (
         data.type === "typing" &&
@@ -435,6 +465,19 @@
       onlineUsers = await API.getOnlineUsers();
       voiceStates = await API.getAllVoiceStates();
       backendVersion = await API.getBackendVersion();
+
+      // Fetch user roles for online user badges (Mod+ only)
+      const role = $user?.role || "member";
+      if (role === "moderator" || role === "admin" || role === "owner") {
+        try {
+          const allUsers = await API.getUsers();
+          userRolesMap = Object.fromEntries(
+            allUsers.map((u) => [u.id, u.role]),
+          );
+        } catch {
+          // Non-admin users won't have access, ignore
+        }
+      }
 
       if (channels.length > 0) {
         const firstTextChannel = channels.find(
@@ -840,6 +883,9 @@
   }
 
   $: activeServerName = $activeServer?.name || "Echora";
+  $: userRole = $user?.role || "member";
+  $: isMod = userRole === "moderator" || userRole === "admin" || userRole === "owner";
+  $: onlineUserRoles = userRolesMap;
 </script>
 
 <div class="discord-layout">
@@ -911,9 +957,16 @@
       <div class="channels-area">
         <div class="server-header">
           <span>{activeServerName}</span>
-          <button class="logout-btn" on:click={logout} title="Logout">
-            Logout
-          </button>
+          <div class="header-actions">
+            {#if isMod}
+              <button class="admin-btn" on:click={() => (showAdminPanel = true)} title="Admin Panel">
+                Admin
+              </button>
+            {/if}
+            <button class="logout-btn" on:click={logout} title="Logout">
+              Logout
+            </button>
+          </div>
         </div>
 
         <div class="channels-list">
@@ -930,6 +983,7 @@
             {pttKey}
             {pttActive}
             currentUserId={$user?.id || ""}
+            userRole={$user?.role || "member"}
             {inputDeviceId}
             {outputDeviceId}
             {inputGain}
@@ -961,7 +1015,7 @@
             getUserVolume={handleGetUserVolume}
           />
 
-          <OnlineUsers {onlineUsers} />
+          <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} />
         </div>
         <div class="version-bar">
           <span class="version-info">frontend v{FRONTEND_VERSION}</span>
@@ -992,6 +1046,7 @@
           bind:this={messageList}
           {messages}
           currentUserId={$user?.id || ""}
+          userRole={$user?.role || "member"}
           {loadingMore}
           {editingMessageId}
           bind:editMessageContent
@@ -1028,4 +1083,8 @@
     onAdd={handleAddServer}
     onCancel={() => (showAddServerDialog = false)}
   />
+{/if}
+
+{#if showAdminPanel}
+  <AdminPanel onClose={() => (showAdminPanel = false)} />
 {/if}

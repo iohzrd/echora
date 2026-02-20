@@ -299,7 +299,7 @@ export class VoiceManager {
     let lastSpeakingState = false;
 
     const checkAudioLevel = () => {
-      if (!this.analyser || !this.isConnected) {
+      if (!this.analyser) {
         this.speakingDetectionFrame = null;
         return;
       }
@@ -322,6 +322,10 @@ export class VoiceManager {
   }
 
   private updateSpeakingStatus(isSpeaking: boolean): void {
+    const currentUser = get(user);
+    if (currentUser) {
+      this.onSpeakingChanged?.(currentUser.id, isSpeaking);
+    }
     if (!this.currentChannelId || !this.ws) return;
     this.ws.sendVoiceSpeaking(this.currentChannelId, isSpeaking);
   }

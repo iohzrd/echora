@@ -18,6 +18,16 @@ pub async fn register(
     let email = validation::validate_email(&payload.email)?;
     validation::validate_password(&payload.password)?;
 
+    // Check registration mode
+    let reg_mode = database::get_server_setting(&state.db, "registration_mode").await?;
+    if reg_mode == "invite_only" {
+        let code = payload
+            .invite_code
+            .as_deref()
+            .ok_or_else(|| AppError::forbidden("Registration requires an invite code"))?;
+        database::use_invite_code(&state.db, code).await?;
+    }
+
     if database::get_user_by_username(&state.db, &username)
         .await?
         .is_some()
@@ -34,17 +44,22 @@ pub async fn register(
 
     let password_hash = password::hash_password(&payload.password)?;
 
+    // First user becomes owner, rest are members
+    let user_count = database::get_user_count(&state.db).await?;
+    let role = if user_count == 0 { "owner" } else { "member" };
+
     let user = User {
         id: Uuid::now_v7(),
         username,
         email,
         password_hash,
+        role: role.to_string(),
         created_at: Utc::now(),
     };
 
     database::create_user(&state.db, &user).await?;
 
-    let token = create_jwt(user.id, &user.username)?;
+    let token = create_jwt(user.id, &user.username, &user.role)?;
 
     Ok(Json(AuthResponse {
         token,
@@ -52,6 +67,7 @@ pub async fn register(
             id: user.id,
             username: user.username,
             email: user.email,
+            role: user.role,
         },
     }))
 }
@@ -70,7 +86,15 @@ pub async fn login(
 
     password::verify_password(&payload.password, &user.password_hash)?;
 
-    let token = create_jwt(user.id, &user.username)?;
+    // Check ban status
+    if database::get_active_ban(&state.db, user.id)
+        .await?
+        .is_some()
+    {
+        return Err(AppError::forbidden("You are banned from this server"));
+    }
+
+    let token = create_jwt(user.id, &user.username, &user.role)?;
 
     Ok(Json(AuthResponse {
         token,
@@ -78,6 +102,7 @@ pub async fn login(
             id: user.id,
             username: user.username,
             email: user.email,
+            role: user.role,
         },
     }))
 }
@@ -94,5 +119,6 @@ pub async fn me(
         id: user.id,
         username: user.username,
         email: user.email,
+        role: user.role,
     }))
 }

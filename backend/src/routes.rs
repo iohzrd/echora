@@ -14,6 +14,7 @@ use crate::models::{
     AppState, Channel, CreateChannelRequest, EditMessageRequest, Message, SendMessageRequest,
     UpdateChannelRequest, UserPresence,
 };
+use crate::permissions::{self, Role};
 use crate::shared::validation::{
     MAX_EMOJI_LENGTH, MAX_IMAGE_PROXY_SIZE, validate_channel_name, validate_message_content,
 };
@@ -40,6 +41,7 @@ pub async fn create_channel(
     Json(payload): Json<CreateChannelRequest>,
 ) -> AppResult<Json<Channel>> {
     let user_id = auth_user.user_id()?;
+    permissions::require_role(auth_user.role(), Role::Admin)?;
 
     let name = validate_channel_name(&payload.name)?;
 
@@ -57,11 +59,13 @@ pub async fn create_channel(
 }
 
 pub async fn update_channel(
-    _auth_user: AuthUser,
+    auth_user: AuthUser,
     Path(channel_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateChannelRequest>,
 ) -> AppResult<Json<Channel>> {
+    permissions::require_role(auth_user.role(), Role::Admin)?;
+
     let name = validate_channel_name(&payload.name)?;
 
     database::update_channel(&state.db, channel_id, &name).await?;
@@ -76,10 +80,12 @@ pub async fn update_channel(
 }
 
 pub async fn delete_channel(
-    _auth_user: AuthUser,
+    auth_user: AuthUser,
     Path(channel_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
+    permissions::require_role(auth_user.role(), Role::Admin)?;
+
     database::delete_channel(&state.db, channel_id).await?;
 
     // Clean up broadcast channel
@@ -123,6 +129,14 @@ pub async fn send_message(
     Json(payload): Json<SendMessageRequest>,
 ) -> AppResult<Json<Message>> {
     let user_id = auth_user.user_id()?;
+
+    // Check mute status
+    if database::get_active_mute(&state.db, user_id)
+        .await?
+        .is_some()
+    {
+        return Err(AppError::forbidden("You are muted"));
+    }
 
     validate_message_content(&payload.content)?;
 
@@ -194,7 +208,14 @@ pub async fn delete_message(
     State(state): State<Arc<AppState>>,
 ) -> AppResult<()> {
     let user_id = auth_user.user_id()?;
-    verify_message_ownership(&state.db, message_id, channel_id, user_id).await?;
+    let role = permissions::Role::from_str(auth_user.role());
+
+    if role >= Role::Moderator {
+        // Moderators can delete any message, just verify it exists in the channel
+        verify_message_in_channel(&state.db, message_id, channel_id).await?;
+    } else {
+        verify_message_ownership(&state.db, message_id, channel_id, user_id).await?;
+    }
 
     database::delete_message(&state.db, message_id).await?;
 

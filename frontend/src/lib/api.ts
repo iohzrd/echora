@@ -69,6 +69,57 @@ export interface UserPresence {
   connected_at: string;
 }
 
+export interface UserSummary {
+  id: string;
+  username: string;
+  email: string;
+  role: 'owner' | 'admin' | 'moderator' | 'member';
+  created_at: string;
+}
+
+export interface Ban {
+  id: string;
+  user_id: string;
+  banned_by: string;
+  reason?: string;
+  expires_at?: string;
+  created_at: string;
+}
+
+export interface Mute {
+  id: string;
+  user_id: string;
+  muted_by: string;
+  reason?: string;
+  expires_at?: string;
+  created_at: string;
+}
+
+export interface Invite {
+  id: string;
+  code: string;
+  created_by: string;
+  max_uses?: number;
+  uses: number;
+  expires_at?: string;
+  revoked: boolean;
+  created_at: string;
+}
+
+export interface ModLogEntry {
+  id: string;
+  action: string;
+  moderator_id: string;
+  target_user_id: string;
+  reason?: string;
+  details?: string;
+  created_at: string;
+}
+
+export interface ServerSettings {
+  [key: string]: string;
+}
+
 export const FRONTEND_VERSION = '0.2.5';
 
 export class API {
@@ -184,6 +235,82 @@ export class API {
 
   static async getAllVoiceStates(): Promise<VoiceState[]> {
     return this.request('/voice/states', {}, 'Failed to fetch all voice states');
+  }
+
+  // --- Admin: Users ---
+
+  static async getUsers(): Promise<UserSummary[]> {
+    return this.request('/admin/users', {}, 'Failed to fetch users');
+  }
+
+  static async changeUserRole(userId: string, role: string): Promise<void> {
+    return this.jsonRequest(`/admin/users/${userId}/role`, 'PUT', { role }, 'Failed to change role');
+  }
+
+  // --- Moderation ---
+
+  static async kickUser(userId: string, reason?: string): Promise<void> {
+    return this.jsonRequest('/admin/kick', 'POST', { user_id: userId, reason }, 'Failed to kick user');
+  }
+
+  static async banUser(userId: string, reason?: string, durationHours?: number): Promise<void> {
+    return this.jsonRequest('/admin/ban', 'POST', {
+      user_id: userId, reason, duration_hours: durationHours
+    }, 'Failed to ban user');
+  }
+
+  static async unbanUser(userId: string): Promise<void> {
+    return this.request(`/admin/bans/${userId}`, { method: 'DELETE' }, 'Failed to unban user');
+  }
+
+  static async getBans(): Promise<Ban[]> {
+    return this.request('/admin/bans', {}, 'Failed to fetch bans');
+  }
+
+  static async muteUser(userId: string, reason?: string, durationHours?: number): Promise<void> {
+    return this.jsonRequest('/admin/mute', 'POST', {
+      user_id: userId, reason, duration_hours: durationHours
+    }, 'Failed to mute user');
+  }
+
+  static async unmuteUser(userId: string): Promise<void> {
+    return this.request(`/admin/mutes/${userId}`, { method: 'DELETE' }, 'Failed to unmute user');
+  }
+
+  static async getMutes(): Promise<Mute[]> {
+    return this.request('/admin/mutes', {}, 'Failed to fetch mutes');
+  }
+
+  // --- Invites ---
+
+  static async createInvite(maxUses?: number, expiresInHours?: number): Promise<Invite> {
+    return this.jsonRequest('/invites', 'POST', {
+      max_uses: maxUses, expires_in_hours: expiresInHours
+    }, 'Failed to create invite');
+  }
+
+  static async getInvites(): Promise<Invite[]> {
+    return this.request('/invites', {}, 'Failed to fetch invites');
+  }
+
+  static async revokeInvite(inviteId: string): Promise<void> {
+    return this.request(`/invites/${inviteId}`, { method: 'DELETE' }, 'Failed to revoke invite');
+  }
+
+  // --- Settings ---
+
+  static async getSettings(): Promise<ServerSettings> {
+    return this.request('/admin/settings', {}, 'Failed to fetch settings');
+  }
+
+  static async updateSetting(key: string, value: string): Promise<void> {
+    return this.jsonRequest('/admin/settings', 'PUT', { key, value }, 'Failed to update setting');
+  }
+
+  // --- Mod Log ---
+
+  static async getModLog(): Promise<ModLogEntry[]> {
+    return this.request('/admin/modlog', {}, 'Failed to fetch moderation log');
   }
 }
 

@@ -26,6 +26,7 @@ pub fn jwt_secret() -> &'static [u8] {
 pub struct Claims {
     pub sub: String,
     pub username: String,
+    pub role: String,
     pub exp: i64,
 }
 
@@ -35,6 +36,7 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub password_hash: String,
+    pub role: String,
     pub created_at: chrono::DateTime<Utc>,
 }
 
@@ -43,6 +45,7 @@ pub struct RegisterRequest {
     pub username: String,
     pub email: String,
     pub password: String,
+    pub invite_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +65,7 @@ pub struct UserInfo {
     pub id: Uuid,
     pub username: String,
     pub email: String,
+    pub role: String,
 }
 
 pub struct AuthUser(pub Claims);
@@ -72,6 +76,10 @@ impl AuthUser {
             .sub
             .parse()
             .map_err(|_| AppError::bad_request("Invalid user ID"))
+    }
+
+    pub fn role(&self) -> &str {
+        &self.0.role
     }
 }
 
@@ -98,7 +106,7 @@ where
     }
 }
 
-pub fn create_jwt(user_id: Uuid, username: &str) -> Result<String, AppError> {
+pub fn create_jwt(user_id: Uuid, username: &str, role: &str) -> Result<String, AppError> {
     let expiration = Utc::now()
         .checked_add_signed(Duration::days(7))
         .ok_or_else(|| AppError::internal("Failed to compute token expiration"))?
@@ -107,6 +115,7 @@ pub fn create_jwt(user_id: Uuid, username: &str) -> Result<String, AppError> {
     let claims = Claims {
         sub: user_id.to_string(),
         username: username.to_string(),
+        role: role.to_string(),
         exp: expiration,
     };
 

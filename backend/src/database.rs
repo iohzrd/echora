@@ -4,7 +4,10 @@ use uuid::Uuid;
 
 use crate::auth::User;
 use crate::link_preview::LinkPreviewData;
-use crate::models::{Channel, ChannelType, LinkPreview, Message, Reaction, ReplyPreview};
+use crate::models::{
+    Ban, Channel, ChannelType, Invite, LinkPreview, Message, ModLogEntry, Mute, Reaction,
+    ReplyPreview, UserSummary,
+};
 use crate::shared::AppError;
 use crate::shared::validation::REPLY_PREVIEW_LENGTH;
 
@@ -26,16 +29,17 @@ fn channel_from_row((id, name, channel_type): ChannelRow) -> Result<Channel, App
     })
 }
 
-type UserRow = (String, String, String, String, DateTime<Utc>);
+type UserRow = (String, String, String, String, String, DateTime<Utc>);
 
 fn user_from_row(
-    (id, username, email, password_hash, created_at): UserRow,
+    (id, username, email, password_hash, role, created_at): UserRow,
 ) -> Result<User, AppError> {
     Ok(User {
         id: parse_uuid(&id)?,
         username,
         email,
         password_hash,
+        role,
         created_at,
     })
 }
@@ -104,6 +108,27 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
         }
 
         tracing::info!("Seeded {} default channels", channels.len());
+    }
+
+    // Ensure at least one owner exists (promote oldest user if none)
+    let owner_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE role = 'owner'")
+        .fetch_one(pool)
+        .await?;
+
+    if owner_count == 0 {
+        let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+            .fetch_one(pool)
+            .await?;
+
+        if user_count > 0 {
+            sqlx::query(
+                "UPDATE users SET role = 'owner' WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1)",
+            )
+            .execute(pool)
+            .await?;
+
+            tracing::info!("Promoted oldest user to owner role");
+        }
     }
 
     Ok(())
@@ -324,13 +349,14 @@ pub async fn create_message(
 
 pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
     sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash, created_at)
-         VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO users (id, username, email, password_hash, role, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(user.id.to_string())
     .bind(&user.username)
     .bind(&user.email)
     .bind(&user.password_hash)
+    .bind(&user.role)
     .bind(user.created_at)
     .execute(pool)
     .await?;
@@ -340,7 +366,7 @@ pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
 
 pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, AppError> {
     let row: Option<UserRow> = sqlx::query_as(
-        "SELECT id, username, email, password_hash, created_at FROM users WHERE username = $1",
+        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE username = $1",
     )
     .bind(username)
     .fetch_optional(pool)
@@ -470,7 +496,7 @@ pub async fn get_reply_preview(
 
 pub async fn get_user_by_email(pool: &PgPool, email: &str) -> Result<Option<User>, AppError> {
     let row: Option<UserRow> = sqlx::query_as(
-        "SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1",
+        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE email = $1",
     )
     .bind(email)
     .fetch_optional(pool)
@@ -565,4 +591,461 @@ pub async fn get_link_previews_for_messages(
     }
 
     Ok(previews_map)
+}
+
+// --- User role management ---
+
+pub async fn get_user_count(pool: &PgPool) -> Result<i64, AppError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(pool)
+        .await?;
+    Ok(count)
+}
+
+pub async fn get_user_role(pool: &PgPool, user_id: Uuid) -> Result<String, AppError> {
+    let row: (String,) = sqlx::query_as("SELECT role FROM users WHERE id = $1")
+        .bind(user_id.to_string())
+        .fetch_one(pool)
+        .await
+        .map_err(|_| AppError::not_found("User not found"))?;
+    Ok(row.0)
+}
+
+pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: &str) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
+        .bind(role)
+        .bind(user_id.to_string())
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "User not found")
+}
+
+pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
+    let rows: Vec<(String, String, String, String, DateTime<Utc>)> = sqlx::query_as(
+        "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|(id, username, email, role, created_at)| {
+            Ok(UserSummary {
+                id: parse_uuid(&id)?,
+                username,
+                email,
+                role,
+                created_at,
+            })
+        })
+        .collect()
+}
+
+// --- Ban management ---
+
+pub async fn create_ban(pool: &PgPool, ban: &Ban) -> Result<(), AppError> {
+    // Remove any existing ban first (UNIQUE on user_id)
+    sqlx::query("DELETE FROM bans WHERE user_id = $1")
+        .bind(ban.user_id.to_string())
+        .execute(pool)
+        .await?;
+
+    sqlx::query(
+        "INSERT INTO bans (id, user_id, banned_by, reason, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(ban.id.to_string())
+    .bind(ban.user_id.to_string())
+    .bind(ban.banned_by.to_string())
+    .bind(&ban.reason)
+    .bind(ban.expires_at)
+    .bind(ban.created_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_active_ban(pool: &PgPool, user_id: Uuid) -> Result<Option<Ban>, AppError> {
+    let row: Option<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, user_id, banned_by, reason, expires_at, created_at FROM bans
+         WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
+    )
+    .bind(user_id.to_string())
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(|(id, user_id, banned_by, reason, expires_at, created_at)| {
+        Ok(Ban {
+            id: parse_uuid(&id)?,
+            user_id: parse_uuid(&user_id)?,
+            banned_by: parse_uuid(&banned_by)?,
+            reason,
+            expires_at,
+            created_at,
+        })
+    })
+    .transpose()
+}
+
+pub async fn remove_ban(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM bans WHERE user_id = $1")
+        .bind(user_id.to_string())
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "No active ban found for this user")
+}
+
+pub async fn get_all_bans(pool: &PgPool) -> Result<Vec<Ban>, AppError> {
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, user_id, banned_by, reason, expires_at, created_at FROM bans
+         WHERE expires_at IS NULL OR expires_at > NOW()
+         ORDER BY created_at DESC",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|(id, user_id, banned_by, reason, expires_at, created_at)| {
+            Ok(Ban {
+                id: parse_uuid(&id)?,
+                user_id: parse_uuid(&user_id)?,
+                banned_by: parse_uuid(&banned_by)?,
+                reason,
+                expires_at,
+                created_at,
+            })
+        })
+        .collect()
+}
+
+pub async fn cleanup_expired_bans(pool: &PgPool) -> Result<u64, AppError> {
+    let result =
+        sqlx::query("DELETE FROM bans WHERE expires_at IS NOT NULL AND expires_at <= NOW()")
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected())
+}
+
+// --- Mute management ---
+
+pub async fn create_mute(pool: &PgPool, mute: &Mute) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM mutes WHERE user_id = $1")
+        .bind(mute.user_id.to_string())
+        .execute(pool)
+        .await?;
+
+    sqlx::query(
+        "INSERT INTO mutes (id, user_id, muted_by, reason, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(mute.id.to_string())
+    .bind(mute.user_id.to_string())
+    .bind(mute.muted_by.to_string())
+    .bind(&mute.reason)
+    .bind(mute.expires_at)
+    .bind(mute.created_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_active_mute(pool: &PgPool, user_id: Uuid) -> Result<Option<Mute>, AppError> {
+    let row: Option<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, user_id, muted_by, reason, expires_at, created_at FROM mutes
+         WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > NOW())",
+    )
+    .bind(user_id.to_string())
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(|(id, user_id, muted_by, reason, expires_at, created_at)| {
+        Ok(Mute {
+            id: parse_uuid(&id)?,
+            user_id: parse_uuid(&user_id)?,
+            muted_by: parse_uuid(&muted_by)?,
+            reason,
+            expires_at,
+            created_at,
+        })
+    })
+    .transpose()
+}
+
+pub async fn remove_mute(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM mutes WHERE user_id = $1")
+        .bind(user_id.to_string())
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "No active mute found for this user")
+}
+
+pub async fn get_all_mutes(pool: &PgPool) -> Result<Vec<Mute>, AppError> {
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, user_id, muted_by, reason, expires_at, created_at FROM mutes
+         WHERE expires_at IS NULL OR expires_at > NOW()
+         ORDER BY created_at DESC",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|(id, user_id, muted_by, reason, expires_at, created_at)| {
+            Ok(Mute {
+                id: parse_uuid(&id)?,
+                user_id: parse_uuid(&user_id)?,
+                muted_by: parse_uuid(&muted_by)?,
+                reason,
+                expires_at,
+                created_at,
+            })
+        })
+        .collect()
+}
+
+pub async fn cleanup_expired_mutes(pool: &PgPool) -> Result<u64, AppError> {
+    let result =
+        sqlx::query("DELETE FROM mutes WHERE expires_at IS NOT NULL AND expires_at <= NOW()")
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected())
+}
+
+// --- Invite management ---
+
+pub async fn create_invite(pool: &PgPool, invite: &Invite) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO invites (id, code, created_by, max_uses, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(invite.id.to_string())
+    .bind(&invite.code)
+    .bind(invite.created_by.to_string())
+    .bind(invite.max_uses)
+    .bind(invite.expires_at)
+    .bind(invite.created_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn use_invite_code(pool: &PgPool, code: &str) -> Result<(), AppError> {
+    let result = sqlx::query(
+        "UPDATE invites SET uses = uses + 1
+         WHERE code = $1
+           AND NOT revoked
+           AND (max_uses IS NULL OR uses < max_uses)
+           AND (expires_at IS NULL OR expires_at > NOW())",
+    )
+    .bind(code)
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::bad_request(
+            "Invalid, expired, or fully used invite code",
+        ));
+    }
+
+    Ok(())
+}
+
+pub async fn revoke_invite(pool: &PgPool, invite_id: Uuid) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE invites SET revoked = TRUE WHERE id = $1")
+        .bind(invite_id.to_string())
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "Invite not found")
+}
+
+pub async fn get_invite_by_code(pool: &PgPool, code: &str) -> Result<Option<Invite>, AppError> {
+    type InviteRow = (
+        String,
+        String,
+        String,
+        Option<i32>,
+        i32,
+        Option<DateTime<Utc>>,
+        bool,
+        DateTime<Utc>,
+    );
+
+    let row: Option<InviteRow> = sqlx::query_as(
+        "SELECT id, code, created_by, max_uses, uses, expires_at, revoked, created_at
+         FROM invites WHERE code = $1",
+    )
+    .bind(code)
+    .fetch_optional(pool)
+    .await?;
+
+    row.map(
+        |(id, code, created_by, max_uses, uses, expires_at, revoked, created_at)| {
+            Ok(Invite {
+                id: parse_uuid(&id)?,
+                code,
+                created_by: parse_uuid(&created_by)?,
+                max_uses,
+                uses,
+                expires_at,
+                revoked,
+                created_at,
+            })
+        },
+    )
+    .transpose()
+}
+
+pub async fn get_all_invites(pool: &PgPool) -> Result<Vec<Invite>, AppError> {
+    type InviteRow = (
+        String,
+        String,
+        String,
+        Option<i32>,
+        i32,
+        Option<DateTime<Utc>>,
+        bool,
+        DateTime<Utc>,
+    );
+
+    let rows: Vec<InviteRow> = sqlx::query_as(
+        "SELECT id, code, created_by, max_uses, uses, expires_at, revoked, created_at
+         FROM invites ORDER BY created_at DESC",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(
+            |(id, code, created_by, max_uses, uses, expires_at, revoked, created_at)| {
+                Ok(Invite {
+                    id: parse_uuid(&id)?,
+                    code,
+                    created_by: parse_uuid(&created_by)?,
+                    max_uses,
+                    uses,
+                    expires_at,
+                    revoked,
+                    created_at,
+                })
+            },
+        )
+        .collect()
+}
+
+// --- Server settings ---
+
+pub async fn get_server_setting(pool: &PgPool, key: &str) -> Result<String, AppError> {
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM server_settings WHERE key = $1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await?;
+
+    row.map(|r| r.0)
+        .ok_or_else(|| AppError::not_found(format!("Setting '{}' not found", key)))
+}
+
+pub async fn set_server_setting(pool: &PgPool, key: &str, value: &str) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO server_settings (key, value, updated_at) VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_all_server_settings(
+    pool: &PgPool,
+) -> Result<std::collections::HashMap<String, String>, AppError> {
+    let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM server_settings")
+        .fetch_all(pool)
+        .await?;
+
+    Ok(rows.into_iter().collect())
+}
+
+// --- Moderation log ---
+
+pub async fn create_mod_log_entry(pool: &PgPool, entry: &ModLogEntry) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO moderation_log (id, action, moderator_id, target_user_id, reason, details, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(entry.id.to_string())
+    .bind(&entry.action)
+    .bind(entry.moderator_id.to_string())
+    .bind(entry.target_user_id.to_string())
+    .bind(&entry.reason)
+    .bind(&entry.details)
+    .bind(entry.created_at)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_mod_log(pool: &PgPool, limit: i64) -> Result<Vec<ModLogEntry>, AppError> {
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
+        "SELECT id, action, moderator_id, target_user_id, reason, details, created_at
+         FROM moderation_log ORDER BY created_at DESC LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(
+            |(id, action, moderator_id, target_user_id, reason, details, created_at)| {
+                Ok(ModLogEntry {
+                    id: parse_uuid(&id)?,
+                    action,
+                    moderator_id: parse_uuid(&moderator_id)?,
+                    target_user_id: parse_uuid(&target_user_id)?,
+                    reason,
+                    details,
+                    created_at,
+                })
+            },
+        )
+        .collect()
 }

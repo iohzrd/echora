@@ -66,7 +66,27 @@ pub async fn websocket_handler(
     State(state): State<Arc<AppState>>,
 ) -> Response {
     match auth::decode_jwt(&query.token) {
-        Ok(claims) => ws.on_upgrade(move |socket| websocket(socket, state, claims)),
+        Ok(claims) => {
+            let user_id: Uuid = match claims.sub.parse() {
+                Ok(id) => id,
+                Err(_) => {
+                    return (axum::http::StatusCode::UNAUTHORIZED, "Invalid user ID")
+                        .into_response();
+                }
+            };
+            // Check ban status before accepting connection
+            match database::get_active_ban(&state.db, user_id).await {
+                Ok(Some(_)) => {
+                    (axum::http::StatusCode::FORBIDDEN, "You are banned").into_response()
+                }
+                Ok(None) => ws.on_upgrade(move |socket| websocket(socket, state, claims)),
+                Err(_) => (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "Server error",
+                )
+                    .into_response(),
+            }
+        }
         Err(_) => (axum::http::StatusCode::UNAUTHORIZED, "Invalid token").into_response(),
     }
 }
@@ -173,6 +193,23 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, claims: auth::Claims
             }
 
             msg = global_rx.recv() => {
+                if let Ok(ref text) = msg {
+                    // Check if this is a kick/ban targeting us
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
+                        let event_type = parsed.get("type").and_then(|t| t.as_str());
+                        let target_id = parsed
+                            .get("data")
+                            .and_then(|d| d.get("user_id"))
+                            .and_then(|u| u.as_str());
+
+                        if matches!(event_type, Some("user_kicked") | Some("user_banned"))
+                            && target_id == Some(&user_id.to_string())
+                        {
+                            let _ = sender.send(Message::Text(text.clone().into())).await;
+                            break;
+                        }
+                    }
+                }
                 if let Ok(text) = msg
                     && sender.send(Message::Text(text.into())).await.is_err() {
                     break;
@@ -202,6 +239,16 @@ async fn handle_chat_message(
     let Ok(chat_msg) = serde_json::from_value::<ChatMessage>(payload) else {
         return;
     };
+
+    // Check mute status
+    if database::get_active_mute(&state.db, user_id)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+    {
+        return;
+    }
 
     // Auto-subscribe to channel if not already
     if *current_channel != Some(chat_msg.channel_id) {

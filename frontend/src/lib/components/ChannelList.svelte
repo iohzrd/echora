@@ -16,6 +16,7 @@
   export let isDeafened: boolean = false;
   export let isScreenSharing: boolean = false;
   export let currentUserId: string = "";
+  export let userRole: string = "member";
   export let voiceInputMode: VoiceInputMode = "voice-activity";
   export let pttKey: string = "Space";
   export let pttActive: boolean = false;
@@ -127,15 +128,19 @@
   function toggleCreateForm(type: "text" | "voice") {
     showCreateChannel = showCreateChannel === type ? null : type;
   }
+
+  $: isAdmin = userRole === 'admin' || userRole === 'owner';
 </script>
 
 <div class="channel-category">
   <span>Text Channels</span>
-  <button
-    class="create-channel-btn"
-    on:click={() => toggleCreateForm("text")}
-    title="Create Text Channel">+</button
-  >
+  {#if isAdmin}
+    <button
+      class="create-channel-btn"
+      on:click={() => toggleCreateForm("text")}
+      title="Create Text Channel">+</button
+    >
+  {/if}
 </div>
 {#if showCreateChannel === "text"}
   <div class="create-channel-form">
@@ -173,29 +178,33 @@
       />
     {:else}
       <span class="channel-name-text">{channel.name}</span>
-      <div class="channel-actions">
-        <button
-          class="channel-action-btn"
-          on:click|stopPropagation={() => startEdit(channel)}
-          title="Edit">E</button
-        >
-        <button
-          class="channel-action-btn delete"
-          on:click|stopPropagation={() => onDeleteChannel(channel.id)}
-          title="Delete">X</button
-        >
-      </div>
+      {#if isAdmin}
+        <div class="channel-actions">
+          <button
+            class="channel-action-btn"
+            on:click|stopPropagation={() => startEdit(channel)}
+            title="Edit">E</button
+          >
+          <button
+            class="channel-action-btn delete"
+            on:click|stopPropagation={() => onDeleteChannel(channel.id)}
+            title="Delete">X</button
+          >
+        </div>
+      {/if}
     {/if}
   </div>
 {/each}
 
 <div class="channel-category">
   <span>Voice Channels</span>
-  <button
-    class="create-channel-btn"
-    on:click={() => toggleCreateForm("voice")}
-    title="Create Voice Channel">+</button
-  >
+  {#if isAdmin}
+    <button
+      class="create-channel-btn"
+      on:click={() => toggleCreateForm("voice")}
+      title="Create Voice Channel">+</button
+    >
+  {/if}
 </div>
 {#if showCreateChannel === "voice"}
   <div class="create-channel-form">
@@ -214,18 +223,20 @@
     <div class="channel-header">
       <div class="channel-icon">#</div>
       <span class="channel-name">{channel.name}</span>
-      <div class="channel-actions voice-actions">
-        <button
-          class="channel-action-btn"
-          on:click|stopPropagation={() => startEdit(channel)}
-          title="Edit">E</button
-        >
-        <button
-          class="channel-action-btn delete"
-          on:click|stopPropagation={() => onDeleteChannel(channel.id)}
-          title="Delete">X</button
-        >
-      </div>
+      {#if isAdmin}
+        <div class="channel-actions voice-actions">
+          <button
+            class="channel-action-btn"
+            on:click|stopPropagation={() => startEdit(channel)}
+            title="Edit">E</button
+          >
+          <button
+            class="channel-action-btn delete"
+            on:click|stopPropagation={() => onDeleteChannel(channel.id)}
+            title="Delete">X</button
+          >
+        </div>
+      {/if}
       {#if currentVoiceChannel === channel.id}
         <button
           class="voice-btn leave"

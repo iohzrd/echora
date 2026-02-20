@@ -8,11 +8,13 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing::info;
 
+mod admin_routes;
 mod auth;
 mod auth_routes;
 mod database;
 mod link_preview;
 mod models;
+mod permissions;
 mod routes;
 mod sfu;
 mod shared;
@@ -39,6 +41,17 @@ async fn main() {
         .expect("Failed to initialize SFU service");
 
     let state = Arc::new(AppState::new(db, sfu_service));
+
+    // Spawn periodic cleanup of expired bans and mutes
+    let cleanup_db = state.db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            let _ = database::cleanup_expired_bans(&cleanup_db).await;
+            let _ = database::cleanup_expired_mutes(&cleanup_db).await;
+        }
+    });
 
     let app = Router::new()
         .route("/api/health", get(health_check))
@@ -104,6 +117,43 @@ async fn main() {
         .route(
             "/api/webrtc/channel/{channel_id}/router-capabilities",
             get(sfu::routes::get_router_capabilities),
+        )
+        // Admin / moderation routes
+        .route("/api/admin/users", get(admin_routes::get_all_users))
+        .route(
+            "/api/admin/users/{user_id}/role",
+            put(admin_routes::change_user_role),
+        )
+        .route("/api/admin/kick", post(admin_routes::kick_user))
+        .route("/api/admin/ban", post(admin_routes::ban_user))
+        .route(
+            "/api/admin/bans/{user_id}",
+            delete(admin_routes::unban_user),
+        )
+        .route("/api/admin/bans", get(admin_routes::list_bans))
+        .route("/api/admin/mute", post(admin_routes::mute_user))
+        .route(
+            "/api/admin/mutes/{user_id}",
+            delete(admin_routes::unmute_user),
+        )
+        .route("/api/admin/mutes", get(admin_routes::list_mutes))
+        .route(
+            "/api/admin/settings",
+            get(admin_routes::get_settings).put(admin_routes::update_setting),
+        )
+        .route("/api/admin/modlog", get(admin_routes::get_moderation_log))
+        // Invite routes
+        .route(
+            "/api/invites",
+            get(admin_routes::list_invites).post(admin_routes::create_invite),
+        )
+        .route(
+            "/api/invites/{invite_id}",
+            delete(admin_routes::revoke_invite),
+        )
+        .route(
+            "/api/invites/{code}/validate",
+            get(admin_routes::validate_invite),
         )
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
         .layer(build_cors_layer())

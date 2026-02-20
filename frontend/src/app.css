@@ -627,6 +627,12 @@ body {
 
 .voice-user.speaking .user-avatar {
 	box-shadow: 0 0 0 2px var(--status-positive);
+	animation: speaking-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes speaking-pulse {
+	0%, 100% { box-shadow: 0 0 0 2px var(--status-positive); }
+	50% { box-shadow: 0 0 0 3px var(--status-positive), 0 0 8px rgba(67, 181, 129, 0.4); }
 }
 
 .user-avatar {
@@ -1829,4 +1835,53 @@ body {
 
 .tauri-auth-state .toggle-btn:hover {
 	text-decoration: underline;
+}
+
+/* Header Actions */
+.header-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.admin-btn {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	font-size: 13px;
+	cursor: pointer;
+	padding: 4px 8px;
+	border-radius: var(--radius-md);
+	transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-btn:hover {
+	background-color: var(--bg-hover);
+	color: var(--text-normal);
+}
+
+/* Role Badges */
+.role-badge {
+	font-size: 10px;
+	font-weight: 700;
+	padding: 1px 4px;
+	border-radius: var(--radius-sm);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	flex-shrink: 0;
+}
+
+.role-owner {
+	background-color: rgba(250, 166, 26, 0.2);
+	color: #faa61a;
+}
+
+.role-admin {
+	background-color: rgba(88, 101, 242, 0.2);
+	color: #7289da;
+}
+
+.role-mod {
+	background-color: rgba(67, 181, 129, 0.2);
+	color: #43b581;
 }

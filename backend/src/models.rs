@@ -172,6 +172,105 @@ pub struct UpdateChannelRequest {
     pub name: String,
 }
 
+// --- Admin / Moderation models ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSummary {
+    pub id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub role: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Ban {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub banned_by: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mute {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub muted_by: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Invite {
+    pub id: Uuid,
+    pub code: String,
+    pub created_by: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_uses: Option<i32>,
+    pub uses: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModLogEntry {
+    pub id: Uuid,
+    pub action: String,
+    pub moderator_id: Uuid,
+    pub target_user_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BanRequest {
+    pub user_id: Uuid,
+    pub reason: Option<String>,
+    pub duration_hours: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MuteRequest {
+    pub user_id: Uuid,
+    pub reason: Option<String>,
+    pub duration_hours: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct KickRequest {
+    pub user_id: Uuid,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RoleChangeRequest {
+    pub role: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateInviteRequest {
+    pub max_uses: Option<i32>,
+    pub expires_in_hours: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ServerSettingUpdate {
+    pub key: String,
+    pub value: String,
+}
+
 pub struct AppState {
     pub db: PgPool,
     // Per-channel text chat broadcast
