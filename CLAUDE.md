@@ -2,6 +2,7 @@
 
 ## Rules
 
+- Always thoroghly study all existing code relavant to your current task before offering changes.
 - **NEVER USE EMOJIS** in code, documentation, commits, anywhere
 - Always use latest dependency versions when updating
 - Always run code formatters after making changes (`cargo fmt` for backend, `npm run check` for frontend)

@@ -2,7 +2,6 @@
   import "../app.css";
   import {
     API,
-    FRONTEND_VERSION,
     WebSocketManager,
     type Channel,
     type Message,
@@ -18,7 +17,6 @@
     initPTT,
     switchInputMode,
     changePTTKey,
-    loadVoiceSettings,
   } from "../lib/ptt";
   import {
     loadAudioSettings,
@@ -27,10 +25,9 @@
     onDeviceChange,
     loadPerUserVolumes,
     savePerUserVolume,
-    getPerUserVolume,
     type AudioDevice,
   } from "../lib/audioSettings";
-  import AuthService, { user, token } from "../lib/auth";
+  import AuthService, { user } from "../lib/auth";
   import {
     isTauri,
     activeServer,
@@ -38,26 +35,21 @@
     addServer,
     removeServer,
     setActiveServer,
-    updateServer,
     type EchoraServer,
   } from "../lib/serverManager";
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
 
-  import ChannelList from "../lib/components/ChannelList.svelte";
-  import OnlineUsers from "../lib/components/OnlineUsers.svelte";
-  import MessageList from "../lib/components/MessageList.svelte";
-  import MessageInput from "../lib/components/MessageInput.svelte";
-  import ScreenShareViewer from "../lib/components/ScreenShareViewer.svelte";
   import ServerSidebar from "../lib/components/ServerSidebar.svelte";
   import AddServerDialog from "../lib/components/AddServerDialog.svelte";
   import LoginForm from "../lib/components/LoginForm.svelte";
   import RegisterForm from "../lib/components/RegisterForm.svelte";
   import AdminPanel from "../lib/components/AdminPanel.svelte";
-  import VoicePanel from "../lib/components/VoicePanel.svelte";
   import PasskeySettings from "../lib/components/PasskeySettings.svelte";
   import ProfileModal from "../lib/components/ProfileModal.svelte";
-  import Avatar from "../lib/components/Avatar.svelte";
+  import AppSidebar from "../lib/components/AppSidebar.svelte";
+  import ChatArea from "../lib/components/ChatArea.svelte";
+  import type MessageList from "../lib/components/MessageList.svelte";
 
   let selectedChannelId = "";
   let showAdminPanel = false;
@@ -1199,209 +1191,105 @@
     </div>
   {:else}
     <!-- Normal authenticated state (web or Tauri with active session) -->
-    <div class="sidebar {sidebarOpen ? 'open' : ''}">
-      <div class="channels-area">
-        <div class="server-header">
-          <span class="server-name">{activeServerName}</span>
-          <div class="header-actions">
-            {#if isMod}
-              <button
-                class="header-icon-btn"
-                on:click={() => (showAdminPanel = true)}
-                title="Admin Panel"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  ><path
-                    d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.49.49 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.98l2.49 1.01c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"
-                  /></svg
-                >
-              </button>
-            {/if}
-            <button
-              class="header-icon-btn"
-              on:click={() => (showPasskeySettings = true)}
-              title="Manage passkeys"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                ><path
-                  d="M12.65 10a6 6 0 1 0-1.3 0L2 19.5V22h6v-2h2v-2h2l1.5-1.5L12.65 10zM15.5 4a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"
-                /></svg
-              >
-            </button>
-            <button
-              class="header-icon-btn logout"
-              on:click={logout}
-              title="Logout"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                ><path
-                  d="M5 5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h7v-2H5V5zm16 7l-4-4v3H9v2h8v3l4-4z"
-                /></svg
-              >
-            </button>
-          </div>
-        </div>
+    <AppSidebar
+      {activeServerName}
+      {isMod}
+      {sidebarOpen}
+      {tauriVersion}
+      {backendVersion}
+      {channels}
+      {selectedChannelId}
+      {currentVoiceChannel}
+      {voiceStates}
+      {speakingUsers}
+      currentUserId={$user?.id || ""}
+      userRole={$user?.role || "member"}
+      {userAvatars}
+      {onlineUsers}
+      {onlineUserRoles}
+      username={$user?.username || ""}
+      userAvatarUrl={$user?.avatar_url ? API.getAvatarUrl($user.id) : undefined}
+      {isMuted}
+      {isDeafened}
+      {isScreenSharing}
+      {isCameraSharing}
+      {voiceInputMode}
+      {pttKey}
+      {pttActive}
+      {inputDeviceId}
+      {outputDeviceId}
+      {inputGain}
+      {outputVolume}
+      {vadSensitivity}
+      {noiseSuppression}
+      {inputDevices}
+      {outputDevices}
+      onShowAdminPanel={() => (showAdminPanel = true)}
+      onShowPasskeySettings={() => (showPasskeySettings = true)}
+      onLogout={logout}
+      onShowProfileModal={() => (showProfileModal = true)}
+      onSelectChannel={selectChannel}
+      onCreateChannel={handleCreateChannel}
+      onUpdateChannel={handleUpdateChannel}
+      onDeleteChannel={handleDeleteChannel}
+      onJoinVoice={joinVoiceChannel}
+      onWatchScreen={watchScreen}
+      onWatchCamera={watchCamera}
+      onUserVolumeChange={handleUserVolumeChange}
+      getUserVolume={handleGetUserVolume}
+      onUserClick={handleUserClick}
+      onLeaveVoice={leaveVoiceChannel}
+      onToggleMute={toggleMute}
+      onToggleDeafen={toggleDeafen}
+      onToggleScreenShare={toggleScreenShare}
+      onToggleCamera={toggleCamera}
+      onSwitchInputMode={handleSwitchInputMode}
+      onChangePTTKey={handleChangePTTKey}
+      onInputDeviceChange={handleInputDeviceChange}
+      onOutputDeviceChange={handleOutputDeviceChange}
+      onInputGainChange={handleInputGainChange}
+      onOutputVolumeChange={handleOutputVolumeChange}
+      onVadSensitivityChange={handleVadSensitivityChange}
+      onNoiseSuppressionToggle={handleNoiseSuppressionToggle}
+    />
 
-        <div class="channels-list">
-          <ChannelList
-            {channels}
-            {selectedChannelId}
-            {currentVoiceChannel}
-            {voiceStates}
-            {speakingUsers}
-            currentUserId={$user?.id || ""}
-            userRole={$user?.role || "member"}
-            onSelectChannel={selectChannel}
-            onCreateChannel={handleCreateChannel}
-            onUpdateChannel={handleUpdateChannel}
-            onDeleteChannel={handleDeleteChannel}
-            onJoinVoice={joinVoiceChannel}
-            onWatchScreen={watchScreen}
-            onWatchCamera={watchCamera}
-            onUserVolumeChange={handleUserVolumeChange}
-            getUserVolume={handleGetUserVolume}
-            {userAvatars}
-            onUserClick={handleUserClick}
-          />
-
-          <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} {userAvatars} onUserClick={handleUserClick} />
-        </div>
-
-        <VoicePanel
-          {currentVoiceChannel}
-          {isMuted}
-          {isDeafened}
-          {isScreenSharing}
-          {isCameraSharing}
-          {voiceInputMode}
-          {pttKey}
-          {pttActive}
-          {inputDeviceId}
-          {outputDeviceId}
-          {inputGain}
-          {outputVolume}
-          {vadSensitivity}
-          {noiseSuppression}
-          {inputDevices}
-          {outputDevices}
-          onLeaveVoice={leaveVoiceChannel}
-          onToggleMute={toggleMute}
-          onToggleDeafen={toggleDeafen}
-          onToggleScreenShare={toggleScreenShare}
-          onToggleCamera={toggleCamera}
-          onSwitchInputMode={handleSwitchInputMode}
-          onChangePTTKey={handleChangePTTKey}
-          onInputDeviceChange={handleInputDeviceChange}
-          onOutputDeviceChange={handleOutputDeviceChange}
-          onInputGainChange={handleInputGainChange}
-          onOutputVolumeChange={handleOutputVolumeChange}
-          onVadSensitivityChange={handleVadSensitivityChange}
-          onNoiseSuppressionToggle={handleNoiseSuppressionToggle}
-        />
-
-        <div class="user-bar">
-          <button
-            class="user-bar-profile"
-            on:click={() => (showProfileModal = true)}
-            title="Edit profile"
-          >
-            <Avatar
-              username={$user?.username || ""}
-              avatarUrl={$user?.avatar_url ? API.getAvatarUrl($user.id) : undefined}
-              size="small"
-            />
-            <span class="user-bar-username">{$user?.username || ""}</span>
-          </button>
-        </div>
-
-        <div class="version-bar">
-          {#if tauriVersion}
-            <span class="version-info">app v{tauriVersion}</span>
-          {/if}
-          <span class="version-info">frontend v{FRONTEND_VERSION}</span>
-          <span class="version-info">backend v{backendVersion || "..."}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="main-content">
-      <div class="chat-header">
-        <button
-          class="hamburger-btn"
-          on:click={() => (sidebarOpen = !sidebarOpen)}>|||</button
-        >
-        <div class="channel-name">
-          {selectedChannelName || "Select a channel"}
-        </div>
-      </div>
-
-      {#if watchingScreenUserId}
-        <ScreenShareViewer
-          username={watchingScreenUsername}
-          onClose={stopWatching}
-          bind:videoElement={screenVideoElement}
-        />
-      {:else if watchingCameraUserId}
-        <ScreenShareViewer
-          username={watchingCameraUsername}
-          type="camera"
-          onClose={stopWatchingCamera}
-          bind:videoElement={cameraVideoElement}
-        />
-      {:else}
-        <MessageList
-          bind:this={messageList}
-          {messages}
-          currentUserId={$user?.id || ""}
-          userRole={$user?.role || "member"}
-          {loadingMore}
-          {editingMessageId}
-          bind:editMessageContent
-          onScrollTop={loadOlderMessages}
-          onStartEdit={startEditMessage}
-          onSaveEdit={saveEditMessage}
-          onCancelEdit={cancelEditMessage}
-          onDeleteMessage={deleteMessage}
-          onReply={startReply}
-          onToggleReaction={toggleReaction}
-          {customEmojis}
-          {userAvatars}
-          onUserClick={handleUserClick}
-        />
-
-        {#if typingUsers.size > 0}
-          <div class="typing-indicator">
-            <span class="typing-text">{getTypingText()}</span>
-          </div>
-        {/if}
-
-        {#if rateLimitWarning}
-          <div class="rate-limit-warning">
-            Slow down! You are sending messages too fast.
-          </div>
-        {/if}
-        <MessageInput
-          channelName={selectedChannelName}
-          disabled={!selectedChannelId}
-          {replyingTo}
-          onSend={handleSendMessage}
-          onTyping={handleTyping}
-          onCancelReply={cancelReply}
-        />
-      {/if}
-    </div>
+    <ChatArea
+      {selectedChannelName}
+      {watchingScreenUserId}
+      {watchingScreenUsername}
+      {watchingCameraUserId}
+      {watchingCameraUsername}
+      {messages}
+      currentUserId={$user?.id || ""}
+      userRole={$user?.role || "member"}
+      {loadingMore}
+      {editingMessageId}
+      bind:editMessageContent
+      {typingUsers}
+      {rateLimitWarning}
+      {selectedChannelId}
+      {replyingTo}
+      {customEmojis}
+      {userAvatars}
+      bind:messageList
+      bind:screenVideoElement
+      bind:cameraVideoElement
+      onToggleSidebar={() => (sidebarOpen = !sidebarOpen)}
+      onStopWatching={stopWatching}
+      onStopWatchingCamera={stopWatchingCamera}
+      onScrollTop={loadOlderMessages}
+      onStartEdit={startEditMessage}
+      onSaveEdit={saveEditMessage}
+      onCancelEdit={cancelEditMessage}
+      onDeleteMessage={deleteMessage}
+      onReply={startReply}
+      onToggleReaction={toggleReaction}
+      onUserClick={handleUserClick}
+      onSend={handleSendMessage}
+      onTyping={handleTyping}
+      onCancelReply={cancelReply}
+      {getTypingText}
+    />
   {/if}
 </div>
 
