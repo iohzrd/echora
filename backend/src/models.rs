@@ -6,6 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use uuid::Uuid;
+use webauthn_rs::prelude::*;
 
 use object_store::ObjectStore;
 
@@ -351,6 +352,9 @@ pub struct AppState {
     pub voice_states: DashMap<Uuid, DashMap<Uuid, VoiceState>>,
     pub sfu_service: Arc<SfuService>,
     pub message_rate_limits: DashMap<Uuid, RateLimitState>,
+    pub webauthn: Arc<Webauthn>,
+    pub webauthn_reg_state: DashMap<Uuid, (PasskeyRegistration, std::time::Instant)>,
+    pub webauthn_auth_state: DashMap<String, (Uuid, PasskeyAuthentication, std::time::Instant)>,
 }
 
 impl AppState {
@@ -359,6 +363,7 @@ impl AppState {
         sfu_service: SfuService,
         http_client: reqwest::Client,
         file_store: Option<Arc<dyn ObjectStore>>,
+        webauthn: Arc<Webauthn>,
     ) -> Self {
         let (global_tx, _) = broadcast::channel(BROADCAST_CHANNEL_CAPACITY);
         Self {
@@ -371,6 +376,9 @@ impl AppState {
             voice_states: DashMap::new(),
             sfu_service: Arc::new(sfu_service),
             message_rate_limits: DashMap::new(),
+            webauthn,
+            webauthn_reg_state: DashMap::new(),
+            webauthn_auth_state: DashMap::new(),
         }
     }
 

@@ -54,9 +54,11 @@
   import RegisterForm from "../lib/components/RegisterForm.svelte";
   import AdminPanel from "../lib/components/AdminPanel.svelte";
   import VoicePanel from "../lib/components/VoicePanel.svelte";
+  import PasskeySettings from "../lib/components/PasskeySettings.svelte";
 
   let selectedChannelId = "";
   let showAdminPanel = false;
+  let showPasskeySettings = false;
   let selectedChannelName = "";
 
   let channels: Channel[] = [];
@@ -1275,8 +1277,14 @@
                 on:click={handleUpdateUsername}
                 title="Save"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
-                  ><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" /></svg
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  ><path
+                    d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"
+                  /></svg
                 >
               </button>
               <button
@@ -1284,7 +1292,11 @@
                 on:click={cancelEditUsername}
                 title="Cancel"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
                   ><path
                     d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
                   /></svg
@@ -1302,9 +1314,28 @@
                 on:click={startEditUsername}
                 title="Edit username"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
                   ><path
                     d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                  /></svg
+                >
+              </button>
+              <button
+                class="username-edit-trigger"
+                on:click={() => (showPasskeySettings = true)}
+                title="Manage passkeys"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  ><path
+                    d="M12.65 10a6 6 0 1 0-1.3 0L2 19.5V22h6v-2h2v-2h2l1.5-1.5L12.65 10zM15.5 4a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5z"
                   /></svg
                 >
               </button>
@@ -1372,7 +1403,9 @@
         {/if}
 
         {#if rateLimitWarning}
-          <div class="rate-limit-warning">Slow down! You are sending messages too fast.</div>
+          <div class="rate-limit-warning">
+            Slow down! You are sending messages too fast.
+          </div>
         {/if}
         <MessageInput
           channelName={selectedChannelName}
@@ -1396,4 +1429,8 @@
 
 {#if showAdminPanel}
   <AdminPanel onClose={() => (showAdminPanel = false)} />
+{/if}
+
+{#if showPasskeySettings}
+  <PasskeySettings onClose={() => (showPasskeySettings = false)} />
 {/if}

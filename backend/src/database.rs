@@ -1010,3 +1010,98 @@ pub async fn get_mod_log(pool: &PgPool, limit: i64) -> Result<Vec<ModLogEntry>, 
 
     Ok(entries)
 }
+
+// --- Passkeys ---
+
+pub async fn create_user_passkey(
+    pool: &PgPool,
+    id: Uuid,
+    user_id: Uuid,
+    credential_name: &str,
+    credential_id: &str,
+    credential: &webauthn_rs::prelude::Passkey,
+) -> Result<(), AppError> {
+    let credential_json = serde_json::to_value(credential)
+        .map_err(|e| AppError::internal(format!("Failed to serialize passkey: {e}")))?;
+    sqlx::query(
+        "INSERT INTO user_passkeys (id, user_id, credential_name, credential_id, credential_json, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())",
+    )
+    .bind(id)
+    .bind(user_id)
+    .bind(credential_name)
+    .bind(credential_id)
+    .bind(&credential_json)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_user_passkeys(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<
+    Vec<(
+        Uuid,
+        String,
+        webauthn_rs::prelude::Passkey,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+    )>,
+    AppError,
+> {
+    let rows: Vec<(
+        Uuid,
+        String,
+        serde_json::Value,
+        DateTime<Utc>,
+        Option<DateTime<Utc>>,
+    )> = sqlx::query_as(
+        "SELECT id, credential_name, credential_json, created_at, last_used_at
+             FROM user_passkeys WHERE user_id = $1 ORDER BY created_at ASC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    rows.into_iter()
+        .map(|(id, name, json, created, last_used)| {
+            let passkey: webauthn_rs::prelude::Passkey = serde_json::from_value(json)
+                .map_err(|e| AppError::internal(format!("Failed to deserialize passkey: {e}")))?;
+            Ok((id, name, passkey, created, last_used))
+        })
+        .collect()
+}
+
+pub async fn update_user_passkey(
+    pool: &PgPool,
+    user_id: Uuid,
+    credential_id: &str,
+    credential: &webauthn_rs::prelude::Passkey,
+) -> Result<(), AppError> {
+    let credential_json = serde_json::to_value(credential)
+        .map_err(|e| AppError::internal(format!("Failed to serialize passkey: {e}")))?;
+    sqlx::query(
+        "UPDATE user_passkeys SET credential_json = $1, last_used_at = NOW()
+         WHERE user_id = $2 AND credential_id = $3",
+    )
+    .bind(&credential_json)
+    .bind(user_id)
+    .bind(credential_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_user_passkey(
+    pool: &PgPool,
+    passkey_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM user_passkeys WHERE id = $1 AND user_id = $2")
+        .bind(passkey_id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "Passkey not found")
+}

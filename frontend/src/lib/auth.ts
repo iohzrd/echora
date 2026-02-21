@@ -66,6 +66,13 @@ class AuthService {
     return this.authRequest('login', data, 'Login failed');
   }
 
+  static async loginWithPasskey(username?: string): Promise<AuthResponse> {
+    const { PasskeyService } = await import('./passkey');
+    const authResponse = await PasskeyService.loginWithPasskey(username);
+    this.setAuth(authResponse);
+    return authResponse;
+  }
+
   static async getCurrentUser(): Promise<User | null> {
     const currentToken = this.getToken();
     if (!currentToken) return null;

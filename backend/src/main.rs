@@ -15,6 +15,7 @@ mod auth_routes;
 mod database;
 mod link_preview;
 mod models;
+mod passkey_routes;
 mod permissions;
 mod routes;
 mod services;
@@ -47,7 +48,28 @@ async fn main() {
 
     let file_store = storage::build_object_store().expect("Failed to initialize file storage");
 
-    let state = Arc::new(AppState::new(db, sfu_service, http_client, file_store));
+    let rp_id = std::env::var("WEBAUTHN_RP_ID").unwrap_or_else(|_| "localhost".to_string());
+    let rp_origin = url::Url::parse(
+        &std::env::var("WEBAUTHN_RP_ORIGIN")
+            .unwrap_or_else(|_| "http://localhost:1420".to_string()),
+    )
+    .expect("Invalid WEBAUTHN_RP_ORIGIN URL");
+
+    let webauthn = Arc::new(
+        webauthn_rs::WebauthnBuilder::new(&rp_id, &rp_origin)
+            .expect("Failed to create WebauthnBuilder")
+            .rp_name("Echora")
+            .build()
+            .expect("Failed to build Webauthn"),
+    );
+
+    let state = Arc::new(AppState::new(
+        db,
+        sfu_service,
+        http_client,
+        file_store,
+        webauthn,
+    ));
 
     // Spawn periodic cleanup of expired bans and mutes
     let cleanup_db = state.db.clone();
@@ -60,9 +82,33 @@ async fn main() {
         }
     });
 
+    // Spawn periodic cleanup of stale WebAuthn challenge states (older than 5 min)
+    let cleanup_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let cutoff = std::time::Instant::now() - std::time::Duration::from_secs(300);
+            cleanup_state
+                .webauthn_reg_state
+                .retain(|_, (_, created)| *created > cutoff);
+            cleanup_state
+                .webauthn_auth_state
+                .retain(|_, (_, _, created)| *created > cutoff);
+        }
+    });
+
     let auth_routes = Router::new()
         .route("/api/auth/register", post(auth_routes::register))
-        .route("/api/auth/login", post(auth_routes::login));
+        .route("/api/auth/login", post(auth_routes::login))
+        .route(
+            "/api/auth/passkey/login/start",
+            post(passkey_routes::start_passkey_auth),
+        )
+        .route(
+            "/api/auth/passkey/login/finish",
+            post(passkey_routes::finish_passkey_auth),
+        );
 
     let app = Router::new()
         .route("/api/init", get(routes::get_init))
@@ -70,6 +116,19 @@ async fn main() {
         .route(
             "/api/auth/me",
             get(auth_routes::me).put(auth_routes::update_profile),
+        )
+        .route(
+            "/api/auth/passkey/register/start",
+            post(passkey_routes::start_passkey_register),
+        )
+        .route(
+            "/api/auth/passkey/register/finish",
+            post(passkey_routes::finish_passkey_register),
+        )
+        .route("/api/auth/passkeys", get(passkey_routes::list_passkeys))
+        .route(
+            "/api/auth/passkeys/{passkey_id}",
+            delete(passkey_routes::delete_passkey),
         )
         .route(
             "/api/channels",
