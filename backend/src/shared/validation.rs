@@ -2,6 +2,7 @@ use crate::shared::AppError;
 
 pub const MAX_MESSAGE_LENGTH: usize = 4000;
 pub const MAX_CHANNEL_NAME_LENGTH: usize = 50;
+pub const MIN_USERNAME_LENGTH: usize = 2;
 pub const MAX_USERNAME_LENGTH: usize = 32;
 pub const MAX_EMAIL_LENGTH: usize = 254;
 pub const MIN_PASSWORD_LENGTH: usize = 8;
@@ -86,9 +87,9 @@ pub fn validate_filename(name: &str) -> Result<String, AppError> {
 
 pub fn validate_username(name: &str) -> Result<String, AppError> {
     let trimmed = name.trim().to_string();
-    if trimmed.is_empty() || trimmed.len() > MAX_USERNAME_LENGTH {
+    if trimmed.len() < MIN_USERNAME_LENGTH || trimmed.len() > MAX_USERNAME_LENGTH {
         return Err(AppError::bad_request(
-            "Username must be between 1 and 32 characters",
+            "Username must be between 2 and 32 characters",
         ));
     }
     if !trimmed

@@ -1220,7 +1220,8 @@
                   if (e.key === "Enter") handleUpdateUsername();
                   else if (e.key === "Escape") cancelEditUsername();
                 }}
-                maxlength="32"
+                minlength={2}
+                maxlength={32}
               />
               <button
                 class="username-edit-btn save"

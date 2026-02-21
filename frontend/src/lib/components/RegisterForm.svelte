@@ -49,6 +49,8 @@
         bind:value={username}
         placeholder="Enter your username"
         disabled={loading}
+        minlength={2}
+        maxlength={32}
       />
     </div>
 
