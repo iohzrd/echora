@@ -165,6 +165,21 @@ async fn main() {
             "/api/attachments/{attachment_id}/{filename}",
             get(routes::download_attachment),
         )
+        // Custom emoji routes
+        .route(
+            "/api/custom-emojis",
+            get(routes::list_custom_emojis)
+                .post(routes::upload_custom_emoji)
+                .layer(RequestBodyLimitLayer::new(512 * 1024)), // 512KB for emoji uploads
+        )
+        .route(
+            "/api/custom-emojis/{emoji_id}",
+            delete(routes::delete_custom_emoji),
+        )
+        .route(
+            "/api/custom-emojis/{emoji_id}/image",
+            get(routes::get_custom_emoji_image),
+        )
         // Merge rate-limited auth routes
         .merge(auth_routes)
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))

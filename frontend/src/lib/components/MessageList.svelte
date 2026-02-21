@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { API, type Message } from "../api";
+  import { API, type Message, type CustomEmoji } from "../api";
   import { renderMarkdown } from "../markdown";
   import { formatTimestamp, getInitial, truncateContent } from "../utils";
   import { getApiBase } from "../config";
@@ -32,6 +32,7 @@
     messageId: string,
     emoji: string,
   ) => void = () => {};
+  export let customEmojis: CustomEmoji[] = [];
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
@@ -116,6 +117,21 @@
 
   function getAttachmentUrl(attachmentId: string, filename: string): string {
     return resolveUrl(API.getAttachmentUrl(attachmentId, filename));
+  }
+
+  function isCustomEmoji(emoji: string): boolean {
+    return /^:[a-zA-Z0-9_-]+:$/.test(emoji);
+  }
+
+  function getCustomEmojiData(emoji: string): CustomEmoji | undefined {
+    const name = emoji.slice(1, -1);
+    return customEmojis.find((e) => e.name === name);
+  }
+
+  function getCustomEmojiImageUrl(emoji: string): string | null {
+    const data = getCustomEmojiData(emoji);
+    if (!data) return null;
+    return resolveUrl(API.getCustomEmojiUrl(data.id));
   }
 
   function formatFileSize(bytes: number): string {
@@ -350,7 +366,16 @@
                 on:click={() => onToggleReaction(message.id, reaction.emoji)}
                 title={reaction.emoji}
               >
-                {reaction.emoji}
+                {#if isCustomEmoji(reaction.emoji)}
+                  {@const imgUrl = getCustomEmojiImageUrl(reaction.emoji)}
+                  {#if imgUrl}
+                    <img src={imgUrl} alt={reaction.emoji} class="custom-emoji-reaction" />
+                  {:else}
+                    {reaction.emoji}
+                  {/if}
+                {:else}
+                  {reaction.emoji}
+                {/if}
                 {reaction.count}
               </button>
             {/each}
@@ -362,6 +387,7 @@
             {#if emojiPickerMessageId === message.id}
               <EmojiPicker
                 onSelect={(emoji) => selectEmoji(message.id, emoji)}
+                {customEmojis}
               />
             {/if}
           </div>
@@ -398,6 +424,7 @@
           <EmojiPicker
             floating
             onSelect={(emoji) => selectEmoji(message.id, emoji)}
+            {customEmojis}
           />
         {/if}
       {/if}

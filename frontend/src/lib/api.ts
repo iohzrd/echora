@@ -130,6 +130,15 @@ export interface ModLogEntry {
   created_at: string;
 }
 
+export interface CustomEmoji {
+  id: string;
+  name: string;
+  uploaded_by: string;
+  storage_path: string;
+  content_type: string;
+  created_at: string;
+}
+
 export interface ServerSettings {
   [key: string]: string;
 }
@@ -363,6 +372,43 @@ export class API {
 
   static getAttachmentUrl(attachmentId: string, filename: string): string {
     return `${getApiBase()}/attachments/${attachmentId}/${encodeURIComponent(filename)}`;
+  }
+
+  // --- Custom Emojis ---
+
+  static async getCustomEmojis(): Promise<CustomEmoji[]> {
+    return this.request('/custom-emojis', {}, 'Failed to fetch custom emojis');
+  }
+
+  static async uploadCustomEmoji(name: string, file: File): Promise<CustomEmoji> {
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('file', file);
+
+    const headers: Record<string, string> = {
+      ...AuthService.getAuthHeaders(),
+    };
+
+    const response = await appFetch(`${getApiBase()}/custom-emojis`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to upload custom emoji');
+    }
+
+    return response.json();
+  }
+
+  static async deleteCustomEmoji(emojiId: string): Promise<void> {
+    return this.request(`/custom-emojis/${emojiId}`, { method: 'DELETE' }, 'Failed to delete custom emoji');
+  }
+
+  static getCustomEmojiUrl(emojiId: string): string {
+    return `${getApiBase()}/custom-emojis/${emojiId}/image`;
   }
 }
 

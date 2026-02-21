@@ -8,6 +8,7 @@
     type Message,
     type VoiceState,
     type UserPresence,
+    type CustomEmoji,
   } from "../lib/api";
   import { voiceManager } from "../lib/voice";
   import type { VoiceInputMode } from "../lib/voice";
@@ -68,6 +69,7 @@
   let hasMoreMessages = true;
   let loadingMore = false;
   let messageList: MessageList;
+  let customEmojis: CustomEmoji[] = [];
 
   // Local reactive state mirrors
   let currentVoiceChannel: string | null = null;
@@ -527,6 +529,12 @@
         userRolesMap = Object.fromEntries(
           init.users.map((u) => [u.id, u.role]),
         );
+      }
+
+      try {
+        customEmojis = await API.getCustomEmojis();
+      } catch {
+        // Custom emojis may not be available (e.g. storage not configured)
       }
 
       wsManager = new WebSocketManager();
@@ -1319,6 +1327,7 @@
           onDeleteMessage={deleteMessage}
           onReply={startReply}
           onToggleReaction={toggleReaction}
+          {customEmojis}
         />
 
         {#if typingUsers.size > 0}

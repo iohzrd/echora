@@ -13,7 +13,9 @@ pub const MAX_REASON_LENGTH: usize = 500;
 pub const MAX_SERVER_NAME_LENGTH: usize = 100;
 pub const MAX_IMAGE_PROXY_SIZE: usize = 10 * 1024 * 1024;
 pub const BROADCAST_CHANNEL_CAPACITY: usize = 256;
-pub const MAX_ATTACHMENT_SIZE: usize = 25 * 1024 * 1024; // 25MB
+pub const MAX_ATTACHMENT_SIZE: usize = 250 * 1024 * 1024; // 25MB
+pub const MAX_CUSTOM_EMOJI_SIZE: usize = 256 * 1024; // 256KB
+pub const MAX_CUSTOM_EMOJI_NAME_LENGTH: usize = 32;
 pub const MAX_ATTACHMENTS_PER_MESSAGE: usize = 5;
 pub const MAX_FILENAME_LENGTH: usize = 255;
 
@@ -35,6 +37,37 @@ pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
     "application/gzip",
     "application/x-tar",
 ];
+
+pub const ALLOWED_EMOJI_CONTENT_TYPES: &[&str] =
+    &["image/png", "image/gif", "image/webp", "image/jpeg"];
+
+pub fn validate_emoji_content_type(content_type: &str) -> Result<(), AppError> {
+    if !ALLOWED_EMOJI_CONTENT_TYPES.contains(&content_type) {
+        return Err(AppError::bad_request(format!(
+            "Emoji image type '{}' is not allowed. Use PNG, GIF, WebP, or JPEG.",
+            content_type
+        )));
+    }
+    Ok(())
+}
+
+pub fn validate_emoji_name(name: &str) -> Result<String, AppError> {
+    let trimmed = name.trim().to_string();
+    if trimmed.is_empty() || trimmed.len() > MAX_CUSTOM_EMOJI_NAME_LENGTH {
+        return Err(AppError::bad_request(
+            "Emoji name must be between 1 and 32 characters",
+        ));
+    }
+    if !trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(AppError::bad_request(
+            "Emoji name can only contain ASCII letters, numbers, underscores, and hyphens",
+        ));
+    }
+    Ok(trimmed)
+}
 
 pub fn validate_message_content(content: &str) -> Result<(), AppError> {
     if content.trim().is_empty() || content.len() > MAX_MESSAGE_LENGTH {

@@ -85,6 +85,16 @@ impl Message {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct CustomEmoji {
+    pub id: Uuid,
+    pub name: String,
+    pub uploaded_by: Uuid,
+    pub storage_path: String,
+    pub content_type: String,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplyPreview {
     pub id: Uuid,
