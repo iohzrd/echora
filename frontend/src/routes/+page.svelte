@@ -306,7 +306,10 @@
           ...voiceStates.filter((vs) => vs.user_id !== data.data.user_id),
           data.data,
         ];
-        if (data.data.channel_id === currentVoiceChannel) {
+        if (
+          data.data.channel_id === currentVoiceChannel ||
+          data.data.user_id === $user?.id
+        ) {
           playSound("connect");
         }
       }
