@@ -1295,6 +1295,7 @@
       {:else if watchingCameraUserId}
         <ScreenShareViewer
           username={watchingCameraUsername}
+          type="camera"
           onClose={stopWatchingCamera}
           bind:videoElement={cameraVideoElement}
         />
