@@ -87,10 +87,10 @@ Backend environment variables (set in `backend/.env`):
 
 Passkey support is enabled automatically. Users register with a password, then optionally add passkeys from the settings UI for passwordless login. Configure the relying party settings for your domain:
 
-| Variable              | Description                          | Default                  |
-| --------------------- | ------------------------------------ | ------------------------ |
-| `WEBAUTHN_RP_ID`      | Relying party ID (your domain)       | `localhost`              |
-| `WEBAUTHN_RP_ORIGIN`  | Relying party origin (full URL)      | `http://localhost:1420`  |
+| Variable             | Description                     | Default                 |
+| -------------------- | ------------------------------- | ----------------------- |
+| `WEBAUTHN_RP_ID`     | Relying party ID (your domain)  | `localhost`             |
+| `WEBAUTHN_RP_ORIGIN` | Relying party origin (full URL) | `http://localhost:1420` |
 
 For production, set these to your actual domain:
 
@@ -192,7 +192,7 @@ cd frontend && npm run build
 - [x] Invite system
 - [x] File uploads
 - [x] Passkeys (WebAuthn/FIDO2)
-- [ ] Connect/disconnect sounds
+- [x] Connect/disconnect sounds
 - [ ] Soundboard
 - [ ] Channel groups
 - [ ] User profiles & avatars

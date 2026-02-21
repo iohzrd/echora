@@ -98,16 +98,23 @@ pub async fn websocket_handler(
 async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, username: String) {
     info!("WebSocket connected: {} ({})", username, user_id);
 
+    // Look up avatar for presence
+    let avatar_url = match crate::database::get_user_by_id(&state.db, user_id).await {
+        Ok(Some(user)) => crate::models::avatar_url_from_path(user_id, &user.avatar_path),
+        _ => None,
+    };
+
     // Track online presence
     let presence = crate::models::UserPresence {
         user_id,
         username: username.clone(),
+        avatar_url: avatar_url.clone(),
         connected_at: chrono::Utc::now(),
     };
     state.online_users.insert(user_id, presence);
     state.broadcast_global(
         "user_online",
-        serde_json::json!({ "user_id": user_id, "username": &username }),
+        serde_json::json!({ "user_id": user_id, "username": &username, "avatar_url": avatar_url }),
     );
 
     let (mut sender, mut receiver) = socket.split();

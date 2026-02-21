@@ -56,10 +56,13 @@
   import AdminPanel from "../lib/components/AdminPanel.svelte";
   import VoicePanel from "../lib/components/VoicePanel.svelte";
   import PasskeySettings from "../lib/components/PasskeySettings.svelte";
+  import ProfileModal from "../lib/components/ProfileModal.svelte";
+  import Avatar from "../lib/components/Avatar.svelte";
 
   let selectedChannelId = "";
   let showAdminPanel = false;
   let showPasskeySettings = false;
+  let showProfileModal = false;
   let selectedChannelName = "";
 
   let channels: Channel[] = [];
@@ -122,6 +125,9 @@
 
   // User roles map (user_id -> role)
   let userRolesMap: Record<string, string> = {};
+
+  // User avatars map (user_id -> avatar_url)
+  let userAvatars: Record<string, string | undefined> = {};
 
   // Mobile sidebar state
   let sidebarOpen = false;
@@ -248,11 +254,37 @@
         if (!onlineUsers.find((u) => u.user_id === data.data.user_id)) {
           onlineUsers = [...onlineUsers, data.data];
         }
+        if (data.data.avatar_url) {
+          userAvatars = { ...userAvatars, [data.data.user_id]: API.getAvatarUrl(data.data.user_id) };
+        }
       }
       if (data.type === "user_offline") {
         onlineUsers = onlineUsers.filter(
           (u) => u.user_id !== data.data.user_id,
         );
+      }
+
+      // Profile/avatar update events
+      if (data.type === "user_avatar_updated") {
+        const { user_id, avatar_url } = data.data;
+        if (avatar_url) {
+          userAvatars = { ...userAvatars, [user_id]: API.getAvatarUrl(user_id) + "?t=" + Date.now() };
+        } else {
+          const { [user_id]: _, ...rest } = userAvatars;
+          userAvatars = rest;
+        }
+      }
+      if (data.type === "user_profile_updated") {
+        const { user_id, username, avatar_url } = data.data;
+        onlineUsers = onlineUsers.map((u) =>
+          u.user_id === user_id ? { ...u, username } : u,
+        );
+        voiceStates = voiceStates.map((vs) =>
+          vs.user_id === user_id ? { ...vs, username } : vs,
+        );
+        if (avatar_url) {
+          userAvatars = { ...userAvatars, [user_id]: API.getAvatarUrl(user_id) + "?t=" + Date.now() };
+        }
       }
 
       // Message edit/delete events
@@ -577,6 +609,19 @@
           init.users.map((u) => [u.id, u.role]),
         );
       }
+
+      // Populate avatar map from online users and voice states
+      const avatarMap: Record<string, string | undefined> = {};
+      for (const u of init.online_users) {
+        if (u.avatar_url) avatarMap[u.user_id] = API.getAvatarUrl(u.user_id);
+      }
+      for (const vs of init.voice_states) {
+        if (vs.avatar_url) avatarMap[vs.user_id] = API.getAvatarUrl(vs.user_id);
+      }
+      if ($user?.avatar_url) {
+        avatarMap[$user.id] = API.getAvatarUrl($user.id);
+      }
+      userAvatars = avatarMap;
 
       try {
         customEmojis = await API.getCustomEmojis();
@@ -1055,49 +1100,6 @@
   }
 
   // Username editing state
-  let editingUsername = false;
-  let newUsername = "";
-  let usernameError = "";
-
-  async function handleUpdateUsername() {
-    if (!newUsername.trim()) return;
-    usernameError = "";
-    try {
-      const response = await API.updateUsername(newUsername.trim());
-      // Update token and user store
-      if (isTauri) {
-        const server = $activeServer;
-        if (server) {
-          updateServer(server.id, {
-            token: response.token,
-            username: response.user.username,
-          });
-        }
-      } else {
-        localStorage.setItem("echora_token", response.token);
-      }
-      token.set(response.token);
-      user.set(response.user);
-      editingUsername = false;
-      newUsername = "";
-    } catch (error: unknown) {
-      usernameError =
-        error instanceof Error ? error.message : "Failed to update username";
-    }
-  }
-
-  function startEditUsername() {
-    newUsername = $user?.username || "";
-    usernameError = "";
-    editingUsername = true;
-  }
-
-  function cancelEditUsername() {
-    editingUsername = false;
-    newUsername = "";
-    usernameError = "";
-  }
-
   $: activeServerName = serverName || $activeServer?.name || "Echora";
   $: userRole = $user?.role || "member";
   $: isMod =
@@ -1246,9 +1248,10 @@
             onWatchCamera={watchCamera}
             onUserVolumeChange={handleUserVolumeChange}
             getUserVolume={handleGetUserVolume}
+            {userAvatars}
           />
 
-          <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} />
+          <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} {userAvatars} />
         </div>
 
         <VoicePanel
@@ -1284,73 +1287,18 @@
         />
 
         <div class="user-bar">
-          {#if editingUsername}
-            <div class="username-edit">
-              <input
-                type="text"
-                class="username-edit-input"
-                bind:value={newUsername}
-                on:keydown={(e) => {
-                  if (e.key === "Enter") handleUpdateUsername();
-                  else if (e.key === "Escape") cancelEditUsername();
-                }}
-                minlength={2}
-                maxlength={32}
-              />
-              <button
-                class="username-edit-btn save"
-                on:click={handleUpdateUsername}
-                title="Save"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  ><path
-                    d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"
-                  /></svg
-                >
-              </button>
-              <button
-                class="username-edit-btn cancel"
-                on:click={cancelEditUsername}
-                title="Cancel"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  ><path
-                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                  /></svg
-                >
-              </button>
-            </div>
-            {#if usernameError}
-              <div class="username-error">{usernameError}</div>
-            {/if}
-          {:else}
-            <div class="user-info">
-              <span class="user-bar-username">{$user?.username || ""}</span>
-              <button
-                class="username-edit-trigger"
-                on:click={startEditUsername}
-                title="Edit username"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  ><path
-                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                  /></svg
-                >
-              </button>
-            </div>
-          {/if}
+          <button
+            class="user-bar-profile"
+            on:click={() => (showProfileModal = true)}
+            title="Edit profile"
+          >
+            <Avatar
+              username={$user?.username || ""}
+              avatarUrl={$user?.avatar_url ? API.getAvatarUrl($user.id) : undefined}
+              size="small"
+            />
+            <span class="user-bar-username">{$user?.username || ""}</span>
+          </button>
         </div>
 
         <div class="version-bar">
@@ -1404,6 +1352,7 @@
           onReply={startReply}
           onToggleReaction={toggleReaction}
           {customEmojis}
+          {userAvatars}
         />
 
         {#if typingUsers.size > 0}
@@ -1443,4 +1392,8 @@
 
 {#if showPasskeySettings}
   <PasskeySettings onClose={() => (showPasskeySettings = false)} />
+{/if}
+
+{#if showProfileModal}
+  <ProfileModal onClose={() => (showProfileModal = false)} />
 {/if}

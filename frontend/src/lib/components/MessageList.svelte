@@ -1,10 +1,11 @@
 <script lang="ts">
   import { API, type Message, type CustomEmoji } from "../api";
   import { renderMarkdown } from "../markdown";
-  import { formatTimestamp, getInitial, truncateContent } from "../utils";
+  import { formatTimestamp, truncateContent } from "../utils";
   import { getApiBase } from "../config";
   import { isTauri } from "../serverManager";
   import EmojiPicker from "./EmojiPicker.svelte";
+  import Avatar from "./Avatar.svelte";
 
   function resolveUrl(url: string): string {
     if (isTauri && url.startsWith("/")) {
@@ -33,6 +34,7 @@
     emoji: string,
   ) => void = () => {};
   export let customEmojis: CustomEmoji[] = [];
+  export let userAvatars: Record<string, string | undefined> = {};
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
@@ -202,8 +204,12 @@
   {/if}
   {#each messages as message}
     <div class="message">
-      <div class="message-avatar">
-        {getInitial(message.author)}
+      <div class="message-avatar-wrapper">
+        <Avatar
+          username={message.author}
+          avatarUrl={userAvatars[message.author_id]}
+          size="medium"
+        />
       </div>
       <div class="message-content">
         <div class="message-header">

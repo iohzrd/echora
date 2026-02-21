@@ -43,6 +43,11 @@ pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
 pub const ALLOWED_EMOJI_CONTENT_TYPES: &[&str] =
     &["image/png", "image/gif", "image/webp", "image/jpeg"];
 
+pub const MAX_AVATAR_SIZE: usize = 2 * 1024 * 1024; // 2MB
+pub const MAX_DISPLAY_NAME_LENGTH: usize = 64;
+pub const ALLOWED_AVATAR_CONTENT_TYPES: &[&str] =
+    &["image/png", "image/gif", "image/webp", "image/jpeg"];
+
 pub fn validate_emoji_content_type(content_type: &str) -> Result<(), AppError> {
     if !ALLOWED_EMOJI_CONTENT_TYPES.contains(&content_type) {
         return Err(AppError::bad_request(format!(
@@ -195,6 +200,26 @@ pub fn validate_positive_duration(hours: Option<i64>, field_name: &str) -> Resul
         )));
     }
     Ok(())
+}
+
+pub fn validate_avatar_content_type(content_type: &str) -> Result<(), AppError> {
+    if !ALLOWED_AVATAR_CONTENT_TYPES.contains(&content_type) {
+        return Err(AppError::bad_request(format!(
+            "Avatar image type '{}' is not allowed. Use PNG, GIF, WebP, or JPEG.",
+            content_type
+        )));
+    }
+    Ok(())
+}
+
+pub fn validate_display_name(name: &str) -> Result<String, AppError> {
+    let trimmed = name.trim().to_string();
+    if trimmed.is_empty() || trimmed.len() > MAX_DISPLAY_NAME_LENGTH {
+        return Err(AppError::bad_request(
+            "Display name must be between 1 and 64 characters",
+        ));
+    }
+    Ok(trimmed)
 }
 
 pub fn validate_channel_name(name: &str) -> Result<String, AppError> {

@@ -1,9 +1,10 @@
 <script lang="ts">
   import type { UserPresence } from "../api";
-  import { getInitial } from "../utils";
+  import Avatar from "./Avatar.svelte";
 
   export let onlineUsers: UserPresence[] = [];
   export let userRoles: Record<string, string> = {};
+  export let userAvatars: Record<string, string | undefined> = {};
 
   function getRoleBadge(userId: string): string {
     const role = userRoles[userId];
@@ -29,9 +30,11 @@
   {#each onlineUsers as u}
     <div class="online-user">
       <div class="online-dot"></div>
-      <div class="user-avatar small">
-        {getInitial(u.username)}
-      </div>
+      <Avatar
+        username={u.username}
+        avatarUrl={userAvatars[u.user_id]}
+        size="xs"
+      />
       <span class="online-username">{u.username}</span>
       {#if getRoleBadge(u.user_id)}
         <span class="role-badge {getRoleClass(u.user_id)}"

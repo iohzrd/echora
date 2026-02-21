@@ -156,6 +156,8 @@ pub struct EditMessageRequest {
 pub struct VoiceState {
     pub user_id: Uuid,
     pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
     pub channel_id: Uuid,
     pub session_id: Uuid,
     pub is_muted: bool,
@@ -179,6 +181,8 @@ pub struct LeaveVoiceRequest {
 pub struct UserPresence {
     pub user_id: Uuid,
     pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
     pub connected_at: DateTime<Utc>,
 }
 
@@ -195,13 +199,20 @@ pub struct UpdateChannelRequest {
 
 // --- Admin / Moderation models ---
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSummary {
     pub id: Uuid,
     pub username: String,
     pub email: String,
     pub role: Role,
     pub created_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+}
+
+pub fn avatar_url_from_path(user_id: Uuid, path: &Option<String>) -> Option<String> {
+    path.as_ref()
+        .map(|_| format!("/api/users/{}/avatar", user_id))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

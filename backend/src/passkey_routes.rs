@@ -8,7 +8,7 @@ use webauthn_rs::prelude::*;
 
 use crate::auth::{AuthResponse, AuthUser, UserInfo, create_jwt};
 use crate::database;
-use crate::models::AppState;
+use crate::models::{AppState, avatar_url_from_path};
 use crate::permissions;
 use crate::shared::{AppError, AppResult};
 
@@ -206,9 +206,11 @@ pub async fn finish_passkey_auth(
         token,
         user: UserInfo {
             id: user.id,
-            username: user.username,
-            email: user.email,
+            username: user.username.clone(),
+            email: user.email.clone(),
             role: user.role,
+            avatar_url: avatar_url_from_path(user.id, &user.avatar_path),
+            display_name: user.display_name.clone(),
         },
     }))
 }

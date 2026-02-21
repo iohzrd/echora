@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Channel, VoiceState } from "../api";
-  import { getInitial } from "../utils";
   import UserVolumeMenu from "./UserVolumeMenu.svelte";
+  import Avatar from "./Avatar.svelte";
 
   export let channels: Channel[] = [];
   export let selectedChannelId: string = "";
@@ -32,6 +32,7 @@
     volume: number,
   ) => void = () => {};
   export let getUserVolume: (userId: string) => number = () => 1.0;
+  export let userAvatars: Record<string, string | undefined> = {};
 
   // Local state for channel create/edit forms
   let showCreateChannel: "text" | "voice" | null = null;
@@ -270,9 +271,11 @@
               ? 0
               : -1}
           >
-            <div class="user-avatar">
-              {getInitial(voiceState.username)}
-            </div>
+            <Avatar
+              username={voiceState.username}
+              avatarUrl={userAvatars[voiceState.user_id]}
+              size="xs"
+            />
             <span class="username">{voiceState.username}</span>
             {#if voiceState.is_muted}
               <span class="mute-indicator">🔇</span>

@@ -138,6 +138,13 @@ async fn main() {
             "/api/channels/{channel_id}",
             put(routes::update_channel).delete(routes::delete_channel),
         )
+        .route("/api/users/{user_id}/avatar", get(auth_routes::get_avatar))
+        .route(
+            "/api/auth/avatar",
+            post(auth_routes::upload_avatar)
+                .delete(auth_routes::delete_avatar)
+                .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024)), // 2MB for avatar uploads
+        )
         .route("/api/users/online", get(routes::get_online_users))
         .route(
             "/api/channels/{channel_id}/messages",

@@ -64,6 +64,7 @@ export interface SendMessageRequest {
 export interface VoiceState {
   user_id: string;
   username: string;
+  avatar_url?: string;
   channel_id: string;
   session_id: string;
   is_muted: boolean;
@@ -80,6 +81,7 @@ export interface JoinVoiceRequest {
 export interface UserPresence {
   user_id: string;
   username: string;
+  avatar_url?: string;
   connected_at: string;
 }
 
@@ -89,6 +91,7 @@ export interface UserSummary {
   email: string;
   role: 'owner' | 'admin' | 'moderator' | 'member';
   created_at: string;
+  avatar_url?: string;
 }
 
 export interface Ban {
@@ -265,6 +268,40 @@ export class API {
 
   static async updateUsername(username: string): Promise<AuthResponse> {
     return this.jsonRequest('/auth/me', 'PUT', { username }, 'Failed to update username');
+  }
+
+  static async updateProfile(data: { username?: string; display_name?: string | null }): Promise<AuthResponse> {
+    return this.jsonRequest('/auth/me', 'PUT', data, 'Failed to update profile');
+  }
+
+  static async uploadAvatar(file: File): Promise<import('./auth').User> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const headers: Record<string, string> = {
+      ...AuthService.getAuthHeaders(),
+    };
+
+    const response = await appFetch(`${getApiBase()}/auth/avatar`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to upload avatar');
+    }
+
+    return response.json();
+  }
+
+  static async deleteAvatar(): Promise<import('./auth').User> {
+    return this.request('/auth/avatar', { method: 'DELETE' }, 'Failed to delete avatar');
+  }
+
+  static getAvatarUrl(userId: string): string {
+    return `${getApiBase()}/users/${userId}/avatar`;
   }
 
   // --- Admin: Users ---

@@ -7,6 +7,8 @@ export interface User {
   username: string;
   email: string;
   role: string;
+  avatar_url?: string;
+  display_name?: string;
 }
 
 export interface AuthResponse {
@@ -127,7 +129,7 @@ class AuthService {
       : {};
   }
 
-  private static setAuth(authResponse: AuthResponse) {
+  static setAuth(authResponse: AuthResponse) {
     if (isTauri) {
       const server = getActiveServer();
       if (server) {

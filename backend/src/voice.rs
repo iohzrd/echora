@@ -27,12 +27,19 @@ pub async fn join_voice_channel(
     // Leave all voice channels the user is currently in (including the target channel for re-joins)
     state.remove_user_from_voice(user_id).await;
 
+    // Look up avatar for voice state
+    let avatar_url = match database::get_user_by_id(&state.db, user_id).await {
+        Ok(Some(user)) => crate::models::avatar_url_from_path(user_id, &user.avatar_path),
+        _ => None,
+    };
+
     let session_id = Uuid::new_v4();
     let now = Utc::now();
 
     let voice_state = VoiceState {
         user_id,
         username: auth_user.0.username,
+        avatar_url,
         channel_id: request.channel_id,
         session_id,
         is_muted: false,

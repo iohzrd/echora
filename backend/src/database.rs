@@ -670,7 +670,7 @@ pub async fn create_user(pool: &PgPool, user: &User) -> Result<(), AppError> {
 
 pub async fn get_user_by_id(pool: &PgPool, user_id: Uuid) -> Result<Option<User>, AppError> {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE id = $1",
+        "SELECT id, username, email, password_hash, role, created_at, avatar_path, display_name FROM users WHERE id = $1",
     )
     .bind(user_id)
     .fetch_optional(pool)
@@ -681,7 +681,7 @@ pub async fn get_user_by_id(pool: &PgPool, user_id: Uuid) -> Result<Option<User>
 
 pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, AppError> {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE LOWER(username) = LOWER($1)",
+        "SELECT id, username, email, password_hash, role, created_at, avatar_path, display_name FROM users WHERE LOWER(username) = LOWER($1)",
     )
     .bind(username)
     .fetch_optional(pool)
@@ -736,13 +736,53 @@ pub async fn update_username(
 }
 
 pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
-    let users: Vec<UserSummary> = sqlx::query_as(
-        "SELECT id, username, email, role, created_at FROM users ORDER BY created_at ASC",
+    let rows: Vec<(Uuid, String, String, Role, chrono::DateTime<chrono::Utc>, Option<String>)> = sqlx::query_as(
+        "SELECT id, username, email, role, created_at, avatar_path FROM users ORDER BY created_at ASC",
     )
     .fetch_all(pool)
     .await?;
 
+    let users = rows
+        .into_iter()
+        .map(
+            |(id, username, email, role, created_at, avatar_path)| UserSummary {
+                id,
+                username,
+                email,
+                role,
+                created_at,
+                avatar_url: crate::models::avatar_url_from_path(id, &avatar_path),
+            },
+        )
+        .collect();
+
     Ok(users)
+}
+
+pub async fn update_user_avatar(
+    pool: &PgPool,
+    user_id: Uuid,
+    avatar_path: Option<&str>,
+) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE users SET avatar_path = $1 WHERE id = $2")
+        .bind(avatar_path)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "User not found")
+}
+
+pub async fn update_user_display_name(
+    pool: &PgPool,
+    user_id: Uuid,
+    display_name: Option<&str>,
+) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE users SET display_name = $1 WHERE id = $2")
+        .bind(display_name)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "User not found")
 }
 
 // --- Bans (atomic upsert) ---

@@ -48,6 +48,8 @@ pub struct User {
     pub password_hash: String,
     pub role: Role,
     pub created_at: chrono::DateTime<Utc>,
+    pub avatar_path: Option<String>,
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,7 +68,8 @@ pub struct LoginRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
-    pub username: String,
+    pub username: Option<String>,
+    pub display_name: Option<Option<String>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,6 +84,10 @@ pub struct UserInfo {
     pub username: String,
     pub email: String,
     pub role: Role,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
 }
 
 pub struct AuthUser(pub Claims);
