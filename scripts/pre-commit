@@ -19,7 +19,12 @@ if git diff --cached --name-only | grep -q '^frontend/' && \
     git add frontend/package.json
     echo "frontend: $current -> $new"
 
-    # Also bump tauri.conf.json and Tauri Cargo.toml to keep in sync
+fi
+
+# Check for staged tauri files (excluding version files to avoid loops)
+if git diff --cached --name-only | grep -q '^frontend/src-tauri/' && \
+   ! git diff --cached --name-only | grep -qx 'frontend/src-tauri/tauri.conf.json' && \
+   ! git diff --cached --name-only | grep -qx 'frontend/src-tauri/Cargo.toml'; then
     tauri_conf="frontend/src-tauri/tauri.conf.json"
     tauri_cargo="frontend/src-tauri/Cargo.toml"
     tauri_current=$(grep '"version"' "$tauri_conf" | head -1 | sed 's/.*"\([0-9]*\.[0-9]*\.[0-9]*\)".*/\1/')
