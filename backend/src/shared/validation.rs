@@ -94,10 +94,10 @@ pub fn validate_username(name: &str) -> Result<String, AppError> {
     }
     if !trimmed
         .chars()
-        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
     {
         return Err(AppError::bad_request(
-            "Username can only contain letters, numbers, underscores, and hyphens",
+            "Username can only contain ASCII letters, numbers, underscores, and hyphens",
         ));
     }
     Ok(trimmed)
