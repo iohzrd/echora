@@ -1,26 +1,12 @@
 <script lang="ts">
-  import { type Message, type CustomEmoji } from "../api";
+  import { type Message } from "../api";
+  import { user } from "../auth";
+  import { voiceStore } from "../stores/voiceStore";
+  import { serverState } from "../stores/serverState";
+  import { chatState } from "../stores/chatState";
   import MessageList from "./MessageList.svelte";
   import MessageInput from "./MessageInput.svelte";
   import ScreenShareViewer from "./ScreenShareViewer.svelte";
-
-  export let selectedChannelName: string = "";
-  export let watchingScreenUserId: string | null = null;
-  export let watchingScreenUsername: string = "";
-  export let watchingCameraUserId: string | null = null;
-  export let watchingCameraUsername: string = "";
-  export let messages: Message[] = [];
-  export let currentUserId: string = "";
-  export let userRole: string = "member";
-  export let loadingMore: boolean = false;
-  export let editingMessageId: string | null = null;
-  export let editMessageContent: string = "";
-  export let typingUsers: Map<string, { username: string; timeout: ReturnType<typeof setTimeout> }> = new Map();
-  export let rateLimitWarning: boolean = false;
-  export let selectedChannelId: string = "";
-  export let replyingTo: Message | null = null;
-  export let customEmojis: CustomEmoji[] = [];
-  export let userAvatars: Record<string, string | undefined> = {};
 
   export let messageList: MessageList | undefined = undefined;
   export let screenVideoElement: HTMLVideoElement = undefined!;
@@ -35,34 +21,50 @@
   export let onCancelEdit: () => void = () => {};
   export let onDeleteMessage: (id: string) => void = () => {};
   export let onReply: (message: Message) => void = () => {};
-  export let onToggleReaction: (messageId: string, emoji: string) => void = () => {};
+  export let onToggleReaction: (
+    messageId: string,
+    emoji: string,
+  ) => void = () => {};
   export let onUserClick: (userId: string) => void = () => {};
-  export let onSend: (text: string, attachmentIds?: string[]) => void = () => {};
+  export let onSend: (
+    text: string,
+    attachmentIds?: string[],
+  ) => void = () => {};
   export let onTyping: () => void = () => {};
   export let onCancelReply: () => void = () => {};
-  export let getTypingText: () => string = () => "";
+
+  // Local mirror for two-way bind with MessageList
+  let editMessageContent = "";
+  $: editMessageContent = $chatState.editMessageContent;
+  $: if (editMessageContent !== $chatState.editMessageContent) {
+    chatState.update((s) => ({ ...s, editMessageContent }));
+  }
+
+  function getTypingText(): string {
+    const names = [...$chatState.typingUsers.values()].map((u) => u.username);
+    if (names.length === 1) return `${names[0]} is typing...`;
+    if (names.length <= 3) return `${names.join(", ")} are typing...`;
+    return "Several people are typing...";
+  }
 </script>
 
 <div class="main-content">
   <div class="chat-header">
-    <button
-      class="hamburger-btn"
-      on:click={onToggleSidebar}>|||</button
-    >
+    <button class="hamburger-btn" on:click={onToggleSidebar}>|||</button>
     <div class="channel-name">
-      {selectedChannelName || "Select a channel"}
+      {$chatState.selectedChannelName || "Select a channel"}
     </div>
   </div>
 
-  {#if watchingScreenUserId}
+  {#if $voiceStore.watchingScreenUserId}
     <ScreenShareViewer
-      username={watchingScreenUsername}
+      username={$voiceStore.watchingScreenUsername}
       onClose={onStopWatching}
       bind:videoElement={screenVideoElement}
     />
-  {:else if watchingCameraUserId}
+  {:else if $voiceStore.watchingCameraUserId}
     <ScreenShareViewer
-      username={watchingCameraUsername}
+      username={$voiceStore.watchingCameraUsername}
       type="camera"
       onClose={onStopWatchingCamera}
       bind:videoElement={cameraVideoElement}
@@ -70,42 +72,43 @@
   {:else}
     <MessageList
       bind:this={messageList}
-      {messages}
-      {currentUserId}
-      {userRole}
-      {loadingMore}
-      {editingMessageId}
+      messages={$chatState.messages}
+      currentUserId={$user?.id || ""}
+      userRole={$user?.role || "member"}
+      loadingMore={$chatState.loadingMore}
+      editingMessageId={$chatState.editingMessageId}
       bind:editMessageContent
-      onScrollTop={onScrollTop}
-      onStartEdit={onStartEdit}
-      onSaveEdit={onSaveEdit}
-      onCancelEdit={onCancelEdit}
-      onDeleteMessage={onDeleteMessage}
-      onReply={onReply}
-      onToggleReaction={onToggleReaction}
-      {customEmojis}
-      {userAvatars}
-      onUserClick={onUserClick}
+      {onScrollTop}
+      {onStartEdit}
+      {onSaveEdit}
+      {onCancelEdit}
+      {onDeleteMessage}
+      {onReply}
+      {onToggleReaction}
+      customEmojis={$serverState.customEmojis}
+      userAvatars={$serverState.userAvatars}
+      {onUserClick}
     />
 
-    {#if typingUsers.size > 0}
+    {#if $chatState.typingUsers.size > 0}
       <div class="typing-indicator">
         <span class="typing-text">{getTypingText()}</span>
       </div>
     {/if}
 
-    {#if rateLimitWarning}
+    {#if $chatState.rateLimitWarning}
       <div class="rate-limit-warning">
         Slow down! You are sending messages too fast.
       </div>
     {/if}
+
     <MessageInput
-      channelName={selectedChannelName}
-      disabled={!selectedChannelId}
-      {replyingTo}
-      onSend={onSend}
-      onTyping={onTyping}
-      onCancelReply={onCancelReply}
+      channelName={$chatState.selectedChannelName}
+      disabled={!$chatState.selectedChannelId}
+      replyingTo={$chatState.replyingTo}
+      {onSend}
+      {onTyping}
+      {onCancelReply}
     />
   {/if}
 </div>
