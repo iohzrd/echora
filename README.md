@@ -11,7 +11,7 @@ A self-hosted real-time chat platform with text, voice, and screen sharing -- bu
 - **Online Presence** -- See who is online with real-time connect/disconnect tracking
 - **Typing Indicators** -- See when others are typing with debounced indicators
 - **File Uploads** -- Attach images, video, audio, and documents to messages with inline previews
-- **Authentication** -- JWT-based auth with Argon2 password hashing
+- **Authentication** -- JWT-based auth with Argon2 password hashing and optional WebAuthn/passkey support
 - **PostgreSQL** -- Persistent storage with automatic migrations via sqlx
 - **Message Pagination** -- Cursor-based pagination with scroll-to-load-more
 - **Mobile Responsive** -- Hamburger menu sidebar, adaptive layout for tablet and phone
@@ -26,7 +26,7 @@ A self-hosted real-time chat platform with text, voice, and screen sharing -- bu
 | Database  | PostgreSQL, sqlx                |
 | Voice     | WebRTC, SFU architecture        |
 | Storage   | S3-compatible, local filesystem |
-| Auth      | JWT, Argon2                     |
+| Auth      | JWT, Argon2, WebAuthn/Passkeys  |
 | Desktop   | Tauri                           |
 
 ## Getting Started
@@ -83,6 +83,24 @@ Backend environment variables (set in `backend/.env`):
 | `CORS_ORIGINS` | Comma-separated allowed origins | Permissive (all origins)                         |
 | `RUST_LOG`     | Log level filter                | `info`                                           |
 
+#### Passkeys (WebAuthn)
+
+Passkey support is enabled automatically. Users register with a password, then optionally add passkeys from the settings UI for passwordless login. Configure the relying party settings for your domain:
+
+| Variable              | Description                          | Default                  |
+| --------------------- | ------------------------------------ | ------------------------ |
+| `WEBAUTHN_RP_ID`      | Relying party ID (your domain)       | `localhost`              |
+| `WEBAUTHN_RP_ORIGIN`  | Relying party origin (full URL)      | `http://localhost:1420`  |
+
+For production, set these to your actual domain:
+
+```bash
+WEBAUTHN_RP_ID=example.com
+WEBAUTHN_RP_ORIGIN=https://example.com
+```
+
+The RP ID must match the domain users access the site from, and the RP origin must match the full URL (including scheme). Passkeys registered under one RP ID will not work under a different one.
+
 #### File Storage
 
 File uploads are disabled by default. Set `STORAGE_BACKEND` to enable.
@@ -126,6 +144,8 @@ Echora uses a Selective Forwarding Unit architecture for voice chat. The server 
 ### Authentication
 
 Users register/login via REST endpoints. The backend returns a JWT token (7-day expiry) which the frontend stores in localStorage. Protected REST endpoints expect `Authorization: Bearer <token>`. WebSocket endpoints accept the token via query parameter (`?token=...`). Passwords are hashed with Argon2 using a random salt.
+
+Passkeys (WebAuthn/FIDO2) are supported as an optional secondary auth method. Users register with a password first, then add passkeys from the key icon in the server header. Passkey login uses the same JWT flow -- after successful WebAuthn authentication, the server issues a JWT identical to password login. Both username-scoped and discoverable credential flows are supported. Challenge state is stored in-memory with automatic cleanup after 5 minutes.
 
 ### Database
 
@@ -171,6 +191,10 @@ cd frontend && npm run build
 - [x] Moderation (kick, ban, mute/timeout, audit log)
 - [x] Invite system
 - [x] File uploads
+- [x] Passkeys (WebAuthn/FIDO2)
+- [ ] Connect/disconnect sounds
+- [ ] Soundboard
+- [ ] Channel groups
 - [ ] User profiles & avatars
 - [ ] Message pinning
 - [ ] Search

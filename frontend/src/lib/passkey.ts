@@ -28,7 +28,8 @@ export class PasskeyService {
       throw new Error(err.error || 'Failed to start passkey registration');
     }
 
-    const optionsJSON = await optionsResponse.json();
+    const responseJSON = await optionsResponse.json();
+    const optionsJSON = responseJSON.publicKey;
 
     const attResp = await startRegistration({ optionsJSON });
 
@@ -67,7 +68,7 @@ export class PasskeyService {
     }
 
     const responseData = await optionsResponse.json();
-    const { challenge_key, ...optionsJSON } = responseData;
+    const { challenge_key, publicKey: optionsJSON } = responseData;
 
     const assertionResp = await startAuthentication({ optionsJSON });
 

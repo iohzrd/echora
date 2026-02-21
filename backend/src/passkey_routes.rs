@@ -111,11 +111,13 @@ pub async fn start_passkey_auth(
     let (user_id, passkeys) = if let Some(ref username) = payload.username {
         let user = database::get_user_by_username(&state.db, username)
             .await?
-            .ok_or_else(|| AppError::authentication("Invalid credentials"))?;
+            .ok_or_else(|| {
+                AppError::bad_request("No passkeys found. Register a passkey first in settings.")
+            })?;
         let pks = database::get_user_passkeys(&state.db, user.id).await?;
         if pks.is_empty() {
-            return Err(AppError::authentication(
-                "No passkeys registered for this user",
+            return Err(AppError::bad_request(
+                "No passkeys registered. Add a passkey from settings first.",
             ));
         }
         let passkey_list: Vec<Passkey> = pks.into_iter().map(|(_, _, pk, _, _)| pk).collect();

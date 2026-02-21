@@ -36,10 +36,14 @@
   }
 
   async function handlePasskeyLogin() {
+    if (!username.trim()) {
+      error = "Enter your username first, then click Sign in with Passkey";
+      return;
+    }
     loading = true;
     error = "";
     try {
-      await AuthService.loginWithPasskey(username.trim() || undefined);
+      await AuthService.loginWithPasskey(username.trim());
       onSuccess();
     } catch (err) {
       if (err instanceof Error && err.name === "NotAllowedError") {
@@ -96,9 +100,10 @@
       <span>or</span>
     </div>
     <div class="passkey-section">
+      <p class="passkey-hint">Enter your username above, then:</p>
       <button
         type="button"
-        disabled={loading}
+        disabled={loading || !username.trim()}
         class="passkey-btn"
         on:click={handlePasskeyLogin}
       >
@@ -149,5 +154,12 @@
   .passkey-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .passkey-hint {
+    color: var(--text-muted, #949ba4);
+    font-size: 12px;
+    margin: 0 0 8px;
+    text-align: center;
   }
 </style>
