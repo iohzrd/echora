@@ -120,12 +120,25 @@ async fn fetch_preview(client: &reqwest::Client, url: &str) -> Result<LinkPrevie
         .await
         .map_err(|e| e.to_string())?;
 
-    // Only parse HTML responses
     let content_type = response
         .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
+
+    // Direct image URLs: create a preview with the image itself
+    if content_type.starts_with("image/") {
+        let site_name = url::Url::parse(url)
+            .ok()
+            .and_then(|u| u.host_str().map(|h| h.to_string()));
+        return Ok(LinkPreviewData {
+            url: url.to_string(),
+            title: None,
+            description: None,
+            image_url: Some(url.to_string()),
+            site_name,
+        });
+    }
 
     if !content_type.contains("text/html") {
         return Err("Not HTML content".to_string());
@@ -306,7 +319,10 @@ pub fn spawn_preview_fetch(
                     }
 
                     // Skip previews with no useful data
-                    if data.title.is_none() && data.description.is_none() {
+                    if data.title.is_none()
+                        && data.description.is_none()
+                        && data.image_url.is_none()
+                    {
                         continue;
                     }
 
