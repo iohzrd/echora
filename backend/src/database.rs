@@ -641,7 +641,7 @@ pub async fn get_user_by_id(pool: &PgPool, user_id: Uuid) -> Result<Option<User>
 
 pub async fn get_user_by_username(pool: &PgPool, username: &str) -> Result<Option<User>, AppError> {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE username = $1",
+        "SELECT id, username, email, password_hash, role, created_at FROM users WHERE LOWER(username) = LOWER($1)",
     )
     .bind(username)
     .fetch_optional(pool)
