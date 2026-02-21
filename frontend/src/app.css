@@ -1445,6 +1445,14 @@ body {
 	overflow: hidden;
 }
 
+.link-preview-image-btn {
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
 .link-preview-image {
 	width: 80px;
 	height: 80px;
@@ -1503,6 +1511,10 @@ body {
 	max-width: 400px;
 	border-radius: var(--radius-md);
 	overflow: hidden;
+	background: none;
+	border: none;
+	padding: 0;
+	cursor: pointer;
 }
 
 .attachment-image {
@@ -2155,4 +2167,58 @@ body {
 .role-mod {
 	background-color: rgba(67, 181, 129, 0.2);
 	color: #43b581;
+}
+
+/* Image Lightbox */
+.lightbox-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.85);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 400;
+	cursor: pointer;
+}
+
+.lightbox-close {
+	position: absolute;
+	top: 16px;
+	right: 16px;
+	background: rgba(0, 0, 0, 0.5);
+	border: none;
+	color: #fff;
+	font-size: 18px;
+	font-weight: 700;
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 401;
+}
+
+.lightbox-close:hover {
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.lightbox-image-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: default;
+}
+
+.lightbox-image {
+	max-width: 90vw;
+	max-height: 90vh;
+	object-fit: contain;
+	border-radius: var(--radius-md);
+	cursor: default;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
 }

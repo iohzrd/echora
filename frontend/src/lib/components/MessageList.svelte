@@ -120,7 +120,28 @@
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
+
+  let lightboxSrc: string | null = null;
+  let lightboxAlt: string = "";
+
+  function openLightbox(src: string, alt: string) {
+    lightboxSrc = src;
+    lightboxAlt = alt;
+  }
+
+  function closeLightbox() {
+    lightboxSrc = null;
+    lightboxAlt = "";
+  }
+
+  function handleLightboxKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      closeLightbox();
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleLightboxKeydown} />
 
 <div class="messages-area" bind:this={messagesArea} on:scroll={handleScroll}>
   {#if loadingMore}
@@ -180,11 +201,13 @@
           <div class="attachments">
             {#each message.attachments as attachment}
               {#if isImageType(attachment.content_type)}
-                <a
+                <button
                   class="attachment-image-link"
-                  href={getAttachmentUrl(attachment.id, attachment.filename)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  on:click={() =>
+                    openLightbox(
+                      getAttachmentUrl(attachment.id, attachment.filename),
+                      attachment.filename,
+                    )}
                 >
                   <img
                     class="attachment-image"
@@ -192,7 +215,7 @@
                     alt={attachment.filename}
                     loading="lazy"
                   />
-                </a>
+                </button>
               {:else if isVideoType(attachment.content_type)}
                 <video
                   class="attachment-video"
@@ -233,12 +256,21 @@
           {#each message.link_previews as preview}
             <div class="link-preview-card">
               {#if preview.image_url}
-                <img
-                  class="link-preview-image"
-                  src={resolveUrl(preview.image_url)}
-                  alt={preview.title || ""}
-                  loading="lazy"
-                />
+                <button
+                  class="link-preview-image-btn"
+                  on:click={() =>
+                    openLightbox(
+                      resolveUrl(preview.image_url || ""),
+                      preview.title || "",
+                    )}
+                >
+                  <img
+                    class="link-preview-image"
+                    src={resolveUrl(preview.image_url)}
+                    alt={preview.title || ""}
+                    loading="lazy"
+                  />
+                </button>
               {/if}
               <div class="link-preview-text">
                 {#if preview.site_name}
@@ -323,3 +355,23 @@
     </div>
   {/each}
 </div>
+
+{#if lightboxSrc}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="lightbox-overlay"
+    on:click={closeLightbox}
+    role="dialog"
+    aria-label="Image preview"
+    tabindex="-1"
+  >
+    <button class="lightbox-close" on:click|stopPropagation={closeLightbox}>X</button>
+    <div class="lightbox-image-container" on:click|stopPropagation role="presentation">
+      <img
+        class="lightbox-image"
+        src={lightboxSrc}
+        alt={lightboxAlt}
+      />
+    </div>
+  </div>
+{/if}
