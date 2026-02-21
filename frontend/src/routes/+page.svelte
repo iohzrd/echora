@@ -11,6 +11,7 @@
     type CustomEmoji,
   } from "../lib/api";
   import { voiceManager } from "../lib/voice";
+  import { playSound } from "../lib/sounds";
   import type { VoiceInputMode } from "../lib/voice";
   import { getChannelProducers } from "../lib/mediasoup";
   import {
@@ -305,6 +306,9 @@
           ...voiceStates.filter((vs) => vs.user_id !== data.data.user_id),
           data.data,
         ];
+        if (data.data.channel_id === currentVoiceChannel) {
+          playSound("connect");
+        }
       }
 
       // Consume new producers as they're created (replaces fragile timeout)
@@ -343,6 +347,9 @@
         }
       }
       if (data.type === "voice_user_left") {
+        if (data.data.channel_id === currentVoiceChannel) {
+          playSound("disconnect");
+        }
         voiceStates = voiceStates.filter(
           (vs) =>
             !(
