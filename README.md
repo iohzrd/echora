@@ -171,12 +171,12 @@ cd frontend && npm run build
 - [x] Moderation (kick, ban, mute/timeout, audit log)
 - [x] Invite system
 - [x] File uploads
+- [ ] User profiles & avatars
 - [ ] Message pinning
 - [ ] Search
 - [ ] Notifications (@mentions, unread indicators)
 - [ ] Direct messages & group DMs
 - [ ] Polls
-- [ ] User profiles & avatars
 - [ ] One-click deployment(s)
 - [ ] Webhooks
 

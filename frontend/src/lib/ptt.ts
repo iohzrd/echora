@@ -3,9 +3,10 @@ import { voiceManager, type VoiceInputMode } from './voice';
 let currentKey: string | null = null;
 let browserListenersActive = false;
 let browserPTTKeyCode = 'Space';
+let browserPTTMouseButton: number | null = null;
 let browserPTTModifiers = { ctrl: false, shift: false, alt: false, meta: false };
-let evdevListenerActive = false;
-let evdevUnlisten: (() => void) | null = null;
+let nativeListenerActive = false;
+let nativeUnlisten: (() => void) | null = null;
 let globalShortcutRegistered: string | null = null;
 
 const STORAGE_KEY = 'voice-settings';
@@ -89,9 +90,31 @@ function codeFromTauriKey(key: string): string {
   return key;
 }
 
-// --- evdev-based PTT (Tauri on Linux, works on Wayland) ---
+// --- Mouse button helpers ---
 
-async function startEvdevPTT(key: string): Promise<boolean> {
+/** Convert a browser MouseEvent button number to a PTT name */
+function mouseButtonToName(button: number): string | null {
+  switch (button) {
+    case 1: return 'MouseMiddle';
+    case 3: return 'MouseBack';
+    case 4: return 'MouseForward';
+    default: return null; // Left (0) and Right (2) excluded
+  }
+}
+
+/** Convert a PTT mouse name to browser button number */
+function mouseNameToButton(name: string): number | null {
+  switch (name) {
+    case 'MouseMiddle': return 1;
+    case 'MouseBack': return 3;
+    case 'MouseForward': return 4;
+    default: return null;
+  }
+}
+
+// --- Native PTT (Tauri: evdev on Linux, rdev on Windows) ---
+
+async function startNativePTT(key: string): Promise<boolean> {
   if (!isTauriRuntime()) return false;
 
   try {
@@ -100,24 +123,24 @@ async function startEvdevPTT(key: string): Promise<boolean> {
 
     await invoke('start_ptt', { key });
 
-    // Listen for ptt-state events from the Rust evdev listener
-    if (evdevUnlisten) {
-      evdevUnlisten();
+    // Listen for ptt-state events from the native listener
+    if (nativeUnlisten) {
+      nativeUnlisten();
     }
-    evdevUnlisten = await listen<boolean>('ptt-state', (event) => {
+    nativeUnlisten = await listen<boolean>('ptt-state', (event) => {
       voiceManager.setPTTActive(event.payload);
     });
 
-    evdevListenerActive = true;
+    nativeListenerActive = true;
     return true;
   } catch (e) {
-    console.warn('evdev PTT not available:', e);
+    console.warn('Native PTT not available:', e);
     return false;
   }
 }
 
-async function stopEvdevPTT(): Promise<void> {
-  if (!evdevListenerActive) return;
+async function stopNativePTT(): Promise<void> {
+  if (!nativeListenerActive) return;
 
   try {
     const { invoke } = await import('@tauri-apps/api/core');
@@ -126,14 +149,14 @@ async function stopEvdevPTT(): Promise<void> {
     // ignore
   }
 
-  if (evdevUnlisten) {
-    evdevUnlisten();
-    evdevUnlisten = null;
+  if (nativeUnlisten) {
+    nativeUnlisten();
+    nativeUnlisten = null;
   }
-  evdevListenerActive = false;
+  nativeListenerActive = false;
 }
 
-// --- Tauri global shortcut PTT (Windows/macOS) ---
+// --- Tauri global shortcut PTT (keyboard-only fallback for macOS) ---
 
 // Convert our combo format ("Control+Space") to the plugin's format ("CommandOrControl+Space")
 function comboToShortcutString(combo: string): string {
@@ -149,6 +172,10 @@ function comboToShortcutString(combo: string): string {
 
 async function startGlobalShortcutPTT(combo: string): Promise<boolean> {
   if (!isTauriRuntime()) return false;
+
+  // Global shortcut plugin only supports keyboard keys
+  const target = combo.split('+').pop() || '';
+  if (target.startsWith('Mouse')) return false;
 
   try {
     const { register, unregister } = await import('@tauri-apps/plugin-global-shortcut');
@@ -189,8 +216,15 @@ async function stopGlobalShortcutPTT(): Promise<void> {
 
 // --- Browser fallback (only works when app is focused) ---
 
-// Parse a combo string into its modifier requirements and key code
-function parseComboForBrowser(combo: string): { code: string; ctrl: boolean; shift: boolean; alt: boolean; meta: boolean } {
+// Parse a combo string into its modifier requirements and key code or mouse button
+function parseComboForBrowser(combo: string): {
+  code: string;
+  mouseButton: number | null;
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+} {
   const parts = combo.split('+');
   const mods = { ctrl: false, shift: false, alt: false, meta: false };
   for (const part of parts.slice(0, -1)) {
@@ -200,10 +234,24 @@ function parseComboForBrowser(combo: string): { code: string; ctrl: boolean; shi
     else if (part === 'Meta') mods.meta = true;
   }
   const keyPart = parts[parts.length - 1];
-  return { code: codeFromTauriKey(keyPart), ...mods };
+  const mouseBtn = mouseNameToButton(keyPart);
+  return {
+    code: mouseBtn === null ? codeFromTauriKey(keyPart) : '',
+    mouseButton: mouseBtn,
+    ...mods,
+  };
 }
 
-function browserModifiersMatch(e: KeyboardEvent): boolean {
+function browserKeyModifiersMatch(e: KeyboardEvent): boolean {
+  return (
+    e.ctrlKey === browserPTTModifiers.ctrl &&
+    e.shiftKey === browserPTTModifiers.shift &&
+    e.altKey === browserPTTModifiers.alt &&
+    e.metaKey === browserPTTModifiers.meta
+  );
+}
+
+function browserMouseModifiersMatch(e: MouseEvent): boolean {
   return (
     e.ctrlKey === browserPTTModifiers.ctrl &&
     e.shiftKey === browserPTTModifiers.shift &&
@@ -215,7 +263,8 @@ function browserModifiersMatch(e: KeyboardEvent): boolean {
 let browserPTTActive = false;
 
 function onBrowserKeyDown(e: KeyboardEvent) {
-  if (e.code === browserPTTKeyCode && browserModifiersMatch(e) && !e.repeat) {
+  if (browserPTTMouseButton !== null) return; // mouse combo, ignore keyboard
+  if (e.code === browserPTTKeyCode && browserKeyModifiersMatch(e) && !e.repeat) {
     e.preventDefault();
     browserPTTActive = true;
     voiceManager.setPTTActive(true);
@@ -223,9 +272,27 @@ function onBrowserKeyDown(e: KeyboardEvent) {
 }
 
 function onBrowserKeyUp(e: KeyboardEvent) {
-  if (!browserPTTActive) return;
+  if (!browserPTTActive || browserPTTMouseButton !== null) return;
   // Release when target key is released OR a required modifier is released
-  if (e.code === browserPTTKeyCode || !browserModifiersMatch(e)) {
+  if (e.code === browserPTTKeyCode || !browserKeyModifiersMatch(e)) {
+    e.preventDefault();
+    browserPTTActive = false;
+    voiceManager.setPTTActive(false);
+  }
+}
+
+function onBrowserMouseDown(e: MouseEvent) {
+  if (browserPTTMouseButton === null) return; // keyboard combo, ignore mouse
+  if (e.button === browserPTTMouseButton && browserMouseModifiersMatch(e)) {
+    e.preventDefault();
+    browserPTTActive = true;
+    voiceManager.setPTTActive(true);
+  }
+}
+
+function onBrowserMouseUp(e: MouseEvent) {
+  if (!browserPTTActive || browserPTTMouseButton === null) return;
+  if (e.button === browserPTTMouseButton) {
     e.preventDefault();
     browserPTTActive = false;
     voiceManager.setPTTActive(false);
@@ -235,10 +302,13 @@ function onBrowserKeyUp(e: KeyboardEvent) {
 function registerBrowserPTT(combo: string): void {
   unregisterBrowserPTT();
   const parsed = parseComboForBrowser(combo);
+  browserPTTMouseButton = parsed.mouseButton;
   browserPTTKeyCode = parsed.code;
   browserPTTModifiers = { ctrl: parsed.ctrl, shift: parsed.shift, alt: parsed.alt, meta: parsed.meta };
   document.addEventListener('keydown', onBrowserKeyDown);
   document.addEventListener('keyup', onBrowserKeyUp);
+  document.addEventListener('mousedown', onBrowserMouseDown);
+  document.addEventListener('mouseup', onBrowserMouseUp);
   browserListenersActive = true;
 }
 
@@ -246,6 +316,8 @@ function unregisterBrowserPTT(): void {
   if (!browserListenersActive) return;
   document.removeEventListener('keydown', onBrowserKeyDown);
   document.removeEventListener('keyup', onBrowserKeyUp);
+  document.removeEventListener('mousedown', onBrowserMouseDown);
+  document.removeEventListener('mouseup', onBrowserMouseUp);
   browserListenersActive = false;
 }
 
@@ -253,15 +325,15 @@ function unregisterBrowserPTT(): void {
 
 export async function registerPTTKey(key: string): Promise<boolean> {
   if (isTauriRuntime()) {
-    // Try evdev first (Linux/Wayland global PTT)
-    const evdevOk = await startEvdevPTT(key);
-    if (evdevOk) {
+    // Try native PTT first (evdev on Linux, rdev on Windows)
+    const nativeOk = await startNativePTT(key);
+    if (nativeOk) {
       currentKey = key;
       registerBrowserPTT(key);
       return true;
     }
 
-    // Try global shortcut plugin (Windows/macOS)
+    // Try global shortcut plugin (macOS keyboard-only fallback)
     const shortcutOk = await startGlobalShortcutPTT(key);
     if (shortcutOk) {
       currentKey = key;
@@ -270,14 +342,14 @@ export async function registerPTTKey(key: string): Promise<boolean> {
     }
   }
 
-  // Browser-only or all native methods failed: use keyboard event fallback
+  // Browser-only or all native methods failed: use browser event fallback
   registerBrowserPTT(key);
   currentKey = key;
   return true;
 }
 
 export async function unregisterPTTKey(): Promise<void> {
-  await stopEvdevPTT();
+  await stopNativePTT();
   await stopGlobalShortcutPTT();
   unregisterBrowserPTT();
   currentKey = null;
@@ -294,6 +366,9 @@ function formatSingleKey(key: string): string {
     Shift: 'Shift',
     Alt: 'Alt',
     Meta: 'Super',
+    MouseMiddle: 'Middle Click',
+    MouseBack: 'Mouse Back',
+    MouseForward: 'Mouse Forward',
   };
   return labels[key] || key;
 }
@@ -315,6 +390,20 @@ export function keyEventToTauriKey(e: KeyboardEvent): string | null {
   if (e.altKey) parts.push('Alt');
   if (e.metaKey) parts.push('Meta');
   parts.push(tauriKeyFromCode(e.code));
+  return parts.join('+');
+}
+
+/** Convert a browser MouseEvent to a combo string for recording */
+export function mouseEventToTauriKey(e: MouseEvent): string | null {
+  const name = mouseButtonToName(e.button);
+  if (!name) return null;
+
+  const parts: string[] = [];
+  if (e.ctrlKey) parts.push('Control');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.altKey) parts.push('Alt');
+  if (e.metaKey) parts.push('Meta');
+  parts.push(name);
   return parts.join('+');
 }
 

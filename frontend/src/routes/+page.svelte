@@ -578,7 +578,10 @@
     pttKey = settings.pttKey;
 
     if (isTauri) {
-      import("@tauri-apps/api/app").then((m) => m.getVersion()).then((v) => (tauriVersion = v)).catch(() => {});
+      import("@tauri-apps/api/app")
+        .then((m) => m.getVersion())
+        .then((v) => (tauriVersion = v))
+        .catch(() => {});
     }
 
     // Initialize audio settings
@@ -945,7 +948,12 @@
   function handleSendMessage(text: string, attachmentIds?: string[]) {
     if (selectedChannelId && $user) {
       try {
-        wsManager.sendMessage(selectedChannelId, text, replyingTo?.id, attachmentIds);
+        wsManager.sendMessage(
+          selectedChannelId,
+          text,
+          replyingTo?.id,
+          attachmentIds,
+        );
         replyingTo = null;
       } catch (error) {
         console.error("Failed to send message:", error);
@@ -980,7 +988,7 @@
   $: onlineUserRoles = userRolesMap;
 </script>
 
-<div class="discord-layout">
+<div class="layout">
   {#if sidebarOpen}
     <div
       class="sidebar-overlay"

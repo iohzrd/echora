@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { VoiceInputMode } from "../voice";
   import type { AudioDevice } from "../audioSettings";
-  import { formatKeyLabel, keyEventToTauriKey } from "../ptt";
+  import { formatKeyLabel, keyEventToTauriKey, mouseEventToTauriKey } from "../ptt";
   import AudioSettingsPanel from "./AudioSettings.svelte";
 
   export let currentVoiceChannel: string | null = null;
@@ -44,6 +44,18 @@
     e.preventDefault();
     e.stopPropagation();
     const key = keyEventToTauriKey(e);
+    if (key) {
+      recordingKey = false;
+      onChangePTTKey(key);
+    }
+  }
+
+  function handleMouseRecord(e: MouseEvent) {
+    // Ignore left click (used to focus) and right click (context menu)
+    if (e.button === 0 || e.button === 2) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const key = mouseEventToTauriKey(e);
     if (key) {
       recordingKey = false;
       onChangePTTKey(key);
@@ -205,12 +217,15 @@
           {#if voiceInputMode === "push-to-talk"}
             <div class="ptt-key-binding">
               {#if recordingKey}
+                <!-- svelte-ignore a11y-no-static-element-interactions -->
                 <button
                   class="ptt-key-btn recording"
                   on:keydown={handleKeyRecord}
+                  on:mousedown={handleMouseRecord}
+                  on:contextmenu|preventDefault
                   on:blur={() => (recordingKey = false)}
                 >
-                  Press a key...
+                  Press a key or mouse button...
                 </button>
               {:else}
                 <button

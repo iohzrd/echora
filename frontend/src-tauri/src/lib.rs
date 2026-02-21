@@ -1,6 +1,9 @@
 #[cfg(target_os = "linux")]
 mod ptt;
 
+#[cfg(target_os = "windows")]
+mod ptt_windows;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -37,21 +40,25 @@ pub fn run() {
 async fn start_ptt(app: tauri::AppHandle, key: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
-        ptt::start(app, &key).map_err(|e| e.to_string())
+        return ptt::start(app, &key).map_err(|e| e.to_string());
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    {
+        return ptt_windows::start(app, &key).map_err(|e| e.to_string());
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
         let _ = (app, key);
-        Err("evdev PTT is only available on Linux".to_string())
+        Err("Native PTT is only available on Linux and Windows".to_string())
     }
 }
 
 #[tauri::command]
 async fn stop_ptt() -> Result<(), String> {
     #[cfg(target_os = "linux")]
-    {
-        ptt::stop();
-    }
+    ptt::stop();
+    #[cfg(target_os = "windows")]
+    ptt_windows::stop();
     Ok(())
 }
 
@@ -59,9 +66,13 @@ async fn stop_ptt() -> Result<(), String> {
 async fn change_ptt_key(app: tauri::AppHandle, key: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
-        ptt::change_key(app, &key).map_err(|e| e.to_string())
+        return ptt::change_key(app, &key).map_err(|e| e.to_string());
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    {
+        return ptt_windows::change_key(app, &key).map_err(|e| e.to_string());
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     {
         let _ = (app, key);
         Ok(())

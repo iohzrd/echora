@@ -38,6 +38,11 @@ fn modifier_for_key(key: KeyCode) -> Option<&'static str> {
 /// Map a key name string (from the frontend) to an evdev Key.
 fn parse_key(name: &str) -> Option<KeyCode> {
     match name {
+        // Mouse buttons
+        "MouseMiddle" => Some(KeyCode::BTN_MIDDLE),
+        "MouseBack" => Some(KeyCode::BTN_SIDE),
+        "MouseForward" => Some(KeyCode::BTN_EXTRA),
+        // Keyboard keys
         "Space" => Some(KeyCode::KEY_SPACE),
         "CapsLock" => Some(KeyCode::KEY_CAPSLOCK),
         "Tab" => Some(KeyCode::KEY_TAB),
@@ -123,6 +128,19 @@ fn parse_key(name: &str) -> Option<KeyCode> {
     }
 }
 
+/// Check if a KeyCode matches the target, accounting for alternative mouse button codes.
+/// Some mice report BTN_BACK/BTN_FORWARD instead of BTN_SIDE/BTN_EXTRA for the same buttons.
+fn key_matches_target(key: KeyCode, target: KeyCode) -> bool {
+    if key == target {
+        return true;
+    }
+    match target {
+        KeyCode::BTN_SIDE => key == KeyCode::BTN_BACK,
+        KeyCode::BTN_EXTRA => key == KeyCode::BTN_FORWARD,
+        _ => false,
+    }
+}
+
 /// Parse a combo string like "Control+Shift+Space" into a KeyCombo.
 fn parse_combo(combo: &str) -> Result<KeyCombo, String> {
     let parts: Vec<&str> = combo.split('+').collect();
@@ -150,13 +168,20 @@ fn parse_combo(combo: &str) -> Result<KeyCombo, String> {
     Ok(KeyCombo { modifiers, target })
 }
 
-/// Find all keyboard devices that support the target key.
-fn find_keyboards(target: KeyCode) -> Vec<Device> {
+/// Find all input devices that support the target key (keyboards and mice).
+fn find_devices(target: KeyCode) -> Vec<Device> {
+    // Some mice report alternative button codes for the same physical button
+    let targets: Vec<KeyCode> = match target {
+        KeyCode::BTN_SIDE => vec![KeyCode::BTN_SIDE, KeyCode::BTN_BACK],
+        KeyCode::BTN_EXTRA => vec![KeyCode::BTN_EXTRA, KeyCode::BTN_FORWARD],
+        other => vec![other],
+    };
+
     evdev::enumerate()
         .filter_map(|(_, device)| {
             let supported = device
                 .supported_keys()
-                .map_or(false, |keys| keys.contains(target));
+                .map_or(false, |keys| targets.iter().any(|t| keys.contains(*t)));
             if supported { Some(device) } else { None }
         })
         .collect()
@@ -176,19 +201,18 @@ pub fn start(app: tauri::AppHandle, key_name: &str) -> Result<(), String> {
 
     let combo = parse_combo(key_name)?;
 
-    let keyboards = find_keyboards(combo.target);
-    if keyboards.is_empty() {
-        return Err(
-            "No keyboard devices found. Ensure the user is in the 'input' group: \
+    let devices = find_devices(combo.target);
+    if devices.is_empty() {
+        return Err("No input devices found supporting the target key. \
+             Ensure the user is in the 'input' group: \
              sudo usermod -aG input $USER (then log out and back in)."
-                .to_string(),
-        );
+            .to_string());
     }
 
     STOP_FLAG.store(false, Ordering::SeqCst);
     RUNNING.store(true, Ordering::SeqCst);
 
-    for mut device in keyboards {
+    for mut device in devices {
         let app = app.clone();
         let stop = &STOP_FLAG;
         let name = device.name().unwrap_or("unknown").to_string();
@@ -255,7 +279,7 @@ pub fn start(app: tauri::AppHandle, key_name: &str) -> Result<(), String> {
                                 }
 
                                 // Update target key state
-                                if key == combo.target {
+                                if key_matches_target(key, combo.target) {
                                     if pressed {
                                         target_held = true;
                                     } else if released {

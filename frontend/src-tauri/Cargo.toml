@@ -1,6 +1,6 @@
 [package]
 name = "echora-app"
-version = "0.2.11"
+version = "0.2.12"
 description = "Echora - Self-hosted chat platform"
 authors = ["iohzrd"]
 edition = "2024"

@@ -50,7 +50,7 @@ body {
 	overflow: hidden;
 }
 
-.discord-layout {
+.layout {
 	display: flex;
 	position: fixed;
 	inset: 0;
