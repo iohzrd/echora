@@ -1,22 +1,15 @@
 <script lang="ts">
-  import type { AudioDevice } from "../audioSettings";
+  import { audioSettingsStore } from '../stores/voiceStore';
+  import {
+    changeInputDevice,
+    changeOutputDevice,
+    changeInputGain,
+    changeOutputVolume,
+    changeVadSensitivity,
+    toggleNoiseSuppression,
+  } from '../actions/audioSettings';
 
-  export let inputDeviceId: string = "";
-  export let outputDeviceId: string = "";
-  export let inputGain: number = 1.0;
-  export let outputVolume: number = 1.0;
-  export let vadSensitivity: number = 50;
-  export let noiseSuppression: boolean = true;
-  export let inputDevices: AudioDevice[] = [];
-  export let outputDevices: AudioDevice[] = [];
   export let showSensitivity: boolean = true;
-
-  export let onInputDeviceChange: (deviceId: string) => void = () => {};
-  export let onOutputDeviceChange: (deviceId: string) => void = () => {};
-  export let onInputGainChange: (gain: number) => void = () => {};
-  export let onOutputVolumeChange: (volume: number) => void = () => {};
-  export let onVadSensitivityChange: (sensitivity: number) => void = () => {};
-  export let onNoiseSuppressionToggle: (enabled: boolean) => void = () => {};
 </script>
 
 <div class="audio-settings">
@@ -24,11 +17,11 @@
     <label class="audio-setting-label">INPUT</label>
     <select
       class="audio-select"
-      value={inputDeviceId}
-      on:change={(e) => onInputDeviceChange(e.currentTarget.value)}
+      value={$audioSettingsStore.inputDeviceId}
+      on:change={(e) => changeInputDevice(e.currentTarget.value)}
     >
       <option value="">Default</option>
-      {#each inputDevices as device}
+      {#each $audioSettingsStore.inputDevices as device}
         <option value={device.deviceId}>{device.label}</option>
       {/each}
     </select>
@@ -38,11 +31,11 @@
     <label class="audio-setting-label">OUTPUT</label>
     <select
       class="audio-select"
-      value={outputDeviceId}
-      on:change={(e) => onOutputDeviceChange(e.currentTarget.value)}
+      value={$audioSettingsStore.outputDeviceId}
+      on:change={(e) => changeOutputDevice(e.currentTarget.value)}
     >
       <option value="">Default</option>
-      {#each outputDevices as device}
+      {#each $audioSettingsStore.outputDevices as device}
         <option value={device.deviceId}>{device.label}</option>
       {/each}
     </select>
@@ -55,10 +48,10 @@
       class="audio-slider"
       min="0"
       max="200"
-      value={Math.round(inputGain * 100)}
-      on:input={(e) => onInputGainChange(parseInt(e.currentTarget.value) / 100)}
+      value={Math.round($audioSettingsStore.inputGain * 100)}
+      on:input={(e) => changeInputGain(parseInt(e.currentTarget.value) / 100)}
     />
-    <span class="audio-value">{Math.round(inputGain * 100)}%</span>
+    <span class="audio-value">{Math.round($audioSettingsStore.inputGain * 100)}%</span>
   </div>
 
   <div class="audio-setting-row">
@@ -68,11 +61,10 @@
       class="audio-slider"
       min="0"
       max="200"
-      value={Math.round(outputVolume * 100)}
-      on:input={(e) =>
-        onOutputVolumeChange(parseInt(e.currentTarget.value) / 100)}
+      value={Math.round($audioSettingsStore.outputVolume * 100)}
+      on:input={(e) => changeOutputVolume(parseInt(e.currentTarget.value) / 100)}
     />
-    <span class="audio-value">{Math.round(outputVolume * 100)}%</span>
+    <span class="audio-value">{Math.round($audioSettingsStore.outputVolume * 100)}%</span>
   </div>
 
   {#if showSensitivity}
@@ -83,21 +75,20 @@
         class="audio-slider"
         min="0"
         max="100"
-        value={vadSensitivity}
-        on:input={(e) =>
-          onVadSensitivityChange(parseInt(e.currentTarget.value))}
+        value={$audioSettingsStore.vadSensitivity}
+        on:input={(e) => changeVadSensitivity(parseInt(e.currentTarget.value))}
       />
-      <span class="audio-value">{vadSensitivity}</span>
+      <span class="audio-value">{$audioSettingsStore.vadSensitivity}</span>
     </div>
   {/if}
 
   <div class="audio-setting-row">
     <label class="audio-setting-label">NOISE</label>
     <button
-      class="mode-btn {noiseSuppression ? 'active' : ''}"
-      on:click={() => onNoiseSuppressionToggle(!noiseSuppression)}
+      class="mode-btn {$audioSettingsStore.noiseSuppression ? 'active' : ''}"
+      on:click={() => toggleNoiseSuppression(!$audioSettingsStore.noiseSuppression)}
     >
-      {noiseSuppression ? "ON" : "OFF"}
+      {$audioSettingsStore.noiseSuppression ? 'ON' : 'OFF'}
     </button>
   </div>
 </div>

@@ -1,41 +1,34 @@
 <script lang="ts">
-  import { API, type Message, type CustomEmoji } from "../api";
-  import { renderMarkdown } from "../markdown";
-  import { formatTimestamp, truncateContent } from "../utils";
-  import { getApiBase } from "../config";
-  import { isTauri } from "../serverManager";
-  import EmojiPicker from "./EmojiPicker.svelte";
-  import Avatar from "./Avatar.svelte";
+  import { API, type CustomEmoji } from '../api';
+  import { renderMarkdown } from '../markdown';
+  import { formatTimestamp, truncateContent } from '../utils';
+  import { getApiBase } from '../config';
+  import { isTauri } from '../serverManager';
+  import { user } from '../auth';
+  import { chatState } from '../stores/chatState';
+  import { serverState } from '../stores/serverState';
+  import { uiState } from '../stores/uiState';
+  import {
+    loadOlderMessages,
+    startEditMessage,
+    saveEditMessage,
+    cancelEditMessage,
+    deleteMessage,
+    startReply,
+    toggleReaction,
+    updateEditMessageContent,
+  } from '../actions/chat';
+  import EmojiPicker from './EmojiPicker.svelte';
+  import Avatar from './Avatar.svelte';
 
   function resolveUrl(url: string): string {
-    if (isTauri && url.startsWith("/")) {
+    if (isTauri && url.startsWith('/')) {
       const apiBase = getApiBase();
-      // Strip /api suffix to get the server origin
-      const origin = apiBase.replace(/\/api$/, "");
+      const origin = apiBase.replace(/\/api$/, '');
       return origin + url;
     }
     return url;
   }
-
-  export let messages: Message[] = [];
-  export let currentUserId: string = "";
-  export let userRole: string = "member";
-  export let loadingMore: boolean = false;
-  export let editingMessageId: string | null = null;
-  export let editMessageContent: string = "";
-  export let onScrollTop: () => void = () => {};
-  export let onStartEdit: (message: Message) => void = () => {};
-  export let onSaveEdit: () => void = () => {};
-  export let onCancelEdit: () => void = () => {};
-  export let onDeleteMessage: (messageId: string) => void = () => {};
-  export let onReply: (message: Message) => void = () => {};
-  export let onToggleReaction: (
-    messageId: string,
-    emoji: string,
-  ) => void = () => {};
-  export let customEmojis: CustomEmoji[] = [];
-  export let userAvatars: Record<string, string | undefined> = {};
-  export let onUserClick: (userId: string) => void = () => {};
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
@@ -80,42 +73,38 @@
 
   function handleScroll() {
     if (messagesArea && messagesArea.scrollTop === 0) {
-      onScrollTop();
+      loadOlderMessages(() => preserveScroll(() => {}));
     }
   }
 
   function handleEditKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      onSaveEdit();
-    } else if (event.key === "Escape") {
-      onCancelEdit();
+      saveEditMessage();
+    } else if (event.key === 'Escape') {
+      cancelEditMessage();
     }
   }
 
   function toggleEmojiPicker(messageId: string) {
-    if (emojiPickerMessageId === messageId) {
-      emojiPickerMessageId = null;
-    } else {
-      emojiPickerMessageId = messageId;
-    }
+    emojiPickerMessageId = emojiPickerMessageId === messageId ? null : messageId;
   }
 
   function selectEmoji(messageId: string, emoji: string) {
-    onToggleReaction(messageId, emoji);
+    toggleReaction(messageId, emoji);
     emojiPickerMessageId = null;
   }
 
   function isImageType(contentType: string): boolean {
-    return contentType.startsWith("image/");
+    return contentType.startsWith('image/');
   }
 
   function isVideoType(contentType: string): boolean {
-    return contentType.startsWith("video/");
+    return contentType.startsWith('video/');
   }
 
   function isAudioType(contentType: string): boolean {
-    return contentType.startsWith("audio/");
+    return contentType.startsWith('audio/');
   }
 
   function getAttachmentUrl(attachmentId: string, filename: string): string {
@@ -128,7 +117,7 @@
 
   function getCustomEmojiData(emoji: string): CustomEmoji | undefined {
     const name = emoji.slice(1, -1);
-    return customEmojis.find((e) => e.name === name);
+    return $serverState.customEmojis.find((e) => e.name === name);
   }
 
   function getCustomEmojiImageUrl(emoji: string): string | null {
@@ -178,7 +167,7 @@
   }
 
   let lightboxSrc: string | null = null;
-  let lightboxAlt: string = "";
+  let lightboxAlt: string = '';
 
   function openLightbox(src: string, alt: string) {
     lightboxSrc = src;
@@ -187,28 +176,31 @@
 
   function closeLightbox() {
     lightboxSrc = null;
-    lightboxAlt = "";
+    lightboxAlt = '';
   }
 
   function handleLightboxKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
+    if (event.key === 'Escape') {
       closeLightbox();
     }
   }
+
+  $: currentUserId = $user?.id || '';
+  $: userRole = $user?.role || 'member';
 </script>
 
 <svelte:window on:keydown={handleLightboxKeydown} />
 
 <div class="messages-area" bind:this={messagesArea} on:scroll={handleScroll}>
-  {#if loadingMore}
+  {#if $chatState.loadingMore}
     <div class="loading-more">Loading older messages...</div>
   {/if}
-  {#each messages as message}
+  {#each $chatState.messages as message}
     <div class="message">
       <div class="message-avatar-wrapper">
         <Avatar
           username={message.author}
-          avatarUrl={userAvatars[message.author_id]}
+          avatarUrl={$serverState.userAvatars[message.author_id]}
           size="medium"
         />
       </div>
@@ -216,7 +208,7 @@
         <div class="message-header">
           <button
             class="message-author"
-            on:click={() => onUserClick(message.author_id)}
+            on:click={() => uiState.update((s) => ({ ...s, profileViewUserId: message.author_id }))}
           >{message.author}</button>
           <span class="message-timestamp"
             >{formatTimestamp(message.timestamp)}</span
@@ -237,18 +229,19 @@
             <span class="reply-content">(original message deleted)</span>
           </div>
         {/if}
-        {#if editingMessageId === message.id}
+        {#if $chatState.editingMessageId === message.id}
           <div class="edit-message-form">
             <textarea
               class="edit-message-input"
-              bind:value={editMessageContent}
+              value={$chatState.editMessageContent}
+              on:input={(e) => updateEditMessageContent(e.currentTarget.value)}
               on:keydown={handleEditKeydown}
             ></textarea>
             <div class="edit-message-actions">
-              <button class="edit-action-btn cancel" on:click={onCancelEdit}
+              <button class="edit-action-btn cancel" on:click={cancelEditMessage}
                 >Cancel</button
               >
-              <button class="edit-action-btn save" on:click={onSaveEdit}
+              <button class="edit-action-btn save" on:click={saveEditMessage}
                 >Save</button
               >
             </div>
@@ -267,7 +260,7 @@
                 class="message-expand-btn"
                 on:click={() => toggleExpand(message.id)}
               >
-                {expandedMessages.has(message.id) ? "Show less" : "Show more"}
+                {expandedMessages.has(message.id) ? 'Show less' : 'Show more'}
               </button>
             {/if}
           {/if}
@@ -335,14 +328,14 @@
                   class="link-preview-image-btn"
                   on:click={() =>
                     openLightbox(
-                      resolveUrl(preview.image_url || ""),
-                      preview.title || "",
+                      resolveUrl(preview.image_url || ''),
+                      preview.title || '',
                     )}
                 >
                   <img
                     class="link-preview-image"
                     src={resolveUrl(preview.image_url)}
-                    alt={preview.title || ""}
+                    alt={preview.title || ''}
                     loading="lazy"
                   />
                 </button>
@@ -373,7 +366,7 @@
             {#each message.reactions as reaction}
               <button
                 class="reaction-btn {reaction.reacted ? 'reacted' : ''}"
-                on:click={() => onToggleReaction(message.id, reaction.emoji)}
+                on:click={() => toggleReaction(message.id, reaction.emoji)}
                 title={reaction.emoji}
               >
                 {#if isCustomEmoji(reaction.emoji)}
@@ -397,17 +390,17 @@
             {#if emojiPickerMessageId === message.id}
               <EmojiPicker
                 onSelect={(emoji) => selectEmoji(message.id, emoji)}
-                {customEmojis}
+                customEmojis={$serverState.customEmojis}
               />
             {/if}
           </div>
         {/if}
       </div>
-      {#if editingMessageId !== message.id}
+      {#if $chatState.editingMessageId !== message.id}
         <div class="message-actions">
           <button
             class="msg-action-btn"
-            on:click={() => onReply(message)}
+            on:click={() => startReply(message)}
             title="Reply">R</button
           >
           <button
@@ -418,14 +411,14 @@
           {#if message.author_id === currentUserId}
             <button
               class="msg-action-btn"
-              on:click={() => onStartEdit(message)}
+              on:click={() => startEditMessage(message)}
               title="Edit">E</button
             >
           {/if}
-          {#if message.author_id === currentUserId || userRole === "moderator" || userRole === "admin" || userRole === "owner"}
+          {#if message.author_id === currentUserId || userRole === 'moderator' || userRole === 'admin' || userRole === 'owner'}
             <button
               class="msg-action-btn delete"
-              on:click={() => onDeleteMessage(message.id)}
+              on:click={() => deleteMessage(message.id)}
               title="Delete">X</button
             >
           {/if}
@@ -434,7 +427,7 @@
           <EmojiPicker
             floating
             onSelect={(emoji) => selectEmoji(message.id, emoji)}
-            {customEmojis}
+            customEmojis={$serverState.customEmojis}
           />
         {/if}
       {/if}

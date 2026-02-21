@@ -1,49 +1,25 @@
 <script lang="ts">
-  import type { Channel, VoiceState } from "../api";
-  import UserVolumeMenu from "./UserVolumeMenu.svelte";
-  import Avatar from "./Avatar.svelte";
-
-  export let channels: Channel[] = [];
-  export let selectedChannelId: string = "";
-  export let currentVoiceChannel: string | null = null;
-  export let voiceStates: VoiceState[] = [];
-  export let speakingUsers: Set<string> = new Set();
-  export let currentUserId: string = "";
-  export let userRole: string = "member";
-
-  export let onSelectChannel: (id: string, name: string) => void = () => {};
-  export let onCreateChannel: (
-    name: string,
-    type: "text" | "voice",
-  ) => void = () => {};
-  export let onUpdateChannel: (id: string, name: string) => void = () => {};
-  export let onDeleteChannel: (id: string) => void = () => {};
-  export let onJoinVoice: (channelId: string) => void = () => {};
-  export let onWatchScreen: (
-    userId: string,
-    username: string,
-  ) => void = () => {};
-  export let onWatchCamera: (
-    userId: string,
-    username: string,
-  ) => void = () => {};
-  export let onUserVolumeChange: (
-    userId: string,
-    volume: number,
-  ) => void = () => {};
-  export let getUserVolume: (userId: string) => number = () => 1.0;
-  export let userAvatars: Record<string, string | undefined> = {};
-  export let onUserClick: (userId: string) => void = () => {};
+  import type { Channel } from '../api';
+  import { user } from '../auth';
+  import { voiceStore } from '../stores/voiceStore';
+  import { serverState } from '../stores/serverState';
+  import { chatState } from '../stores/chatState';
+  import { uiState } from '../stores/uiState';
+  import { selectChannel, createChannel, updateChannel, deleteChannel } from '../actions/chat';
+  import { joinVoice, watchScreen, watchCamera, getUserVolume } from '../actions/voice';
+  import { changeUserVolume } from '../actions/audioSettings';
+  import UserVolumeMenu from './UserVolumeMenu.svelte';
+  import Avatar from './Avatar.svelte';
 
   // Local state for channel create/edit forms
-  let showCreateChannel: "text" | "voice" | null = null;
-  let newChannelName = "";
+  let showCreateChannel: 'text' | 'voice' | null = null;
+  let newChannelName = '';
   let editingChannelId: string | null = null;
-  let editChannelName = "";
+  let editChannelName = '';
 
   // Per-user volume menu state
   let volumeMenuUserId: string | null = null;
-  let volumeMenuUsername = "";
+  let volumeMenuUsername = '';
   let volumeMenuX = 0;
   let volumeMenuY = 0;
 
@@ -59,10 +35,10 @@
     onSubmit: () => void,
     onCancel: () => void,
   ) {
-    if (event.key === "Enter") {
+    if (event.key === 'Enter') {
       event.preventDefault();
       onSubmit();
-    } else if (event.key === "Escape") {
+    } else if (event.key === 'Escape') {
       onCancel();
     }
   }
@@ -72,14 +48,14 @@
       event,
       () => {
         if (newChannelName.trim() && showCreateChannel) {
-          onCreateChannel(newChannelName.trim(), showCreateChannel);
-          newChannelName = "";
+          createChannel(newChannelName.trim(), showCreateChannel);
+          newChannelName = '';
           showCreateChannel = null;
         }
       },
       () => {
         showCreateChannel = null;
-        newChannelName = "";
+        newChannelName = '';
       },
     );
   }
@@ -89,14 +65,14 @@
       event,
       () => {
         if (editingChannelId && editChannelName.trim()) {
-          onUpdateChannel(editingChannelId, editChannelName.trim());
+          updateChannel(editingChannelId, editChannelName.trim());
           editingChannelId = null;
-          editChannelName = "";
+          editChannelName = '';
         }
       },
       () => {
         editingChannelId = null;
-        editChannelName = "";
+        editChannelName = '';
       },
     );
   }
@@ -106,11 +82,12 @@
     editChannelName = channel.name;
   }
 
-  function toggleCreateForm(type: "text" | "voice") {
+  function toggleCreateForm(type: 'text' | 'voice') {
     showCreateChannel = showCreateChannel === type ? null : type;
   }
 
-  $: isAdmin = userRole === "admin" || userRole === "owner";
+  $: isAdmin = $user?.role === 'admin' || $user?.role === 'owner';
+  $: currentUserId = $user?.id || '';
 </script>
 
 <div class="channel-category">
@@ -118,12 +95,12 @@
   {#if isAdmin}
     <button
       class="create-channel-btn"
-      on:click={() => toggleCreateForm("text")}
+      on:click={() => toggleCreateForm('text')}
       title="Create Text Channel">+</button
     >
   {/if}
 </div>
-{#if showCreateChannel === "text"}
+{#if showCreateChannel === 'text'}
   <div class="create-channel-form">
     <input
       type="text"
@@ -135,17 +112,16 @@
     />
   </div>
 {/if}
-{#each channels.filter((c) => c.channel_type === "text") as channel}
+{#each $serverState.channels.filter((c) => c.channel_type === 'text') as channel}
   <div
-    class="channel-item {selectedChannelId === channel.id ? 'selected' : ''}"
+    class="channel-item {$chatState.selectedChannelId === channel.id ? 'selected' : ''}"
     on:click={() => {
       if (editingChannelId !== channel.id)
-        onSelectChannel(channel.id, channel.name);
+        selectChannel(channel.id, channel.name);
     }}
     role="button"
     tabindex="0"
-    on:keydown={(e) =>
-      e.key === "Enter" && onSelectChannel(channel.id, channel.name)}
+    on:keydown={(e) => e.key === 'Enter' && selectChannel(channel.id, channel.name)}
   >
     <div class="channel-icon">#</div>
     {#if editingChannelId === channel.id}
@@ -168,7 +144,7 @@
           >
           <button
             class="channel-action-btn delete"
-            on:click|stopPropagation={() => onDeleteChannel(channel.id)}
+            on:click|stopPropagation={() => deleteChannel(channel.id)}
             title="Delete">X</button
           >
         </div>
@@ -182,12 +158,12 @@
   {#if isAdmin}
     <button
       class="create-channel-btn"
-      on:click={() => toggleCreateForm("voice")}
+      on:click={() => toggleCreateForm('voice')}
       title="Create Voice Channel">+</button
     >
   {/if}
 </div>
-{#if showCreateChannel === "voice"}
+{#if showCreateChannel === 'voice'}
   <div class="create-channel-form">
     <input
       type="text"
@@ -199,7 +175,7 @@
     />
   </div>
 {/if}
-{#each channels.filter((c) => c.channel_type === "voice") as channel}
+{#each $serverState.channels.filter((c) => c.channel_type === 'voice') as channel}
   <div class="channel-item voice-channel" role="button" tabindex="0">
     <div class="channel-header">
       <div class="channel-icon">#</div>
@@ -213,15 +189,15 @@
           >
           <button
             class="channel-action-btn delete"
-            on:click|stopPropagation={() => onDeleteChannel(channel.id)}
+            on:click|stopPropagation={() => deleteChannel(channel.id)}
             title="Delete">X</button
           >
         </div>
       {/if}
-      {#if currentVoiceChannel !== channel.id}
+      {#if $voiceStore.currentVoiceChannel !== channel.id}
         <button
           class="voice-btn join"
-          on:click={() => onJoinVoice(channel.id)}
+          on:click={() => joinVoice(channel.id)}
           title="Join Voice Channel"
         >
           Join
@@ -242,16 +218,16 @@
       </div>
     {/if}
 
-    {#if voiceStates.some((vs) => vs.channel_id === channel.id)}
+    {#if $voiceStore.voiceStates.some((vs) => vs.channel_id === channel.id)}
       <div class="voice-users">
-        {#each voiceStates.filter((vs) => vs.channel_id === channel.id) as voiceState}
+        {#each $voiceStore.voiceStates.filter((vs) => vs.channel_id === channel.id) as voiceState}
           <div
-            class="voice-user {speakingUsers.has(voiceState.user_id)
+            class="voice-user {$voiceStore.speakingUsers.has(voiceState.user_id)
               ? 'speaking'
               : ''} {voiceState.is_screen_sharing
               ? 'screen-sharing'
               : ''} {voiceState.is_camera_sharing ? 'camera-sharing' : ''}"
-            on:click={() => onUserClick(voiceState.user_id)}
+            on:click={() => uiState.update((s) => ({ ...s, profileViewUserId: voiceState.user_id }))}
             on:contextmenu|preventDefault={(e) => {
               if (voiceState.user_id !== currentUserId) {
                 openUserVolumeMenu(e, voiceState.user_id, voiceState.username);
@@ -259,11 +235,11 @@
             }}
             role="button"
             tabindex="0"
-            on:keydown={(e) => e.key === "Enter" && onUserClick(voiceState.user_id)}
+            on:keydown={(e) => e.key === 'Enter' && uiState.update((s) => ({ ...s, profileViewUserId: voiceState.user_id }))}
           >
             <Avatar
               username={voiceState.username}
-              avatarUrl={userAvatars[voiceState.user_id]}
+              avatarUrl={$serverState.userAvatars[voiceState.user_id]}
               size="xs"
             />
             <span class="username">{voiceState.username}</span>
@@ -278,7 +254,7 @@
                 class="screen-indicator"
                 on:click|stopPropagation={() => {
                   if (voiceState.user_id !== currentUserId)
-                    onWatchScreen(voiceState.user_id, voiceState.username);
+                    watchScreen(voiceState.user_id, voiceState.username);
                 }}
                 title="Watch screen"
               >S</button>
@@ -288,7 +264,7 @@
                 class="camera-indicator"
                 on:click|stopPropagation={() => {
                   if (voiceState.user_id !== currentUserId)
-                    onWatchCamera(voiceState.user_id, voiceState.username);
+                    watchCamera(voiceState.user_id, voiceState.username);
                 }}
                 title="Watch camera"
               >C</button>
@@ -307,7 +283,7 @@
     volume={getUserVolume(volumeMenuUserId)}
     x={volumeMenuX}
     y={volumeMenuY}
-    onVolumeChange={onUserVolumeChange}
+    onVolumeChange={changeUserVolume}
     onClose={() => (volumeMenuUserId = null)}
   />
 {/if}

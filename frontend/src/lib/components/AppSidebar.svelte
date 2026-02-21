@@ -1,65 +1,26 @@
 <script lang="ts">
-  import { API, FRONTEND_VERSION } from "../api";
-  import type { VoiceInputMode } from "../voice";
-  import { activeServer } from "../serverManager";
-  import { user } from "../auth";
-  import { voiceStore, audioSettingsStore } from "../stores/voiceStore";
-  import { serverState } from "../stores/serverState";
-  import { chatState } from "../stores/chatState";
-  import ChannelList from "./ChannelList.svelte";
-  import OnlineUsers from "./OnlineUsers.svelte";
-  import VoicePanel from "./VoicePanel.svelte";
-  import Avatar from "./Avatar.svelte";
+  import { API, FRONTEND_VERSION } from '../api';
+  import { goto } from '$app/navigation';
+  import { activeServer } from '../serverManager';
+  import AuthService, { user } from '../auth';
+  import { serverState } from '../stores/serverState';
+  import { uiState } from '../stores/uiState';
+  import ChannelList from './ChannelList.svelte';
+  import OnlineUsers from './OnlineUsers.svelte';
+  import VoicePanel from './VoicePanel.svelte';
+  import Avatar from './Avatar.svelte';
 
-  export let isMod: boolean = false;
-  export let sidebarOpen: boolean = false;
-
-  export let onShowAdminPanel: () => void = () => {};
-  export let onShowPasskeySettings: () => void = () => {};
-  export let onLogout: () => void = () => {};
-  export let onShowProfileModal: () => void = () => {};
-  export let onSelectChannel: (id: string, name: string) => void = () => {};
-  export let onCreateChannel: (
-    name: string,
-    type: "text" | "voice",
-  ) => void = () => {};
-  export let onUpdateChannel: (id: string, name: string) => void = () => {};
-  export let onDeleteChannel: (id: string) => void = () => {};
-  export let onJoinVoice: (channelId: string) => void = () => {};
-  export let onWatchScreen: (
-    userId: string,
-    username: string,
-  ) => void = () => {};
-  export let onWatchCamera: (
-    userId: string,
-    username: string,
-  ) => void = () => {};
-  export let onUserVolumeChange: (
-    userId: string,
-    volume: number,
-  ) => void = () => {};
-  export let getUserVolume: (userId: string) => number = () => 1;
-  export let onUserClick: (userId: string) => void = () => {};
-  export let onLeaveVoice: () => void = () => {};
-  export let onToggleMute: () => void = () => {};
-  export let onToggleDeafen: () => void = () => {};
-  export let onToggleScreenShare: () => void = () => {};
-  export let onToggleCamera: () => void = () => {};
-  export let onSwitchInputMode: (mode: VoiceInputMode) => void = () => {};
-  export let onChangePTTKey: (key: string) => void = () => {};
-  export let onInputDeviceChange: (deviceId: string) => void = () => {};
-  export let onOutputDeviceChange: (deviceId: string) => void = () => {};
-  export let onInputGainChange: (gain: number) => void = () => {};
-  export let onOutputVolumeChange: (volume: number) => void = () => {};
-  export let onVadSensitivityChange: (sensitivity: number) => void = () => {};
-  export let onNoiseSuppressionToggle: (enabled: boolean) => void = () => {};
-
-  $: activeServerName =
-    $serverState.serverName || $activeServer?.name || "Echora";
+  $: activeServerName = $serverState.serverName || $activeServer?.name || 'Echora';
   $: userAvatarUrl = $user?.avatar_url ? API.getAvatarUrl($user.id) : undefined;
+  $: isMod = $user?.role === 'moderator' || $user?.role === 'admin' || $user?.role === 'owner';
+
+  function logout() {
+    AuthService.logout();
+    goto('/auth');
+  }
 </script>
 
-<div class="sidebar {sidebarOpen ? 'open' : ''}">
+<div class="sidebar {$uiState.sidebarOpen ? 'open' : ''}">
   <div class="channels-area">
     <div class="server-header">
       <span class="server-name">{activeServerName}</span>
@@ -67,7 +28,7 @@
         {#if isMod}
           <button
             class="header-icon-btn"
-            on:click={onShowAdminPanel}
+            on:click={() => uiState.update((s) => ({ ...s, showAdminPanel: true }))}
             title="Admin Panel"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -79,7 +40,7 @@
         {/if}
         <button
           class="header-icon-btn"
-          on:click={onShowPasskeySettings}
+          on:click={() => uiState.update((s) => ({ ...s, showPasskeySettings: true }))}
           title="Manage passkeys"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -90,7 +51,7 @@
         </button>
         <button
           class="header-icon-btn logout"
-          on:click={onLogout}
+          on:click={logout}
           title="Logout"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -103,79 +64,24 @@
     </div>
 
     <div class="channels-list">
-      <ChannelList
-        channels={$serverState.channels}
-        selectedChannelId={$chatState.selectedChannelId}
-        currentVoiceChannel={$voiceStore.currentVoiceChannel}
-        voiceStates={$voiceStore.voiceStates}
-        speakingUsers={$voiceStore.speakingUsers}
-        currentUserId={$user?.id || ""}
-        userRole={$user?.role || "member"}
-        {onSelectChannel}
-        {onCreateChannel}
-        {onUpdateChannel}
-        {onDeleteChannel}
-        {onJoinVoice}
-        {onWatchScreen}
-        {onWatchCamera}
-        {onUserVolumeChange}
-        {getUserVolume}
-        userAvatars={$serverState.userAvatars}
-        {onUserClick}
-      />
-
-      <OnlineUsers
-        onlineUsers={$serverState.onlineUsers}
-        userRoles={$serverState.userRolesMap}
-        userAvatars={$serverState.userAvatars}
-        {onUserClick}
-      />
+      <ChannelList />
+      <OnlineUsers />
     </div>
 
-    <VoicePanel
-      currentVoiceChannel={$voiceStore.currentVoiceChannel}
-      isMuted={$voiceStore.isMuted}
-      isDeafened={$voiceStore.isDeafened}
-      isScreenSharing={$voiceStore.isScreenSharing}
-      isCameraSharing={$voiceStore.isCameraSharing}
-      voiceInputMode={$voiceStore.voiceInputMode}
-      pttKey={$voiceStore.pttKey}
-      pttActive={$voiceStore.pttActive}
-      inputDeviceId={$audioSettingsStore.inputDeviceId}
-      outputDeviceId={$audioSettingsStore.outputDeviceId}
-      inputGain={$audioSettingsStore.inputGain}
-      outputVolume={$audioSettingsStore.outputVolume}
-      vadSensitivity={$audioSettingsStore.vadSensitivity}
-      noiseSuppression={$audioSettingsStore.noiseSuppression}
-      inputDevices={$audioSettingsStore.inputDevices}
-      outputDevices={$audioSettingsStore.outputDevices}
-      {onLeaveVoice}
-      {onToggleMute}
-      {onToggleDeafen}
-      {onToggleScreenShare}
-      {onToggleCamera}
-      {onSwitchInputMode}
-      {onChangePTTKey}
-      {onInputDeviceChange}
-      {onOutputDeviceChange}
-      {onInputGainChange}
-      {onOutputVolumeChange}
-      {onVadSensitivityChange}
-      {onNoiseSuppressionToggle}
-    />
+    <VoicePanel />
 
     <div class="user-bar">
       <button
         class="user-bar-profile"
-        on:click={onShowProfileModal}
+        on:click={() => uiState.update((s) => ({ ...s, showProfileModal: true }))}
         title="Edit profile"
       >
         <Avatar
-          username={$user?.username || ""}
+          username={$user?.username || ''}
           avatarUrl={userAvatarUrl}
           size="small"
         />
-        <span class="user-bar-username">{$user?.username || ""}</span>
+        <span class="user-bar-username">{$user?.username || ''}</span>
       </button>
     </div>
 
@@ -185,7 +91,7 @@
       {/if}
       <span class="version-info">frontend v{FRONTEND_VERSION}</span>
       <span class="version-info"
-        >backend v{$serverState.backendVersion || "..."}</span
+        >backend v{$serverState.backendVersion || '...'}</span
       >
     </div>
   </div>

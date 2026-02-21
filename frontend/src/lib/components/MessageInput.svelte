@@ -1,12 +1,7 @@
 <script lang="ts">
-  import { API, type Message, type Attachment } from "../api";
-
-  export let channelName: string = "";
-  export let disabled: boolean = false;
-  export let replyingTo: Message | null = null;
-  export let onSend: (text: string, attachmentIds?: string[]) => void = () => {};
-  export let onTyping: () => void = () => {};
-  export let onCancelReply: () => void = () => {};
+  import { API } from '../api';
+  import { chatState } from '../stores/chatState';
+  import { sendMessage, sendTyping, cancelReply } from '../actions/chat';
 
   interface PendingFile {
     file: File;
@@ -16,7 +11,7 @@
     uploading: boolean;
   }
 
-  let messageText = "";
+  let messageText = '';
   let pendingFiles: PendingFile[] = [];
   let dragOver = false;
   let fileInput: HTMLInputElement;
@@ -41,7 +36,7 @@
       pending.progress = 100;
       pending.uploading = false;
     } catch (e: any) {
-      pending.error = e.message || "Upload failed";
+      pending.error = e.message || 'Upload failed';
       pending.uploading = false;
     }
     pendingFiles = pendingFiles;
@@ -74,7 +69,7 @@
     const input = event.target as HTMLInputElement;
     if (input.files) {
       addFiles(input.files);
-      input.value = "";
+      input.value = '';
     }
   }
 
@@ -100,7 +95,7 @@
     if (!items) return;
     const files: File[] = [];
     for (const item of items) {
-      if (item.kind === "file") {
+      if (item.kind === 'file') {
         const file = item.getAsFile();
         if (file) files.push(file);
       }
@@ -111,16 +106,16 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       doSend();
       return;
     }
-    if (event.key === "Escape" && replyingTo) {
-      onCancelReply();
+    if (event.key === 'Escape' && $chatState.replyingTo) {
+      cancelReply();
       return;
     }
-    onTyping();
+    sendTyping();
   }
 
   function doSend() {
@@ -134,8 +129,8 @@
     if (stillUploading) return;
     if (!hasText && !hasAttachments) return;
 
-    onSend(messageText.trim(), hasAttachments ? uploadedIds : undefined);
-    messageText = "";
+    sendMessage(messageText.trim(), hasAttachments ? uploadedIds : undefined);
+    messageText = '';
     pendingFiles = [];
   }
 
@@ -150,14 +145,14 @@
   on:dragleave={handleDragLeave}
   role="region"
 >
-  {#if replyingTo}
+  {#if $chatState.replyingTo}
     <div class="reply-bar">
       <span class="reply-bar-text"
-        >Replying to <strong>{replyingTo.author}</strong></span
+        >Replying to <strong>{$chatState.replyingTo.author}</strong></span
       >
       <button
         class="reply-bar-cancel"
-        on:click={onCancelReply}
+        on:click={cancelReply}
         title="Cancel reply">X</button
       >
     </div>
@@ -191,15 +186,15 @@
       class="attach-btn"
       on:click={() => fileInput.click()}
       title="Attach file"
-      disabled={disabled || pendingFiles.length >= MAX_FILES}
+      disabled={!$chatState.selectedChannelId || pendingFiles.length >= MAX_FILES}
     >+</button>
     <textarea
       class="message-input"
-      placeholder="Message #{channelName || 'channel'}"
+      placeholder="Message #{$chatState.selectedChannelName || 'channel'}"
       bind:value={messageText}
       on:keydown={handleKeydown}
       on:paste={handlePaste}
-      disabled={disabled || anyUploading}
+      disabled={!$chatState.selectedChannelId || anyUploading}
     ></textarea>
   </div>
   <input
