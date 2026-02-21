@@ -9,8 +9,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::auth::{
-    AuthResponse, AuthUser, LoginRequest, RegisterRequest, UpdateProfileRequest, UserInfo,
-    create_jwt,
+    AuthResponse, AuthUser, LoginRequest, PublicProfile, RegisterRequest, UpdateProfileRequest,
+    UserInfo, create_jwt,
 };
 use crate::database;
 use crate::models::{AppState, avatar_url_from_path};
@@ -362,6 +362,25 @@ pub async fn delete_avatar(
         .ok_or_else(|| AppError::not_found("User not found"))?;
 
     Ok(Json(user_info_from_db(&updated_user)))
+}
+
+pub async fn get_user_profile(
+    State(state): State<Arc<AppState>>,
+    _auth_user: AuthUser,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<PublicProfile>> {
+    let user = database::get_user_by_id(&state.db, user_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("User not found"))?;
+
+    Ok(Json(PublicProfile {
+        id: user.id,
+        username: user.username,
+        display_name: user.display_name,
+        avatar_url: avatar_url_from_path(user.id, &user.avatar_path),
+        role: user.role,
+        created_at: user.created_at,
+    }))
 }
 
 pub async fn get_avatar(

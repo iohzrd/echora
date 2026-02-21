@@ -90,6 +90,18 @@ pub struct UserInfo {
     pub display_name: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PublicProfile {
+    pub id: Uuid,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    pub role: Role,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
 pub struct AuthUser(pub Claims);
 
 impl AuthUser {

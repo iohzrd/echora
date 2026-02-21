@@ -138,6 +138,10 @@ async fn main() {
             "/api/channels/{channel_id}",
             put(routes::update_channel).delete(routes::delete_channel),
         )
+        .route(
+            "/api/users/{user_id}/profile",
+            get(auth_routes::get_user_profile),
+        )
         .route("/api/users/{user_id}/avatar", get(auth_routes::get_avatar))
         .route(
             "/api/auth/avatar",

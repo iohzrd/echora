@@ -94,6 +94,15 @@ export interface UserSummary {
   avatar_url?: string;
 }
 
+export interface PublicProfile {
+  id: string;
+  username: string;
+  display_name?: string;
+  avatar_url?: string;
+  role: string;
+  created_at: string;
+}
+
 export interface Ban {
   id: string;
   user_id: string;
@@ -302,6 +311,10 @@ export class API {
 
   static getAvatarUrl(userId: string): string {
     return `${getApiBase()}/users/${userId}/avatar`;
+  }
+
+  static async getUserProfile(userId: string): Promise<PublicProfile> {
+    return this.request(`/users/${userId}/profile`, {}, 'Failed to load profile');
   }
 
   // --- Admin: Users ---

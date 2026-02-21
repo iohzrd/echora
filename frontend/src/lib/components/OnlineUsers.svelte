@@ -5,6 +5,7 @@
   export let onlineUsers: UserPresence[] = [];
   export let userRoles: Record<string, string> = {};
   export let userAvatars: Record<string, string | undefined> = {};
+  export let onUserClick: (userId: string) => void = () => {};
 
   function getRoleBadge(userId: string): string {
     const role = userRoles[userId];
@@ -28,7 +29,13 @@
     <span>Online -- {onlineUsers.length}</span>
   </div>
   {#each onlineUsers as u}
-    <div class="online-user">
+    <div
+      class="online-user"
+      on:click={() => onUserClick(u.user_id)}
+      role="button"
+      tabindex="0"
+      on:keydown={(e) => e.key === "Enter" && onUserClick(u.user_id)}
+    >
       <div class="online-dot"></div>
       <Avatar
         username={u.username}

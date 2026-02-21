@@ -1,23 +1,45 @@
 <script lang="ts">
-  import { API } from "../api";
+  import { onMount } from "svelte";
+  import { API, type PublicProfile } from "../api";
   import AuthService, { user } from "../auth";
   import Avatar from "./Avatar.svelte";
 
   export let onClose: () => void = () => {};
+  export let viewUserId: string | undefined = undefined;
 
+  // Self-edit state
   let username = "";
   let displayName = "";
   let saving = false;
   let uploading = false;
   let error = "";
   let success = "";
-
   let fileInput: HTMLInputElement;
 
-  $: if ($user) {
+  // View-other state
+  let profile: PublicProfile | null = null;
+  let loading = false;
+
+  $: isViewMode = !!viewUserId && viewUserId !== $user?.id;
+
+  $: if (!isViewMode && $user) {
     username = $user.username;
     displayName = $user.display_name || "";
   }
+
+  onMount(async () => {
+    if (isViewMode && viewUserId) {
+      loading = true;
+      try {
+        profile = await API.getUserProfile(viewUserId);
+      } catch (err) {
+        error =
+          err instanceof Error ? err.message : "Failed to load profile";
+      } finally {
+        loading = false;
+      }
+    }
+  });
 
   async function handleSave() {
     if (!$user) return;
@@ -62,7 +84,11 @@
       return;
     }
 
-    if (!["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)) {
+    if (
+      !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(
+        file.type,
+      )
+    ) {
       error = "Avatar must be PNG, JPEG, GIF, or WebP.";
       return;
     }
@@ -106,12 +132,35 @@
       onClose();
     }
   }
+
+  function formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }
+
+  function formatRole(role: string): string {
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  }
 </script>
 
-<div class="profile-overlay" on:click|self={onClose} role="presentation">
+<div
+  class="profile-overlay"
+  on:click|self={onClose}
+  on:keydown={(e) => e.key === "Escape" && onClose()}
+  role="presentation"
+>
   <div class="profile-panel">
     <div class="profile-header">
-      <h2>Profile Settings</h2>
+      <h2>
+        {#if isViewMode}
+          {profile?.username || "Profile"}
+        {:else}
+          Profile Settings
+        {/if}
+      </h2>
       <button class="close-btn" on:click={onClose}>X</button>
     </div>
 
@@ -123,75 +172,119 @@
         <div class="success-message">{success}</div>
       {/if}
 
-      <div class="avatar-section">
-        <button
-          class="avatar-upload-btn"
-          on:click={() => fileInput.click()}
-          disabled={uploading}
-          title="Upload avatar"
-        >
-          <Avatar
-            username={$user?.username || ""}
-            avatarUrl={$user?.avatar_url ? API.getAvatarUrl($user.id) : undefined}
-            size="large"
-          />
-          <div class="avatar-overlay">
-            {#if uploading}
-              ...
-            {:else}
-              Edit
-            {/if}
+      {#if isViewMode}
+        <!-- Read-only view of another user's profile -->
+        {#if loading}
+          <div class="loading">Loading profile...</div>
+        {:else if profile}
+          <div class="avatar-section">
+            <Avatar
+              username={profile.username}
+              avatarUrl={profile.avatar_url
+                ? API.getAvatarUrl(profile.id)
+                : undefined}
+              size="large"
+            />
           </div>
-        </button>
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          bind:this={fileInput}
-          on:change={handleAvatarUpload}
-          class="hidden-input"
-        />
-        {#if $user?.avatar_url}
-          <button
-            class="remove-avatar-btn"
-            on:click={handleDeleteAvatar}
-            disabled={uploading}
-          >
-            Remove Avatar
-          </button>
+
+          {#if profile.display_name}
+            <div class="field">
+              <label>Display Name</label>
+              <div class="field-value">{profile.display_name}</div>
+            </div>
+          {/if}
+
+          <div class="field">
+            <label>Username</label>
+            <div class="field-value">{profile.username}</div>
+          </div>
+
+          <div class="field">
+            <label>Role</label>
+            <div class="field-value role-badge {profile.role}">
+              {formatRole(profile.role)}
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Member Since</label>
+            <div class="field-value">{formatDate(profile.created_at)}</div>
+          </div>
         {/if}
-      </div>
+      {:else}
+        <!-- Editable self-profile -->
+        <div class="avatar-section">
+          <button
+            class="avatar-upload-btn"
+            on:click={() => fileInput.click()}
+            disabled={uploading}
+            title="Upload avatar"
+          >
+            <Avatar
+              username={$user?.username || ""}
+              avatarUrl={$user?.avatar_url
+                ? API.getAvatarUrl($user.id)
+                : undefined}
+              size="large"
+            />
+            <div class="avatar-overlay">
+              {#if uploading}
+                ...
+              {:else}
+                Edit
+              {/if}
+            </div>
+          </button>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            bind:this={fileInput}
+            on:change={handleAvatarUpload}
+            class="hidden-input"
+          />
+          {#if $user?.avatar_url}
+            <button
+              class="remove-avatar-btn"
+              on:click={handleDeleteAvatar}
+              disabled={uploading}
+            >
+              Remove Avatar
+            </button>
+          {/if}
+        </div>
 
-      <div class="field">
-        <label for="profile-username">Username</label>
-        <input
-          id="profile-username"
-          type="text"
-          bind:value={username}
-          on:keydown={handleKeydown}
-          disabled={saving}
-          maxlength="32"
-        />
-      </div>
+        <div class="field">
+          <label for="profile-username">Username</label>
+          <input
+            id="profile-username"
+            type="text"
+            bind:value={username}
+            on:keydown={handleKeydown}
+            disabled={saving}
+            maxlength="32"
+          />
+        </div>
 
-      <div class="field">
-        <label for="profile-displayname">Display Name</label>
-        <input
-          id="profile-displayname"
-          type="text"
-          bind:value={displayName}
-          on:keydown={handleKeydown}
-          disabled={saving}
-          maxlength="64"
-          placeholder="Optional"
-        />
-      </div>
+        <div class="field">
+          <label for="profile-displayname">Display Name</label>
+          <input
+            id="profile-displayname"
+            type="text"
+            bind:value={displayName}
+            on:keydown={handleKeydown}
+            disabled={saving}
+            maxlength="64"
+            placeholder="Optional"
+          />
+        </div>
 
-      <div class="profile-actions">
-        <button class="cancel-btn" on:click={onClose}>Cancel</button>
-        <button class="save-btn" on:click={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save"}
-        </button>
-      </div>
+        <div class="profile-actions">
+          <button class="cancel-btn" on:click={onClose}>Cancel</button>
+          <button class="save-btn" on:click={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 </div>
@@ -251,6 +344,12 @@
   .profile-content {
     padding: 20px;
     overflow-y: auto;
+  }
+
+  .loading {
+    text-align: center;
+    color: var(--text-muted, #949ba4);
+    padding: 20px;
   }
 
   .error-message {
@@ -363,6 +462,40 @@
 
   .field input:disabled {
     opacity: 0.5;
+  }
+
+  .field-value {
+    font-size: 14px;
+    color: var(--text-primary, #fff);
+    padding: 8px 0;
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .role-badge.owner {
+    background: rgba(237, 66, 69, 0.2);
+    color: #ed4245;
+  }
+
+  .role-badge.admin {
+    background: rgba(235, 69, 158, 0.2);
+    color: #eb459e;
+  }
+
+  .role-badge.moderator {
+    background: rgba(88, 101, 242, 0.2);
+    color: #5865f2;
+  }
+
+  .role-badge.member {
+    background: rgba(148, 155, 164, 0.2);
+    color: #949ba4;
   }
 
   .profile-actions {

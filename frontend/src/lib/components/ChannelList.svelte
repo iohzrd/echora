@@ -33,6 +33,7 @@
   ) => void = () => {};
   export let getUserVolume: (userId: string) => number = () => 1.0;
   export let userAvatars: Record<string, string | undefined> = {};
+  export let onUserClick: (userId: string) => void = () => {};
 
   // Local state for channel create/edit forms
   let showCreateChannel: "text" | "voice" | null = null;
@@ -250,26 +251,15 @@
               : ''} {voiceState.is_screen_sharing
               ? 'screen-sharing'
               : ''} {voiceState.is_camera_sharing ? 'camera-sharing' : ''}"
-            on:click={() => {
-              if (voiceState.user_id !== currentUserId) {
-                if (voiceState.is_screen_sharing)
-                  onWatchScreen(voiceState.user_id, voiceState.username);
-                else if (voiceState.is_camera_sharing)
-                  onWatchCamera(voiceState.user_id, voiceState.username);
-              }
-            }}
+            on:click={() => onUserClick(voiceState.user_id)}
             on:contextmenu|preventDefault={(e) => {
               if (voiceState.user_id !== currentUserId) {
                 openUserVolumeMenu(e, voiceState.user_id, voiceState.username);
               }
             }}
-            role={voiceState.is_screen_sharing || voiceState.is_camera_sharing
-              ? "button"
-              : "listitem"}
-            tabindex={voiceState.is_screen_sharing ||
-            voiceState.is_camera_sharing
-              ? 0
-              : -1}
+            role="button"
+            tabindex="0"
+            on:keydown={(e) => e.key === "Enter" && onUserClick(voiceState.user_id)}
           >
             <Avatar
               username={voiceState.username}
@@ -278,16 +268,30 @@
             />
             <span class="username">{voiceState.username}</span>
             {#if voiceState.is_muted}
-              <span class="mute-indicator">🔇</span>
+              <span class="mute-indicator">M</span>
             {/if}
             {#if voiceState.is_deafened}
-              <span class="deafen-indicator">🔇</span>
+              <span class="deafen-indicator">D</span>
             {/if}
             {#if voiceState.is_screen_sharing}
-              <span class="screen-indicator">🖥️</span>
+              <button
+                class="screen-indicator"
+                on:click|stopPropagation={() => {
+                  if (voiceState.user_id !== currentUserId)
+                    onWatchScreen(voiceState.user_id, voiceState.username);
+                }}
+                title="Watch screen"
+              >S</button>
             {/if}
             {#if voiceState.is_camera_sharing}
-              <span class="camera-indicator">📷</span>
+              <button
+                class="camera-indicator"
+                on:click|stopPropagation={() => {
+                  if (voiceState.user_id !== currentUserId)
+                    onWatchCamera(voiceState.user_id, voiceState.username);
+                }}
+                title="Watch camera"
+              >C</button>
             {/if}
           </div>
         {/each}

@@ -33,7 +33,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 600;
-    color: var(--text-primary);
+    color: #fff;
     overflow: hidden;
     flex-shrink: 0;
   }

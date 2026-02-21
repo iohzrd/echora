@@ -63,6 +63,7 @@
   let showAdminPanel = false;
   let showPasskeySettings = false;
   let showProfileModal = false;
+  let profileViewUserId: string | null = null;
   let selectedChannelName = "";
 
   let channels: Channel[] = [];
@@ -1087,6 +1088,14 @@
     }
   }
 
+  function handleUserClick(userId: string) {
+    if (userId === $user?.id) {
+      showProfileModal = true;
+    } else {
+      profileViewUserId = userId;
+    }
+  }
+
   function logout() {
     AuthService.logout();
     goto("/auth");
@@ -1249,9 +1258,10 @@
             onUserVolumeChange={handleUserVolumeChange}
             getUserVolume={handleGetUserVolume}
             {userAvatars}
+            onUserClick={handleUserClick}
           />
 
-          <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} {userAvatars} />
+          <OnlineUsers {onlineUsers} userRoles={onlineUserRoles} {userAvatars} onUserClick={handleUserClick} />
         </div>
 
         <VoicePanel
@@ -1353,6 +1363,7 @@
           onToggleReaction={toggleReaction}
           {customEmojis}
           {userAvatars}
+          onUserClick={handleUserClick}
         />
 
         {#if typingUsers.size > 0}
@@ -1396,4 +1407,11 @@
 
 {#if showProfileModal}
   <ProfileModal onClose={() => (showProfileModal = false)} />
+{/if}
+
+{#if profileViewUserId}
+  <ProfileModal
+    viewUserId={profileViewUserId}
+    onClose={() => (profileViewUserId = null)}
+  />
 {/if}

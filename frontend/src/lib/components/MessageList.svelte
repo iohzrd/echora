@@ -35,6 +35,7 @@
   ) => void = () => {};
   export let customEmojis: CustomEmoji[] = [];
   export let userAvatars: Record<string, string | undefined> = {};
+  export let onUserClick: (userId: string) => void = () => {};
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
@@ -213,7 +214,10 @@
       </div>
       <div class="message-content">
         <div class="message-header">
-          <span class="message-author">{message.author}</span>
+          <button
+            class="message-author"
+            on:click={() => onUserClick(message.author_id)}
+          >{message.author}</button>
           <span class="message-timestamp"
             >{formatTimestamp(message.timestamp)}</span
           >
