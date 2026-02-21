@@ -215,7 +215,11 @@ export class MediasoupManager {
         ?._handler?._pc;
       if (!pc) return;
 
-      const sender = pc.getSenders().find(s => s.track?.kind === kind);
+      // Use the LAST matching sender: when producing screen audio there are
+      // multiple audio senders (voice + screen) and the newest one (last) is
+      // the one currently being produced.
+      const senders = pc.getSenders().filter(s => s.track?.kind === kind);
+      const sender = senders[senders.length - 1];
       if (!sender) return;
 
       let realSsrc: number | null = null;

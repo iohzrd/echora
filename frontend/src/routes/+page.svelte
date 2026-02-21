@@ -305,15 +305,36 @@
       if (
         data.type === "new_producer" &&
         data.data.channel_id === currentVoiceChannel &&
-        data.data.user_id !== $user?.id &&
-        data.data.label !== "screen" &&
-        data.data.label !== "camera"
+        data.data.user_id !== $user?.id
       ) {
-        voiceManager.consumeProducer(
-          data.data.producer_id,
-          data.data.user_id,
-          data.data.label,
-        );
+        if (data.data.label !== "screen" && data.data.label !== "camera") {
+          // Auto-consume voice producers
+          voiceManager.consumeProducer(
+            data.data.producer_id,
+            data.data.user_id,
+            data.data.label,
+          );
+        } else if (
+          data.data.label === "screen" &&
+          watchingScreenUserId === data.data.user_id
+        ) {
+          // Auto-consume screen producers if we're already watching this user
+          voiceManager.consumeProducer(
+            data.data.producer_id,
+            data.data.user_id,
+            data.data.label,
+          );
+        } else if (
+          data.data.label === "camera" &&
+          watchingCameraUserId === data.data.user_id
+        ) {
+          // Auto-consume camera producers if we're already watching this user
+          voiceManager.consumeProducer(
+            data.data.producer_id,
+            data.data.user_id,
+            data.data.label,
+          );
+        }
       }
       if (data.type === "voice_user_left") {
         voiceStates = voiceStates.filter(
