@@ -195,6 +195,8 @@
         data.type === "message" &&
         data.data.channel_id === selectedChannelId
       ) {
+        // Check if near bottom BEFORE adding the message (which changes scrollHeight)
+        const shouldScroll = messageList?.isNearBottom() ?? false;
         messages = [...messages, data.data];
         // Clear typing indicator for this user
         const authorId = data.data.author_id;
@@ -203,7 +205,9 @@
           typingUsers.delete(authorId);
           typingUsers = new Map(typingUsers);
         }
-        requestAnimationFrame(() => messageList?.scrollToBottomIfNear());
+        if (shouldScroll) {
+          requestAnimationFrame(() => messageList?.scrollToBottom());
+        }
       }
 
       // Channel CRUD events

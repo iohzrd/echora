@@ -54,20 +54,23 @@
     }
   }
 
+  export function isNearBottom(): boolean {
+    if (!messagesArea) return true;
+    return (
+      messagesArea.scrollHeight -
+        messagesArea.scrollTop -
+        messagesArea.clientHeight <
+      100
+    );
+  }
+
   export function scrollToBottomIfNear() {
-    if (messagesArea) {
-      const isNearBottom =
-        messagesArea.scrollHeight -
-          messagesArea.scrollTop -
-          messagesArea.clientHeight <
-        100;
-      if (isNearBottom) {
-        requestAnimationFrame(() => {
-          if (messagesArea) {
-            messagesArea.scrollTop = messagesArea.scrollHeight;
-          }
-        });
-      }
+    if (messagesArea && isNearBottom()) {
+      requestAnimationFrame(() => {
+        if (messagesArea) {
+          messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+      });
     }
   }
 
