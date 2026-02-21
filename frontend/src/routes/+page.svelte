@@ -130,6 +130,18 @@
   // User avatars map (user_id -> avatar_url)
   let userAvatars: Record<string, string | undefined> = {};
 
+  /** Ensure every message author has an avatar URL in the map. */
+  function populateAvatarsFromMessages(msgs: Message[]) {
+    let changed = false;
+    for (const m of msgs) {
+      if (!(m.author_id in userAvatars)) {
+        userAvatars[m.author_id] = API.getAvatarUrl(m.author_id);
+        changed = true;
+      }
+    }
+    if (changed) userAvatars = userAvatars; // trigger Svelte reactivity
+  }
+
   // Mobile sidebar state
   let sidebarOpen = false;
 
@@ -213,6 +225,7 @@
       ) {
         // Check if near bottom BEFORE adding the message (which changes scrollHeight)
         const shouldScroll = messageList?.isNearBottom() ?? false;
+        populateAvatarsFromMessages([data.data]);
         messages = [...messages, data.data];
         // Clear typing indicator for this user
         const authorId = data.data.author_id;
@@ -1025,6 +1038,7 @@
     try {
       messages = await API.getMessages(channelId, 50);
       hasMoreMessages = messages.length >= 50;
+      populateAvatarsFromMessages(messages);
       requestAnimationFrame(() => messageList?.scrollToBottom());
     } catch (error) {
       console.error("Failed to load messages:", error);
@@ -1053,6 +1067,7 @@
       hasMoreMessages = olderMessages.length >= 50;
 
       if (olderMessages.length > 0) {
+        populateAvatarsFromMessages(olderMessages);
         messageList?.preserveScroll(() => {
           messages = [...olderMessages, ...messages];
         });
