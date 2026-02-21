@@ -322,6 +322,46 @@ pub async fn get_message_by_id(
     Ok(row.map(Message::from))
 }
 
+pub async fn get_full_message_by_id(
+    pool: &PgPool,
+    message_id: Uuid,
+    requesting_user_id: Uuid,
+) -> Result<Option<Message>, AppError> {
+    let Some(mut msg) = get_message_by_id(pool, message_id).await? else {
+        return Ok(None);
+    };
+
+    // Enrich with reply preview, reactions, link previews, and attachments
+    if let Some(reply_id) = msg.reply_to_id {
+        msg.reply_to = get_reply_preview(pool, reply_id).await?;
+    }
+
+    let ids = &[message_id];
+    let (reactions_map, previews_map, attachments_map) = tokio::join!(
+        get_reactions_for_messages(pool, ids, requesting_user_id),
+        get_link_previews_for_messages(pool, ids),
+        get_attachments_for_messages(pool, ids),
+    );
+
+    if let Some(reactions) = reactions_map?.get(&message_id)
+        && !reactions.is_empty()
+    {
+        msg.reactions = Some(reactions.clone());
+    }
+    if let Some(previews) = previews_map?.get(&message_id)
+        && !previews.is_empty()
+    {
+        msg.link_previews = Some(previews.clone());
+    }
+    if let Some(attachments) = attachments_map?.get(&message_id)
+        && !attachments.is_empty()
+    {
+        msg.attachments = Some(attachments.clone());
+    }
+
+    Ok(Some(msg))
+}
+
 pub async fn create_message(
     pool: &PgPool,
     message: &Message,

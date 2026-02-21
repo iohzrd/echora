@@ -75,7 +75,7 @@ pub async fn edit_message(
 
     database::update_message(&state.db, message_id, &payload.content).await?;
 
-    let updated_message = database::get_message_by_id(&state.db, message_id)
+    let updated_message = database::get_full_message_by_id(&state.db, message_id, user_id)
         .await?
         .ok_or_else(|| AppError::not_found("Message not found"))?;
 
