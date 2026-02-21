@@ -44,6 +44,12 @@ pub async fn send_message(
     let user_id = auth_user.user_id();
     permissions::check_not_muted(&state.db, user_id).await?;
 
+    if !state.check_message_rate_limit(user_id) {
+        return Err(AppError::too_many_requests(
+            "You are sending messages too fast",
+        ));
+    }
+
     let result = crate::services::message::create_message(
         &state,
         &state.db,

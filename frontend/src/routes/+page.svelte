@@ -137,6 +137,10 @@
   const TYPING_DEBOUNCE_MS = 3000;
   const TYPING_DISPLAY_MS = 5000;
 
+  // Rate limit warning
+  let rateLimitWarning = false;
+  let rateLimitTimeout: ReturnType<typeof setTimeout> | null = null;
+
   function updateSpeaking(userId: string, speaking: boolean) {
     if (speaking) {
       speakingUsers.add(userId);
@@ -433,6 +437,16 @@
         voiceStates = voiceStates.map((vs) =>
           vs.user_id === user_id ? { ...vs, username: new_username } : vs,
         );
+      }
+
+      // Rate limit warning
+      if (data.type === "error" && data.data.code === "rate_limited") {
+        rateLimitWarning = true;
+        if (rateLimitTimeout) clearTimeout(rateLimitTimeout);
+        rateLimitTimeout = setTimeout(() => {
+          rateLimitWarning = false;
+          rateLimitTimeout = null;
+        }, 3000);
       }
 
       // Typing indicator events
@@ -1357,6 +1371,9 @@
           </div>
         {/if}
 
+        {#if rateLimitWarning}
+          <div class="rate-limit-warning">Slow down! You are sending messages too fast.</div>
+        {/if}
         <MessageInput
           channelName={selectedChannelName}
           disabled={!selectedChannelId}

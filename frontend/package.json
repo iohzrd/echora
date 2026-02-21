@@ -1,6 +1,6 @@
 {
   "name": "echora-app",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "description": "Echora - Self-hosted chat platform",
   "type": "module",
   "scripts": {

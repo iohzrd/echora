@@ -1208,6 +1208,15 @@ body {
 	font-style: italic;
 }
 
+/* Rate Limit Warning */
+.rate-limit-warning {
+	padding: 4px 16px;
+	font-size: 12px;
+	color: var(--error, #f23f43);
+	background-color: var(--bg-primary);
+	flex-shrink: 0;
+}
+
 /* Message Actions (Edit/Delete) */
 .message {
 	position: relative;

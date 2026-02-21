@@ -11,7 +11,9 @@ use object_store::ObjectStore;
 
 use crate::permissions::Role;
 use crate::sfu::service::SfuService;
-use crate::shared::validation::BROADCAST_CHANNEL_CAPACITY;
+use crate::shared::validation::{
+    BROADCAST_CHANNEL_CAPACITY, MESSAGE_RATE_LIMIT, MESSAGE_RATE_REFILL_PER_SEC,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Channel {
@@ -334,6 +336,11 @@ pub struct ServerSettingUpdate {
     pub value: String,
 }
 
+pub struct RateLimitState {
+    pub tokens: f64,
+    pub last_refill: std::time::Instant,
+}
+
 pub struct AppState {
     pub db: PgPool,
     pub http_client: reqwest::Client,
@@ -343,6 +350,7 @@ pub struct AppState {
     pub online_users: DashMap<Uuid, UserPresence>,
     pub voice_states: DashMap<Uuid, DashMap<Uuid, VoiceState>>,
     pub sfu_service: Arc<SfuService>,
+    pub message_rate_limits: DashMap<Uuid, RateLimitState>,
 }
 
 impl AppState {
@@ -362,6 +370,31 @@ impl AppState {
             online_users: DashMap::new(),
             voice_states: DashMap::new(),
             sfu_service: Arc::new(sfu_service),
+            message_rate_limits: DashMap::new(),
+        }
+    }
+
+    /// Returns true if the user is allowed to send a message, false if rate-limited.
+    pub fn check_message_rate_limit(&self, user_id: Uuid) -> bool {
+        let now = std::time::Instant::now();
+        let mut entry = self
+            .message_rate_limits
+            .entry(user_id)
+            .or_insert_with(|| RateLimitState {
+                tokens: MESSAGE_RATE_LIMIT,
+                last_refill: now,
+            });
+
+        let elapsed = now.duration_since(entry.last_refill).as_secs_f64();
+        entry.tokens =
+            (entry.tokens + elapsed * MESSAGE_RATE_REFILL_PER_SEC).min(MESSAGE_RATE_LIMIT);
+        entry.last_refill = now;
+
+        if entry.tokens >= 1.0 {
+            entry.tokens -= 1.0;
+            true
+        } else {
+            false
         }
     }
 

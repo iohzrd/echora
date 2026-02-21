@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("Internal server error: {0}")]
     Internal(String),
 }
@@ -51,6 +54,10 @@ impl AppError {
         Self::Conflict(msg.into())
     }
 
+    pub fn too_many_requests(msg: impl Into<String>) -> Self {
+        Self::TooManyRequests(msg.into())
+    }
+
     pub fn internal(msg: impl Into<String>) -> Self {
         Self::Internal(msg.into())
     }
@@ -71,6 +78,7 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
             AppError::Internal(msg) => {
                 tracing::error!("Internal error: {msg}");
                 (

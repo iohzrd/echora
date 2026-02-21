@@ -18,6 +18,8 @@ pub const MAX_CUSTOM_EMOJI_SIZE: usize = 256 * 1024; // 256KB
 pub const MAX_CUSTOM_EMOJI_NAME_LENGTH: usize = 32;
 pub const MAX_ATTACHMENTS_PER_MESSAGE: usize = 5;
 pub const MAX_FILENAME_LENGTH: usize = 255;
+pub const MESSAGE_RATE_LIMIT: f64 = 5.0;
+pub const MESSAGE_RATE_REFILL_PER_SEC: f64 = 1.0;
 
 pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
     "image/jpeg",

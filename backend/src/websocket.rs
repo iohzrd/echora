@@ -130,6 +130,12 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
 
                         match envelope.message_type.as_str() {
                             "message" => {
+                                if !state.check_message_rate_limit(user_id) {
+                                    let _ = sender.send(Message::Text(
+                                        r#"{"type":"error","data":{"code":"rate_limited","message":"You are sending messages too fast"}}"#.into()
+                                    )).await;
+                                    continue;
+                                }
                                 handle_chat_message(
                                     &state, envelope.payload, user_id, &username,
                                     &mut current_channel, &mut broadcast_rx,
