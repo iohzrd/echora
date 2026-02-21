@@ -124,6 +124,40 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  const COLLAPSE_HEIGHT = 300;
+  let expandedMessages = new Set<string>();
+  let overflowingMessages = new Set<string>();
+
+  function toggleExpand(messageId: string) {
+    if (expandedMessages.has(messageId)) {
+      expandedMessages.delete(messageId);
+    } else {
+      expandedMessages.add(messageId);
+    }
+    expandedMessages = expandedMessages;
+  }
+
+  function checkOverflow(node: HTMLElement, messageId: string) {
+    function update() {
+      const overflows = node.scrollHeight > COLLAPSE_HEIGHT;
+      if (overflows && !overflowingMessages.has(messageId)) {
+        overflowingMessages.add(messageId);
+        overflowingMessages = overflowingMessages;
+      } else if (!overflows && overflowingMessages.has(messageId)) {
+        overflowingMessages.delete(messageId);
+        overflowingMessages = overflowingMessages;
+      }
+    }
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return {
+      destroy() {
+        observer.disconnect();
+      },
+    };
+  }
+
   let lightboxSrc: string | null = null;
   let lightboxAlt: string = "";
 
@@ -195,9 +229,21 @@
           </div>
         {:else}
           {#if message.content}
-            <div class="message-text">
+            <div
+              class="message-text"
+              class:collapsed={overflowingMessages.has(message.id) && !expandedMessages.has(message.id)}
+              use:checkOverflow={message.id}
+            >
               {@html renderMarkdown(message.content)}
             </div>
+            {#if overflowingMessages.has(message.id)}
+              <button
+                class="message-expand-btn"
+                on:click={() => toggleExpand(message.id)}
+              >
+                {expandedMessages.has(message.id) ? "Show less" : "Show more"}
+              </button>
+            {/if}
           {/if}
         {/if}
         {#if message.attachments && message.attachments.length > 0}

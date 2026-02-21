@@ -365,6 +365,37 @@ body {
 	color: var(--text-normal);
 	line-height: 1.375;
 	word-wrap: break-word;
+	position: relative;
+}
+
+.message-text.collapsed {
+	max-height: 300px;
+	overflow: hidden;
+}
+
+.message-text.collapsed::after {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 48px;
+	background: linear-gradient(transparent, var(--bg-primary));
+	pointer-events: none;
+}
+
+.message-expand-btn {
+	background: none;
+	border: none;
+	color: var(--text-link);
+	cursor: pointer;
+	font-size: 0.85rem;
+	padding: 2px 0;
+	margin-top: 2px;
+}
+
+.message-expand-btn:hover {
+	text-decoration: underline;
 }
 
 /* Markdown rendered content */
