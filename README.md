@@ -193,9 +193,9 @@ cd frontend && npm run build
 - [x] File uploads
 - [x] Passkeys (WebAuthn/FIDO2)
 - [x] Connect/disconnect sounds
+- [x] User profiles & avatars
 - [ ] Soundboard
 - [ ] Channel groups
-- [ ] User profiles & avatars
 - [ ] Message pinning
 - [ ] Search
 - [ ] Notifications (@mentions, unread indicators)

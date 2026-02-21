@@ -1,40 +1,53 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { API, type CustomEmoji } from '$lib/api';
+  import { onMount } from "svelte";
+  import { API, type CustomEmoji } from "$lib/api";
+  import { EMOJI_CATEGORIES, type EmojiEntry } from "$lib/emoji-data";
 
   export let floating: boolean = false;
   export let onSelect: (emoji: string) => void = () => {};
   export let customEmojis: CustomEmoji[] = [];
 
-  let tab: 'standard' | 'custom' = 'standard';
-  let uploadName = '';
+  let tab: "standard" | "custom" = "standard";
+  let uploadName = "";
   let uploadFile: File | null = null;
   let uploading = false;
-  let uploadError = '';
+  let uploadError = "";
   let fileInput: HTMLInputElement;
+  let pickerEl: HTMLDivElement;
+  let openBelow = false;
+  let activeCategory = 0;
+  let searchQuery = "";
+  let searchInput: HTMLInputElement;
 
-  const COMMON_EMOJI = [
-    "\u{1F44D}",
-    "\u{1F44E}",
-    "\u{2764}\u{FE0F}",
-    "\u{1F602}",
-    "\u{1F622}",
-    "\u{1F621}",
-    "\u{1F389}",
-    "\u{1F525}",
-    "\u{1F44F}",
-    "\u{1F914}",
-    "\u{1F440}",
-    "\u{1F680}",
-    "\u{2705}",
-    "\u{274C}",
-    "\u{1F4AF}",
-    "\u{1F60D}",
-    "\u{1F631}",
-    "\u{1F64F}",
-    "\u{1F499}",
-    "\u{1F49A}",
-  ];
+  onMount(() => {
+    if (pickerEl) {
+      const rect = pickerEl.getBoundingClientRect();
+      if (rect.top < 0) {
+        openBelow = true;
+      }
+    }
+    if (searchInput) {
+      searchInput.focus();
+    }
+  });
+
+  $: searchResults = (() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    const results: EmojiEntry[] = [];
+    for (const cat of EMOJI_CATEGORIES) {
+      for (const e of cat.emojis) {
+        if (
+          e.description.toLowerCase().includes(q) ||
+          e.keywords.some((k) => k.toLowerCase().includes(q))
+        ) {
+          results.push(e);
+          if (results.length >= 50) return results;
+        }
+      }
+    }
+    return results;
+  })();
 
   function selectCustomEmoji(emoji: CustomEmoji) {
     onSelect(`:${emoji.name}:`);
@@ -45,7 +58,9 @@
     if (target.files && target.files.length > 0) {
       uploadFile = target.files[0];
       if (!uploadName) {
-        uploadName = uploadFile.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+        uploadName = uploadFile.name
+          .replace(/\.[^.]+$/, "")
+          .replace(/[^a-zA-Z0-9_-]/g, "_");
       }
     }
   }
@@ -53,38 +68,81 @@
   async function handleUpload() {
     if (!uploadFile || !uploadName.trim()) return;
     uploading = true;
-    uploadError = '';
+    uploadError = "";
     try {
       const emoji = await API.uploadCustomEmoji(uploadName.trim(), uploadFile);
       customEmojis = [...customEmojis, emoji];
-      uploadName = '';
+      uploadName = "";
       uploadFile = null;
-      if (fileInput) fileInput.value = '';
+      if (fileInput) fileInput.value = "";
     } catch (e: any) {
-      uploadError = e.message || 'Upload failed';
+      uploadError = e.message || "Upload failed";
     } finally {
       uploading = false;
     }
   }
 </script>
 
-<div class="emoji-picker {floating ? 'emoji-picker-floating' : ''}">
+<div
+  class="emoji-picker {floating ? 'emoji-picker-floating' : ''} {openBelow
+    ? 'emoji-picker-below'
+    : ''}"
+  bind:this={pickerEl}
+>
   <div class="emoji-picker-tabs">
     <button
       class="emoji-tab-btn {tab === 'standard' ? 'active' : ''}"
-      on:click={() => (tab = 'standard')}>Standard</button
+      on:click={() => (tab = "standard")}>Standard</button
     >
     <button
       class="emoji-tab-btn {tab === 'custom' ? 'active' : ''}"
-      on:click={() => (tab = 'custom')}>Custom</button
+      on:click={() => (tab = "custom")}>Custom</button
     >
   </div>
 
-  {#if tab === 'standard'}
-    <div class="emoji-grid">
-      {#each COMMON_EMOJI as emoji}
-        <button class="emoji-picker-btn" on:click={() => onSelect(emoji)}>{emoji}</button>
+  {#if tab === "standard"}
+    <div class="emoji-category-bar">
+      {#each EMOJI_CATEGORIES as cat, i}
+        <button
+          class="emoji-category-btn {activeCategory === i && !searchQuery.trim()
+            ? 'active'
+            : ''}"
+          on:click={() => {
+            activeCategory = i;
+            searchQuery = "";
+          }}
+          title={cat.name}>{cat.icon}</button
+        >
       {/each}
+    </div>
+    <input
+      type="text"
+      class="emoji-search"
+      placeholder="Search emoji..."
+      bind:value={searchQuery}
+      bind:this={searchInput}
+    />
+    <div class="emoji-grid">
+      {#if searchResults !== null}
+        {#each searchResults as entry}
+          <button
+            class="emoji-picker-btn"
+            on:click={() => onSelect(entry.emoji)}
+            title={entry.description}>{entry.emoji}</button
+          >
+        {/each}
+        {#if searchResults.length === 0}
+          <div class="emoji-picker-empty">No matches</div>
+        {/if}
+      {:else}
+        {#each EMOJI_CATEGORIES[activeCategory].emojis as entry}
+          <button
+            class="emoji-picker-btn"
+            on:click={() => onSelect(entry.emoji)}
+            title={entry.description}>{entry.emoji}</button
+          >
+        {/each}
+      {/if}
     </div>
   {:else}
     <div class="emoji-grid">
@@ -124,7 +182,8 @@
         <button
           class="emoji-upload-btn"
           on:click={handleUpload}
-          disabled={uploading || !uploadFile || !uploadName.trim()}>Upload</button
+          disabled={uploading || !uploadFile || !uploadName.trim()}
+          >Upload</button
         >
       </div>
       {#if uploadError}
