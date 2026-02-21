@@ -93,6 +93,101 @@ body {
 	min-width: 0;
 }
 
+.user-bar {
+	padding: 8px 12px;
+	border-top: 1px solid var(--border-primary);
+	flex-shrink: 0;
+}
+
+.user-bar .user-info {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.user-bar .user-bar-username {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+	min-width: 0;
+}
+
+.user-bar .username-edit-trigger {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+
+.user-bar .user-info:hover .username-edit-trigger {
+	opacity: 1;
+}
+
+.user-bar .username-edit-trigger:hover {
+	color: var(--text-primary);
+	background: var(--bg-hover);
+}
+
+.user-bar .username-edit {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.user-bar .username-edit-input {
+	flex: 1;
+	min-width: 0;
+	padding: 4px 8px;
+	font-size: 13px;
+	background: var(--bg-primary);
+	border: 1px solid var(--border-primary);
+	border-radius: 4px;
+	color: var(--text-primary);
+	outline: none;
+}
+
+.user-bar .username-edit-input:focus {
+	border-color: var(--accent-primary);
+}
+
+.user-bar .username-edit-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+}
+
+.user-bar .username-edit-btn.save {
+	color: var(--success, #43b581);
+}
+
+.user-bar .username-edit-btn.cancel {
+	color: var(--text-muted);
+}
+
+.user-bar .username-edit-btn:hover {
+	background: var(--bg-hover);
+}
+
+.user-bar .username-error {
+	font-size: 11px;
+	color: var(--error, #f04747);
+	margin-top: 4px;
+}
+
 .version-bar {
 	padding: 8px 16px;
 	border-top: 1px solid var(--border-primary);

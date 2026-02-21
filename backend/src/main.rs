@@ -67,7 +67,10 @@ async fn main() {
     let app = Router::new()
         .route("/api/init", get(routes::get_init))
         .route("/api/health", get(health_check))
-        .route("/api/auth/me", get(auth_routes::me))
+        .route(
+            "/api/auth/me",
+            get(auth_routes::me).put(auth_routes::update_profile),
+        )
         .route(
             "/api/channels",
             get(routes::get_channels).post(routes::create_channel),

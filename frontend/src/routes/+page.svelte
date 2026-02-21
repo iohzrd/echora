@@ -28,7 +28,7 @@
     getPerUserVolume,
     type AudioDevice,
   } from "../lib/audioSettings";
-  import AuthService, { user } from "../lib/auth";
+  import AuthService, { user, token } from "../lib/auth";
   import {
     isTauri,
     activeServer,
@@ -36,6 +36,7 @@
     addServer,
     removeServer,
     setActiveServer,
+    updateServer,
     type EchoraServer,
   } from "../lib/serverManager";
   import { onMount, onDestroy } from "svelte";
@@ -392,6 +393,19 @@
           ...userRolesMap,
           [data.data.user_id]: data.data.new_role,
         };
+      }
+
+      // Username change events
+      if (data.type === "user_renamed") {
+        const { user_id, new_username } = data.data;
+        // Update online users list
+        onlineUsers = onlineUsers.map((u) =>
+          u.user_id === user_id ? { ...u, username: new_username } : u,
+        );
+        // Update voice states
+        voiceStates = voiceStates.map((vs) =>
+          vs.user_id === user_id ? { ...vs, username: new_username } : vs,
+        );
       }
 
       // Typing indicator events
@@ -981,6 +995,50 @@
     return "Several people are typing...";
   }
 
+  // Username editing state
+  let editingUsername = false;
+  let newUsername = "";
+  let usernameError = "";
+
+  async function handleUpdateUsername() {
+    if (!newUsername.trim()) return;
+    usernameError = "";
+    try {
+      const response = await API.updateUsername(newUsername.trim());
+      // Update token and user store
+      if (isTauri) {
+        const server = $activeServer;
+        if (server) {
+          updateServer(server.id, {
+            token: response.token,
+            username: response.user.username,
+          });
+        }
+      } else {
+        localStorage.setItem("echora_token", response.token);
+      }
+      token.set(response.token);
+      user.set(response.user);
+      editingUsername = false;
+      newUsername = "";
+    } catch (error: unknown) {
+      usernameError =
+        error instanceof Error ? error.message : "Failed to update username";
+    }
+  }
+
+  function startEditUsername() {
+    newUsername = $user?.username || "";
+    usernameError = "";
+    editingUsername = true;
+  }
+
+  function cancelEditUsername() {
+    editingUsername = false;
+    newUsername = "";
+    usernameError = "";
+  }
+
   $: activeServerName = serverName || $activeServer?.name || "Echora";
   $: userRole = $user?.role || "member";
   $: isMod =
@@ -1150,6 +1208,61 @@
           onVadSensitivityChange={handleVadSensitivityChange}
           onNoiseSuppressionToggle={handleNoiseSuppressionToggle}
         />
+
+        <div class="user-bar">
+          {#if editingUsername}
+            <div class="username-edit">
+              <input
+                type="text"
+                class="username-edit-input"
+                bind:value={newUsername}
+                on:keydown={(e) => {
+                  if (e.key === "Enter") handleUpdateUsername();
+                  else if (e.key === "Escape") cancelEditUsername();
+                }}
+                maxlength="32"
+              />
+              <button
+                class="username-edit-btn save"
+                on:click={handleUpdateUsername}
+                title="Save"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+                  ><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z" /></svg
+                >
+              </button>
+              <button
+                class="username-edit-btn cancel"
+                on:click={cancelEditUsername}
+                title="Cancel"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+                  ><path
+                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  /></svg
+                >
+              </button>
+            </div>
+            {#if usernameError}
+              <div class="username-error">{usernameError}</div>
+            {/if}
+          {:else}
+            <div class="user-info">
+              <span class="user-bar-username">{$user?.username || ""}</span>
+              <button
+                class="username-edit-trigger"
+                on:click={startEditUsername}
+                title="Edit username"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                  ><path
+                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                  /></svg
+                >
+              </button>
+            </div>
+          {/if}
+        </div>
 
         <div class="version-bar">
           {#if tauriVersion}

@@ -4,7 +4,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::auth::{
-    AuthResponse, AuthUser, LoginRequest, RegisterRequest, User, UserInfo, create_jwt,
+    AuthResponse, AuthUser, LoginRequest, RegisterRequest, UpdateProfileRequest, User, UserInfo,
+    create_jwt,
 };
 use crate::database;
 use crate::models::AppState;
@@ -112,5 +113,68 @@ pub async fn me(
         username: user.username,
         email: user.email,
         role: user.role,
+    }))
+}
+
+pub async fn update_profile(
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
+    Json(payload): Json<UpdateProfileRequest>,
+) -> AppResult<Json<AuthResponse>> {
+    let new_username = validation::validate_username(&payload.username)?;
+
+    let user = database::get_user_by_id(&state.db, auth_user.user_id())
+        .await?
+        .ok_or_else(|| AppError::not_found("User not found"))?;
+
+    let old_username = user.username.clone();
+
+    if new_username == old_username {
+        let token = create_jwt(user.id, &user.username, user.role)?;
+        return Ok(Json(AuthResponse {
+            token,
+            user: UserInfo {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+            },
+        }));
+    }
+
+    database::update_username(&state.db, user.id, &new_username).await?;
+
+    // Update in-memory online presence
+    if let Some(mut presence) = state.online_users.get_mut(&user.id) {
+        presence.username = new_username.clone();
+    }
+
+    // Update in-memory voice states
+    for channel_users in state.voice_states.iter() {
+        if let Some(mut vs) = channel_users.get_mut(&user.id) {
+            vs.username = new_username.clone();
+        }
+    }
+
+    // Broadcast rename to all connected clients
+    state.broadcast_global(
+        "user_renamed",
+        serde_json::json!({
+            "user_id": user.id,
+            "old_username": old_username,
+            "new_username": new_username,
+        }),
+    );
+
+    let token = create_jwt(user.id, &new_username, user.role)?;
+
+    Ok(Json(AuthResponse {
+        token,
+        user: UserInfo {
+            id: user.id,
+            username: new_username,
+            email: user.email,
+            role: user.role,
+        },
     }))
 }

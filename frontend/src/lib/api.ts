@@ -1,4 +1,4 @@
-import AuthService from './auth';
+import AuthService, { type AuthResponse } from './auth';
 import { getApiBase, getWsBase } from './config';
 import { appFetch } from './serverManager';
 
@@ -250,6 +250,12 @@ export class API {
 
   static async getAllVoiceStates(): Promise<VoiceState[]> {
     return this.request('/voice/states', {}, 'Failed to fetch all voice states');
+  }
+
+  // --- Profile ---
+
+  static async updateUsername(username: string): Promise<AuthResponse> {
+    return this.jsonRequest('/auth/me', 'PUT', { username }, 'Failed to update username');
   }
 
   // --- Admin: Users ---
