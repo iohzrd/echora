@@ -24,14 +24,14 @@ export function populateAvatarsFromMessages(msgs: Message[]) {
 
 export async function selectChannel(channelId: string, channelName: string) {
   chatState.update((s) => {
-    s.typingUsers.forEach((u) => clearTimeout(u.timeout));
+    Object.values(s.typingUsers).forEach((u) => clearTimeout(u.timeout));
     return {
       ...s,
       selectedChannelId: channelId,
       selectedChannelName: channelName,
       hasMoreMessages: true,
       replyingTo: null,
-      typingUsers: new Map(),
+      typingUsers: {},
     };
   });
   getWs().joinChannel(channelId);

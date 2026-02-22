@@ -12,7 +12,7 @@ export interface VoiceStoreState {
   pttKey: string;
   pttActive: boolean;
   voiceStates: VoiceState[];
-  speakingUsers: Set<string>;
+  speakingUsers: string[];
   watchingScreenUserId: string | null;
   watchingScreenUsername: string;
   watchingCameraUserId: string | null;
@@ -29,7 +29,7 @@ export const voiceStore = writable<VoiceStoreState>({
   pttKey: 'Space',
   pttActive: false,
   voiceStates: [],
-  speakingUsers: new Set(),
+  speakingUsers: [],
   watchingScreenUserId: null,
   watchingScreenUsername: '',
   watchingCameraUserId: null,

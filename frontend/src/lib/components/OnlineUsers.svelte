@@ -9,10 +9,10 @@
     moderator: { badge: 'MOD', cls: 'role-mod' },
   };
 
-  $: usersWithRole = $serverState.onlineUsers.map((u) => ({
+  let usersWithRole = $derived($serverState.onlineUsers.map((u) => ({
     ...u,
     role: ROLE_INFO[$serverState.userRolesMap[u.user_id]] ?? null,
-  }));
+  })));
 </script>
 
 {#if usersWithRole.length > 0}

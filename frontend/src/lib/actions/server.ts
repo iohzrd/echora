@@ -43,19 +43,33 @@ function setupVoiceStateHandlers() {
 
   voiceManager.onSpeakingChange((userId, speaking) => {
     voiceStore.update((s) => {
-      const next = new Set(s.speakingUsers);
-      if (speaking) next.add(userId);
-      else next.delete(userId);
-      return { ...s, speakingUsers: next };
+      const speakingUsers = speaking
+        ? s.speakingUsers.includes(userId)
+          ? s.speakingUsers
+          : [...s.speakingUsers, userId]
+        : s.speakingUsers.filter((id) => id !== userId);
+      return { ...s, speakingUsers };
     });
   });
 
   voiceManager.onStateChange(syncVoiceState);
 }
 
+let _connecting = false;
+
 export async function connectToServer() {
+  if (_connecting) return;
+  _connecting = true;
+  try {
+    await _connectToServer();
+  } finally {
+    _connecting = false;
+  }
+}
+
+async function _connectToServer() {
   chatState.update((s) => {
-    s.typingUsers.forEach((u) => clearTimeout(u.timeout));
+    Object.values(s.typingUsers).forEach((u) => clearTimeout(u.timeout));
     return {
       ...s,
       messages: [],
@@ -66,7 +80,7 @@ export async function connectToServer() {
       editingMessageId: null,
       editMessageContent: '',
       replyingTo: null,
-      typingUsers: new Map(),
+      typingUsers: {},
       rateLimitWarning: false,
     };
   });
@@ -79,7 +93,7 @@ export async function connectToServer() {
     backendVersion: '',
     customEmojis: [],
   });
-  voiceStore.update((s) => ({ ...s, voiceStates: [], speakingUsers: new Set() }));
+  voiceStore.update((s) => ({ ...s, voiceStates: [], speakingUsers: [] }));
 
   if (isTauri && !get(activeServer)) {
     uiState.update((s) => ({ ...s, showAddServerDialog: true }));
