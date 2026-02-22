@@ -58,15 +58,16 @@
     error = "";
     success = "";
     try {
-      const currentDisplayName = authState.user.display_name || "";
-      if (displayName === currentDisplayName) {
+      const currentDisplayName = authState.user.display_name ?? "";
+      const trimmed = displayName.trim();
+      if (trimmed === currentDisplayName) {
         success = "No changes to save.";
         saving = false;
         return;
       }
 
       const authResponse = await API.updateProfile({
-        display_name: displayName.trim() || null,
+        display_name: trimmed || null,
       });
       AuthService.setAuth(authResponse);
       success = "Profile updated.";

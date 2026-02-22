@@ -138,10 +138,10 @@ pub async fn update_profile(
     let current_username = user.username.clone();
     let mut changed = false;
 
-    // Handle display_name change
-    if let Some(ref new_display_name) = payload.display_name {
-        let validated = match new_display_name {
-            Some(name) => Some(validation::validate_display_name(name)?),
+    // Handle display_name change (None = clear, Some(s) = set)
+    {
+        let validated = match payload.display_name {
+            Some(ref name) => Some(validation::validate_display_name(name)?),
             None => None,
         };
         database::update_user_display_name(&state.db, user.id, validated.as_deref()).await?;
