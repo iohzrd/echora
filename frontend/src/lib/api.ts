@@ -341,6 +341,10 @@ export class API {
     return this.jsonRequest(`/admin/users/${userId}/role`, 'PUT', { role }, 'Failed to change role');
   }
 
+  static async deleteUser(userId: string): Promise<void> {
+    return this.request(`/admin/users/${userId}`, { method: 'DELETE' }, 'Failed to delete user');
+  }
+
   // --- Moderation ---
 
   static async kickUser(userId: string, reason?: string): Promise<void> {

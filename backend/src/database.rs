@@ -715,6 +715,14 @@ pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: Role) -> Result<(
     require_rows_affected(result, "User not found")
 }
 
+pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
+    let result = sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "User not found")
+}
+
 pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
     let rows: Vec<(Uuid, String, String, Role, chrono::DateTime<chrono::Utc>, Option<String>)> = sqlx::query_as(
         "SELECT id, username, email, role, created_at, avatar_path FROM users ORDER BY created_at ASC",
