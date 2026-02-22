@@ -5,7 +5,7 @@
   import RegisterForm from "../../lib/components/RegisterForm.svelte";
   import { user } from "../../lib/auth";
 
-  let isLogin = true;
+  let isLogin = $state(true);
 
   onMount(() => {
     if ($user) {
@@ -38,10 +38,10 @@
       <div class="auth-toggle">
         {#if isLogin}
           <span>Need an account?</span>
-          <button on:click={toggleMode} class="toggle-btn">Register</button>
+          <button onclick={toggleMode} class="toggle-btn">Register</button>
         {:else}
           <span>Already have an account?</span>
-          <button on:click={toggleMode} class="toggle-btn">Login</button>
+          <button onclick={toggleMode} class="toggle-btn">Login</button>
         {/if}
       </div>
     </div>

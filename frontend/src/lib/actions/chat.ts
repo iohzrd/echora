@@ -97,14 +97,21 @@ export async function loadOlderMessages(
     if (olderMessages.length > 0) {
       // Capture scroll position before DOM update, then restore after
       const restoreScroll = scrollToPreserve();
-      chatState.update((s) => ({
-        ...s,
-        hasMoreMessages: olderMessages.length >= 50,
-        messages: [...olderMessages, ...s.messages],
-      }));
+      chatState.update((s) => {
+        // Guard: channel may have changed during the async fetch
+        if (s.selectedChannelId !== cs.selectedChannelId) return s;
+        return {
+          ...s,
+          hasMoreMessages: olderMessages.length >= 50,
+          messages: [...olderMessages, ...s.messages],
+        };
+      });
       restoreScroll();
     } else {
-      chatState.update((s) => ({ ...s, hasMoreMessages: false }));
+      chatState.update((s) => {
+        if (s.selectedChannelId !== cs.selectedChannelId) return s;
+        return { ...s, hasMoreMessages: false };
+      });
     }
   } catch (error) {
     console.error('Failed to load older messages:', error);

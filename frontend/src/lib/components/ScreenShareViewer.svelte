@@ -1,14 +1,15 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
 
-  export let username: string;
-  export let type: "screen" | "camera" = "screen";
-  export let onClose: () => void = () => {};
-
-  export let videoElement: HTMLVideoElement;
+  let { username, type = "screen", onClose = () => {}, videoElement = $bindable() }: {
+    username: string;
+    type?: "screen" | "camera";
+    onClose?: () => void;
+    videoElement?: HTMLVideoElement;
+  } = $props();
 
   let viewerElement: HTMLElement;
-  let isFullscreen = false;
+  let isFullscreen = $state(false);
 
   function toggleFullscreen() {
     if (!viewerElement) return;
@@ -41,7 +42,7 @@
   });
 </script>
 
-<svelte:window on:keydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} />
 
 <div class="screen-share-viewer" bind:this={viewerElement}>
   <div class="screen-share-header">
@@ -51,7 +52,7 @@
     <div class="screen-share-controls">
       <button
         class="screen-share-control-btn"
-        on:click={toggleFullscreen}
+        onclick={toggleFullscreen}
         title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
       >
         {#if isFullscreen}
@@ -88,7 +89,7 @@
           </svg>
         {/if}
       </button>
-      <button class="screen-share-back-btn" on:click={onClose}
+      <button class="screen-share-back-btn" onclick={onClose}
         >Back to chat</button
       >
     </div>
@@ -99,7 +100,7 @@
       bind:this={videoElement}
       autoplay
       playsinline
-      on:dblclick={toggleFullscreen}
+      ondblclick={toggleFullscreen}
     ></video>
   </div>
 </div>

@@ -32,23 +32,31 @@ function updateMessageReaction(msgId: string, emoji: string, userId: string, add
     ...s,
     messages: s.messages.map((m) => {
       if (m.id !== msgId) return m;
-      let reactions = m.reactions ? [...m.reactions] : [];
-      const existing = reactions.find((r) => r.emoji === emoji);
+      const reactions = m.reactions ? [...m.reactions] : [];
+      const existingIdx = reactions.findIndex((r) => r.emoji === emoji);
+      let newReactions;
       if (add) {
-        if (existing) {
-          existing.count += 1;
-          if (userId === currentUser?.id) existing.reacted = true;
+        if (existingIdx >= 0) {
+          newReactions = reactions.map((r, i) =>
+            i === existingIdx
+              ? { ...r, count: r.count + 1, reacted: r.reacted || userId === currentUser?.id }
+              : r,
+          );
         } else {
-          reactions.push({ emoji, count: 1, reacted: userId === currentUser?.id });
+          newReactions = [...reactions, { emoji, count: 1, reacted: userId === currentUser?.id }];
         }
-      } else if (existing) {
-        existing.count -= 1;
-        if (userId === currentUser?.id) existing.reacted = false;
-        if (existing.count <= 0) {
-          reactions = reactions.filter((r) => r.emoji !== emoji);
+      } else if (existingIdx >= 0) {
+        const updated = { ...reactions[existingIdx], count: reactions[existingIdx].count - 1 };
+        if (userId === currentUser?.id) updated.reacted = false;
+        if (updated.count <= 0) {
+          newReactions = reactions.filter((_, i) => i !== existingIdx);
+        } else {
+          newReactions = reactions.map((r, i) => (i === existingIdx ? updated : r));
         }
+      } else {
+        newReactions = reactions;
       }
-      return { ...m, reactions: reactions.length > 0 ? reactions : undefined };
+      return { ...m, reactions: newReactions.length > 0 ? newReactions : undefined };
     }),
   }));
 }

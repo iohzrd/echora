@@ -16,7 +16,7 @@
   let uploading = $state(false);
   let error = $state("");
   let success = $state("");
-  let fileInput: HTMLInputElement;
+  let fileInput: HTMLInputElement = $state()!;
 
   // Password change state
   let showPasswordSection = $state(false);
@@ -191,8 +191,8 @@
 
 <div
   class="profile-overlay"
-  on:click|self={onClose}
-  on:keydown={(e) => e.key === "Escape" && onClose()}
+  onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+  onkeydown={(e) => e.key === "Escape" && onClose()}
   role="presentation"
 >
   <div class="profile-panel">
@@ -204,7 +204,7 @@
           Profile Settings
         {/if}
       </h2>
-      <button class="close-btn" on:click={onClose}>
+      <button class="close-btn" onclick={onClose}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
     </div>
@@ -261,7 +261,7 @@
         <div class="avatar-section">
           <button
             class="avatar-upload-btn"
-            on:click={() => fileInput.click()}
+            onclick={() => fileInput.click()}
             disabled={uploading}
             title="Upload avatar"
           >
@@ -284,13 +284,13 @@
             type="file"
             accept="image/png,image/jpeg,image/gif,image/webp"
             bind:this={fileInput}
-            on:change={handleAvatarUpload}
+            onchange={handleAvatarUpload}
             class="hidden-input"
           />
           {#if $user?.avatar_url}
             <button
               class="remove-avatar-btn"
-              on:click={handleDeleteAvatar}
+              onclick={handleDeleteAvatar}
               disabled={uploading}
             >
               Remove Avatar
@@ -304,7 +304,7 @@
             id="profile-username"
             type="text"
             bind:value={username}
-            on:keydown={handleKeydown}
+            onkeydown={handleKeydown}
             disabled={saving}
             maxlength="32"
           />
@@ -316,7 +316,7 @@
             id="profile-displayname"
             type="text"
             bind:value={displayName}
-            on:keydown={handleKeydown}
+            onkeydown={handleKeydown}
             disabled={saving}
             maxlength="64"
             placeholder="Optional"
@@ -324,8 +324,8 @@
         </div>
 
         <div class="profile-actions">
-          <button class="cancel-btn" on:click={onClose}>Cancel</button>
-          <button class="save-btn" on:click={handleSave} disabled={saving}>
+          <button class="cancel-btn" onclick={onClose}>Cancel</button>
+          <button class="save-btn" onclick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </button>
         </div>
@@ -333,7 +333,7 @@
         <div class="password-section">
           <button
             class="password-toggle-btn"
-            on:click={() => {
+            onclick={() => {
               showPasswordSection = !showPasswordSection;
               passwordError = "";
               passwordSuccess = "";
@@ -382,7 +382,7 @@
             <div class="profile-actions">
               <button
                 class="save-btn"
-                on:click={handleChangePassword}
+                onclick={handleChangePassword}
                 disabled={passwordSaving}
               >
                 {passwordSaving ? "Saving..." : "Update Password"}

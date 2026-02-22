@@ -20,7 +20,7 @@
   import Avatar from './Avatar.svelte';
 
   let messagesArea: HTMLDivElement;
-  let emojiPickerMessageId: string | null = null;
+  let emojiPickerMessageId: string | null = $state(null);
 
   function scrollToBottom() {
     if (messagesArea) {
@@ -149,8 +149,8 @@
   }
 
   const COLLAPSE_HEIGHT = 300;
-  let expandedMessages = new Set<string>();
-  let overflowingMessages = new Set<string>();
+  let expandedMessages = $state(new Set<string>());
+  let overflowingMessages = $state(new Set<string>());
 
   function toggleExpand(messageId: string) {
     if (expandedMessages.has(messageId)) {
@@ -158,7 +158,6 @@
     } else {
       expandedMessages.add(messageId);
     }
-    expandedMessages = expandedMessages;
   }
 
   function checkOverflow(node: HTMLElement, messageId: string) {
@@ -166,10 +165,8 @@
       const overflows = node.scrollHeight > COLLAPSE_HEIGHT;
       if (overflows && !overflowingMessages.has(messageId)) {
         overflowingMessages.add(messageId);
-        overflowingMessages = overflowingMessages;
       } else if (!overflows && overflowingMessages.has(messageId)) {
         overflowingMessages.delete(messageId);
-        overflowingMessages = overflowingMessages;
       }
     }
     update();
@@ -182,8 +179,8 @@
     };
   }
 
-  let lightboxSrc: string | null = null;
-  let lightboxAlt: string = '';
+  let lightboxSrc: string | null = $state(null);
+  let lightboxAlt: string = $state('');
 
   function openLightbox(src: string, alt: string) {
     lightboxSrc = src;
@@ -204,9 +201,9 @@
   let currentUserId = $derived($user?.id ?? '');
 </script>
 
-<svelte:window on:keydown={handleLightboxKeydown} />
+<svelte:window onkeydown={handleLightboxKeydown} />
 
-<div class="messages-area" bind:this={messagesArea} on:scroll={handleScroll}>
+<div class="messages-area" bind:this={messagesArea} onscroll={handleScroll}>
   {#if $chatState.loadingMore}
     <div class="loading-more">Loading older messages...</div>
   {/if}
@@ -223,7 +220,7 @@
         <div class="message-header">
           <button
             class="message-author"
-            on:click={() => viewUserProfile(message.author_id)}
+            onclick={() => viewUserProfile(message.author_id)}
           >{message.author}</button>
           <span class="message-timestamp"
             >{formatTimestamp(message.timestamp)}</span
@@ -249,14 +246,14 @@
             <textarea
               class="edit-message-input"
               value={$chatState.editMessageContent}
-              on:input={(e) => updateEditMessageContent(e.currentTarget.value)}
-              on:keydown={handleEditKeydown}
+              oninput={(e) => updateEditMessageContent(e.currentTarget.value)}
+              onkeydown={handleEditKeydown}
             ></textarea>
             <div class="edit-message-actions">
-              <button class="edit-action-btn cancel" on:click={cancelEditMessage}
+              <button class="edit-action-btn cancel" onclick={cancelEditMessage}
                 >Cancel</button
               >
-              <button class="edit-action-btn save" on:click={saveEditMessage}
+              <button class="edit-action-btn save" onclick={saveEditMessage}
                 >Save</button
               >
             </div>
@@ -273,7 +270,7 @@
             {#if overflowingMessages.has(message.id)}
               <button
                 class="message-expand-btn"
-                on:click={() => toggleExpand(message.id)}
+                onclick={() => toggleExpand(message.id)}
               >
                 {expandedMessages.has(message.id) ? 'Show less' : 'Show more'}
               </button>
@@ -286,7 +283,7 @@
               {#if isImageType(attachment.content_type)}
                 <button
                   class="attachment-image-link"
-                  on:click={() =>
+                  onclick={() =>
                     openLightbox(
                       getAttachmentUrl(attachment.id, attachment.filename),
                       attachment.filename,
@@ -341,7 +338,7 @@
               {#if preview.image_url}
                 <button
                   class="link-preview-image-btn"
-                  on:click={() =>
+                  onclick={() =>
                     openLightbox(
                       resolveUrl(preview.image_url || ''),
                       preview.title || '',
@@ -381,7 +378,7 @@
             {#each message.reactions as reaction}
               <button
                 class="reaction-btn {reaction.reacted ? 'reacted' : ''}"
-                on:click={() => toggleReaction(message.id, reaction.emoji)}
+                onclick={() => toggleReaction(message.id, reaction.emoji)}
                 title={reaction.emoji}
               >
                 {#if isCustomEmoji(reaction.emoji)}
@@ -399,7 +396,7 @@
             {/each}
             <button
               class="reaction-btn add-reaction"
-              on:click={() => toggleEmojiPicker(message.id)}
+              onclick={() => toggleEmojiPicker(message.id)}
               title="Add reaction">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
             </button>
@@ -416,20 +413,20 @@
         <div class="message-actions">
           <button
             class="msg-action-btn"
-            on:click={() => startReply(message)}
+            onclick={() => startReply(message)}
             title="Reply">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
           </button>
           <button
             class="msg-action-btn"
-            on:click={() => toggleEmojiPicker(message.id)}
+            onclick={() => toggleEmojiPicker(message.id)}
             title="React">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-5H11v-1h2v1zm1 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM17 9H7V7h10v2z"/></svg>
           </button>
           {#if message.author_id === currentUserId}
             <button
               class="msg-action-btn"
-              on:click={() => startEditMessage(message)}
+              onclick={() => startEditMessage(message)}
               title="Edit">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
             </button>
@@ -437,7 +434,7 @@
           {#if canDeleteMessage(message.author_id, currentUserId, $user?.role)}
             <button
               class="msg-action-btn delete"
-              on:click={() => deleteMessage(message.id)}
+              onclick={() => deleteMessage(message.id)}
               title="Delete">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
             </button>
@@ -459,15 +456,15 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     class="lightbox-overlay"
-    on:click={closeLightbox}
+    onclick={closeLightbox}
     role="dialog"
     aria-label="Image preview"
     tabindex="-1"
   >
-    <button class="lightbox-close" on:click|stopPropagation={closeLightbox}>
+    <button class="lightbox-close" onclick={(e) => { e.stopPropagation(); closeLightbox(); }}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
     </button>
-    <div class="lightbox-image-container" on:click|stopPropagation role="presentation">
+    <div class="lightbox-image-container" onclick={(e) => e.stopPropagation()} role="presentation">
       <img
         class="lightbox-image"
         src={lightboxSrc}

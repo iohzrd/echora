@@ -12,16 +12,16 @@
   import Avatar from './Avatar.svelte';
 
   // Local state for channel create/edit forms
-  let showCreateChannel: 'text' | 'voice' | null = null;
-  let newChannelName = '';
-  let editingChannelId: string | null = null;
-  let editChannelName = '';
+  let showCreateChannel: 'text' | 'voice' | null = $state(null);
+  let newChannelName = $state('');
+  let editingChannelId: string | null = $state(null);
+  let editChannelName = $state('');
 
   // Per-user volume menu state
-  let volumeMenuUserId: string | null = null;
-  let volumeMenuUsername = '';
-  let volumeMenuX = 0;
-  let volumeMenuY = 0;
+  let volumeMenuUserId: string | null = $state(null);
+  let volumeMenuUsername = $state('');
+  let volumeMenuX = $state(0);
+  let volumeMenuY = $state(0);
 
   function openUserVolumeMenu(e: MouseEvent, userId: string, username: string) {
     volumeMenuUserId = userId;
@@ -97,7 +97,7 @@
   {#if isAdmin}
     <button
       class="create-channel-btn"
-      on:click={() => toggleCreateForm('text')}
+      onclick={() => toggleCreateForm('text')}
       title="Create Text Channel">+</button
     >
   {/if}
@@ -109,7 +109,7 @@
       class="create-channel-input"
       placeholder="channel-name"
       bind:value={newChannelName}
-      on:keydown={handleCreateKeydown}
+      onkeydown={handleCreateKeydown}
       maxlength="50"
     />
   </div>
@@ -117,13 +117,13 @@
 {#each textChannels as channel}
   <div
     class="channel-item {$chatState.selectedChannelId === channel.id ? 'selected' : ''}"
-    on:click={() => {
+    onclick={() => {
       if (editingChannelId !== channel.id)
         selectChannel(channel.id, channel.name);
     }}
     role="button"
     tabindex="0"
-    on:keydown={(e) => e.key === 'Enter' && selectChannel(channel.id, channel.name)}
+    onkeydown={(e) => e.key === 'Enter' && selectChannel(channel.id, channel.name)}
   >
     <div class="channel-icon">#</div>
     {#if editingChannelId === channel.id}
@@ -131,8 +131,8 @@
         type="text"
         class="edit-channel-input"
         bind:value={editChannelName}
-        on:keydown={handleEditKeydown}
-        on:click|stopPropagation
+        onkeydown={handleEditKeydown}
+        onclick={(e) => e.stopPropagation()}
         maxlength="50"
       />
     {:else}
@@ -141,13 +141,13 @@
         <div class="channel-actions">
           <button
             class="channel-action-btn"
-            on:click|stopPropagation={() => startEdit(channel)}
+            onclick={(e) => { e.stopPropagation(); startEdit(channel); }}
             title="Edit">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
           </button>
           <button
             class="channel-action-btn delete"
-            on:click|stopPropagation={() => deleteChannel(channel.id)}
+            onclick={(e) => { e.stopPropagation(); deleteChannel(channel.id); }}
             title="Delete">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
           </button>
@@ -162,7 +162,7 @@
   {#if isAdmin}
     <button
       class="create-channel-btn"
-      on:click={() => toggleCreateForm('voice')}
+      onclick={() => toggleCreateForm('voice')}
       title="Create Voice Channel">+</button
     >
   {/if}
@@ -174,7 +174,7 @@
       class="create-channel-input"
       placeholder="channel-name"
       bind:value={newChannelName}
-      on:keydown={handleCreateKeydown}
+      onkeydown={handleCreateKeydown}
       maxlength="50"
     />
   </div>
@@ -188,13 +188,13 @@
         <div class="channel-actions voice-actions">
           <button
             class="channel-action-btn"
-            on:click|stopPropagation={() => startEdit(channel)}
+            onclick={(e) => { e.stopPropagation(); startEdit(channel); }}
             title="Edit">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
           </button>
           <button
             class="channel-action-btn delete"
-            on:click|stopPropagation={() => deleteChannel(channel.id)}
+            onclick={(e) => { e.stopPropagation(); deleteChannel(channel.id); }}
             title="Delete">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
           </button>
@@ -203,7 +203,7 @@
       {#if $voiceStore.currentVoiceChannel !== channel.id}
         <button
           class="voice-btn join"
-          on:click={() => joinVoice(channel.id)}
+          onclick={() => joinVoice(channel.id)}
           title="Join Voice Channel"
         >
           Join
@@ -217,8 +217,8 @@
           type="text"
           class="edit-channel-input"
           bind:value={editChannelName}
-          on:keydown={handleEditKeydown}
-          on:click|stopPropagation
+          onkeydown={handleEditKeydown}
+          onclick={(e) => e.stopPropagation()}
           maxlength="50"
         />
       </div>
@@ -233,15 +233,16 @@
               : ''} {voiceState.is_screen_sharing
               ? 'screen-sharing'
               : ''} {voiceState.is_camera_sharing ? 'camera-sharing' : ''}"
-            on:click={() => viewUserProfile(voiceState.user_id)}
-            on:contextmenu|preventDefault={(e) => {
+            onclick={() => viewUserProfile(voiceState.user_id)}
+            oncontextmenu={(e) => {
+              e.preventDefault();
               if (voiceState.user_id !== currentUserId) {
                 openUserVolumeMenu(e, voiceState.user_id, voiceState.username);
               }
             }}
             role="button"
             tabindex="0"
-            on:keydown={(e) => e.key === 'Enter' && viewUserProfile(voiceState.user_id)}
+            onkeydown={(e) => e.key === 'Enter' && viewUserProfile(voiceState.user_id)}
           >
             <Avatar
               username={voiceState.username}
@@ -262,10 +263,7 @@
             {#if voiceState.is_screen_sharing}
               <button
                 class="screen-indicator"
-                on:click|stopPropagation={() => {
-                  if (voiceState.user_id !== currentUserId)
-                    watchScreen(voiceState.user_id, voiceState.username);
-                }}
+                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchScreen(voiceState.user_id, voiceState.username); }}
                 title="Watch screen">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
               </button>
@@ -273,10 +271,7 @@
             {#if voiceState.is_camera_sharing}
               <button
                 class="camera-indicator"
-                on:click|stopPropagation={() => {
-                  if (voiceState.user_id !== currentUserId)
-                    watchCamera(voiceState.user_id, voiceState.username);
-                }}
+                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchCamera(voiceState.user_id, voiceState.username); }}
                 title="Watch camera">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
               </button>

@@ -1,13 +1,15 @@
 <script lang="ts">
   import { validateServerUrl } from "../serverManager";
 
-  export let onAdd: (url: string, name: string) => void = () => {};
-  export let onCancel: () => void = () => {};
+  let { onAdd = () => {}, onCancel = () => {} }: {
+    onAdd?: (url: string, name: string) => void;
+    onCancel?: () => void;
+  } = $props();
 
-  let serverUrl = "";
-  let serverName = "";
-  let error = "";
-  let validating = false;
+  let serverUrl = $state("");
+  let serverName = $state("");
+  let error = $state("");
+  let validating = $state(false);
 
   async function handleSubmit() {
     if (!serverUrl.trim()) {
@@ -50,10 +52,10 @@
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<div class="dialog-overlay" on:click={onCancel} role="presentation">
+<div class="dialog-overlay" onclick={onCancel} role="presentation">
   <div
     class="dialog-content"
-    on:click|stopPropagation
+    onclick={(e) => e.stopPropagation()}
     role="dialog"
     aria-label="Add Server"
     tabindex="-1"
@@ -70,7 +72,7 @@
         type="text"
         placeholder="https://echora.example.com"
         bind:value={serverUrl}
-        on:keydown={handleKeydown}
+        onkeydown={handleKeydown}
         disabled={validating}
       />
     </div>
@@ -82,7 +84,7 @@
         type="text"
         placeholder="My Server"
         bind:value={serverName}
-        on:keydown={handleKeydown}
+        onkeydown={handleKeydown}
         disabled={validating}
         maxlength="32"
       />
@@ -95,14 +97,14 @@
     <div class="dialog-actions">
       <button
         class="dialog-btn cancel"
-        on:click={onCancel}
+        onclick={onCancel}
         disabled={validating}
       >
         Cancel
       </button>
       <button
         class="dialog-btn submit"
-        on:click={handleSubmit}
+        onclick={handleSubmit}
         disabled={validating}
       >
         {validating ? "Connecting..." : "Add Server"}

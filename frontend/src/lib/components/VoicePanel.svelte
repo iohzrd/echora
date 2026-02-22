@@ -5,8 +5,8 @@
   import { formatKeyLabel, keyEventToTauriKey, mouseEventToTauriKey } from '../ptt';
   import AudioSettingsPanel from './AudioSettings.svelte';
 
-  let recordingKey = false;
-  let showSettings = false;
+  let recordingKey = $state(false);
+  let showSettings = $state(false);
 
   function handleKeyRecord(e: KeyboardEvent) {
     e.preventDefault();
@@ -36,7 +36,7 @@
       <span class="voice-panel-status">Voice Connected</span>
       <button
         class="voice-panel-leave"
-        on:click={leaveVoice}
+        onclick={leaveVoice}
         title="Disconnect"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -56,7 +56,7 @@
           'push-to-talk' && $voiceStore.pttActive
           ? 'ptt-transmitting'
           : ''}"
-        on:click={toggleMute}
+        onclick={toggleMute}
         title={$voiceStore.voiceInputMode === 'push-to-talk'
           ? $voiceStore.pttActive
             ? 'Transmitting'
@@ -94,7 +94,7 @@
       <!-- Headphones / Deafen -->
       <button
         class="voice-control-btn {$voiceStore.isDeafened ? 'active' : ''}"
-        on:click={toggleDeafen}
+        onclick={toggleDeafen}
         title={$voiceStore.isDeafened ? 'Undeafen' : 'Deafen'}
       >
         {#if $voiceStore.isDeafened}
@@ -122,7 +122,7 @@
       <!-- Screen Share -->
       <button
         class="voice-control-btn screen {$voiceStore.isScreenSharing ? 'active' : ''}"
-        on:click={toggleScreenShare}
+        onclick={toggleScreenShare}
         title={$voiceStore.isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
@@ -134,7 +134,7 @@
       <!-- Camera -->
       <button
         class="voice-control-btn camera {$voiceStore.isCameraSharing ? 'active' : ''}"
-        on:click={toggleCamera}
+        onclick={toggleCamera}
         title={$voiceStore.isCameraSharing ? 'Stop Camera' : 'Start Camera'}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
@@ -146,7 +146,7 @@
       <!-- Settings -->
       <button
         class="voice-control-btn settings-toggle"
-        on:click={() => (showSettings = !showSettings)}
+        onclick={() => (showSettings = !showSettings)}
         title={showSettings ? 'Hide Settings' : 'Show Settings'}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
@@ -163,14 +163,14 @@
           <div class="voice-mode-toggle">
             <button
               class="mode-btn {$voiceStore.voiceInputMode === 'voice-activity' ? 'active' : ''}"
-              on:click={() => switchVoiceInputMode('voice-activity')}
+              onclick={() => switchVoiceInputMode('voice-activity')}
               title="Voice Activity Detection"
             >
               VAD
             </button>
             <button
               class="mode-btn {$voiceStore.voiceInputMode === 'push-to-talk' ? 'active' : ''}"
-              on:click={() => switchVoiceInputMode('push-to-talk')}
+              onclick={() => switchVoiceInputMode('push-to-talk')}
               title="Push to Talk"
             >
               PTT
@@ -183,17 +183,17 @@
                 <!-- svelte-ignore a11y-no-static-element-interactions -->
                 <button
                   class="ptt-key-btn recording"
-                  on:keydown={handleKeyRecord}
-                  on:mousedown={handleMouseRecord}
-                  on:contextmenu|preventDefault
-                  on:blur={() => (recordingKey = false)}
+                  onkeydown={handleKeyRecord}
+                  onmousedown={handleMouseRecord}
+                  oncontextmenu={(e) => e.preventDefault()}
+                  onblur={() => (recordingKey = false)}
                 >
                   Press a key or mouse button...
                 </button>
               {:else}
                 <button
                   class="ptt-key-btn"
-                  on:click={() => (recordingKey = true)}
+                  onclick={() => (recordingKey = true)}
                   title="Click to change PTT key"
                 >
                   {formatKeyLabel($voiceStore.pttKey)}

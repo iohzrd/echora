@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import {
     API,
     type UserSummary,
@@ -205,15 +206,16 @@
     navigator.clipboard.writeText(text);
   }
 
-  // Load initial tab
-  loadTab(activeTab);
+  onMount(() => {
+    loadTab(activeTab);
+  });
 </script>
 
-<div class="admin-overlay" on:click|self={onClose} role="presentation">
+<div class="admin-overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="presentation">
   <div class="admin-panel">
     <div class="admin-header">
       <h2>Server Administration</h2>
-      <button class="admin-close-btn" on:click={onClose}>
+      <button class="admin-close-btn" onclick={onClose}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
     </div>
@@ -221,25 +223,25 @@
     <div class="admin-tabs">
       <button
         class="admin-tab {activeTab === 'users' ? 'active' : ''}"
-        on:click={() => switchTab("users")}>Users</button
+        onclick={() => switchTab("users")}>Users</button
       >
       <button
         class="admin-tab {activeTab === 'moderation' ? 'active' : ''}"
-        on:click={() => switchTab("moderation")}>Moderation</button
+        onclick={() => switchTab("moderation")}>Moderation</button
       >
       <button
         class="admin-tab {activeTab === 'invites' ? 'active' : ''}"
-        on:click={() => switchTab("invites")}>Invites</button
+        onclick={() => switchTab("invites")}>Invites</button
       >
       {#if isAdmin}
         <button
           class="admin-tab {activeTab === 'settings' ? 'active' : ''}"
-          on:click={() => switchTab("settings")}>Settings</button
+          onclick={() => switchTab("settings")}>Settings</button
         >
       {/if}
       <button
         class="admin-tab {activeTab === 'modlog' ? 'active' : ''}"
-        on:click={() => switchTab("modlog")}>Mod Log</button
+        onclick={() => switchTab("modlog")}>Mod Log</button
       >
     </div>
 
@@ -273,7 +275,7 @@
                     {#if isAdmin && canModerate(u.role) && u.id !== $user?.id}
                       <select
                         value={u.role}
-                        on:change={(e) =>
+                        onchange={(e) =>
                           handleChangeRole(u.id, e.currentTarget.value)}
                         class="role-select"
                       >
@@ -310,7 +312,7 @@
               />
               <button
                 class="mod-action-btn kick"
-                on:click={handleKick}
+                onclick={handleKick}
                 disabled={!kickUserId}>Kick</button
               >
             </div>
@@ -337,7 +339,7 @@
               />
               <button
                 class="mod-action-btn ban"
-                on:click={handleBan}
+                onclick={handleBan}
                 disabled={!banUserId}>Ban</button
               >
             </div>
@@ -364,7 +366,7 @@
               />
               <button
                 class="mod-action-btn mute"
-                on:click={handleMute}
+                onclick={handleMute}
                 disabled={!muteUserId}>Mute</button
               >
             </div>
@@ -388,7 +390,7 @@
                   </div>
                   <button
                     class="mod-action-btn unban"
-                    on:click={() => handleUnban(ban.user_id)}>Unban</button
+                    onclick={() => handleUnban(ban.user_id)}>Unban</button
                   >
                 </div>
               {/each}
@@ -413,7 +415,7 @@
                   </div>
                   <button
                     class="mod-action-btn unmute"
-                    on:click={() => handleUnmute(mute.user_id)}>Unmute</button
+                    onclick={() => handleUnmute(mute.user_id)}>Unmute</button
                   >
                 </div>
               {/each}
@@ -436,7 +438,7 @@
               placeholder="Expires in hours (empty = never)"
               class="mod-input"
             />
-            <button class="mod-action-btn create" on:click={handleCreateInvite}
+            <button class="mod-action-btn create" onclick={handleCreateInvite}
               >Create Invite</button
             >
           </div>
@@ -445,7 +447,7 @@
               <span class="invite-code">{lastCreatedInvite.code}</span>
               <button
                 class="copy-btn"
-                on:click={() =>
+                onclick={() =>
                   lastCreatedInvite && copyToClipboard(lastCreatedInvite.code)}
                 >Copy</button
               >
@@ -486,7 +488,7 @@
                         {#if !invite.revoked}
                           <button
                             class="mod-action-btn revoke"
-                            on:click={() => handleRevokeInvite(invite.id)}
+                            onclick={() => handleRevokeInvite(invite.id)}
                             >Revoke</button
                           >
                         {/if}
@@ -508,7 +510,7 @@
                 name="reg_mode"
                 value="open"
                 checked={settings.registration_mode === "open"}
-                on:change={() =>
+                onchange={() =>
                   handleUpdateSetting("registration_mode", "open")}
               />
               Open Registration
@@ -519,7 +521,7 @@
                 name="reg_mode"
                 value="invite_only"
                 checked={settings.registration_mode === "invite_only"}
-                on:change={() =>
+                onchange={() =>
                   handleUpdateSetting("registration_mode", "invite_only")}
               />
               Invite Only

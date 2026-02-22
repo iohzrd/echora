@@ -2,14 +2,14 @@
   import { onMount } from "svelte";
   import { PasskeyService, type PasskeyInfo } from "../passkey";
 
-  export let onClose: () => void = () => {};
+  let { onClose = () => {} }: { onClose?: () => void } = $props();
 
-  let passkeys: PasskeyInfo[] = [];
-  let loading = false;
-  let error = "";
-  let newPasskeyName = "";
-  let registering = false;
-  let passkeySupported = false;
+  let passkeys: PasskeyInfo[] = $state([]);
+  let loading = $state(false);
+  let error = $state("");
+  let newPasskeyName = $state("");
+  let registering = $state(false);
+  let passkeySupported = $state(false);
 
   onMount(async () => {
     passkeySupported = PasskeyService.isSupported();
@@ -68,11 +68,11 @@
   }
 </script>
 
-<div class="passkey-overlay" on:click|self={onClose} role="presentation">
+<div class="passkey-overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="presentation">
   <div class="passkey-panel">
     <div class="passkey-header">
       <h2>Passkeys</h2>
-      <button class="close-btn" on:click={onClose}>X</button>
+      <button class="close-btn" onclick={onClose}>X</button>
     </div>
 
     <div class="passkey-content">
@@ -90,11 +90,11 @@
             bind:value={newPasskeyName}
             placeholder="Passkey name (optional)"
             disabled={registering}
-            on:keydown={(e) => { if (e.key === "Enter") registerPasskey(); }}
+            onkeydown={(e) => { if (e.key === "Enter") registerPasskey(); }}
           />
           <button
             class="add-btn"
-            on:click={registerPasskey}
+            onclick={registerPasskey}
             disabled={registering}
           >
             {registering ? "Registering..." : "Add Passkey"}
@@ -117,7 +117,7 @@
                 </div>
                 <button
                   class="delete-btn"
-                  on:click={() => deletePasskey(pk.id, pk.name)}
+                  onclick={() => deletePasskey(pk.id, pk.name)}
                   title="Remove passkey"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">

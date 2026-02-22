@@ -2,13 +2,15 @@
   import { servers, activeServer, type EchoraServer } from "../serverManager";
   import { getInitial } from "../utils";
 
-  export let onSelectServer: (server: EchoraServer) => void = () => {};
-  export let onAddServer: () => void = () => {};
-  export let onRemoveServer: (id: string) => void = () => {};
+  let { onSelectServer = () => {}, onAddServer = () => {}, onRemoveServer = () => {} }: {
+    onSelectServer?: (server: EchoraServer) => void;
+    onAddServer?: () => void;
+    onRemoveServer?: (id: string) => void;
+  } = $props();
 
-  let contextMenuServerId: string | null = null;
-  let contextMenuX = 0;
-  let contextMenuY = 0;
+  let contextMenuServerId: string | null = $state(null);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
 
   function handleContextMenu(event: MouseEvent, serverId: string) {
     event.preventDefault();
@@ -32,7 +34,7 @@
   }
 </script>
 
-<svelte:window on:click={closeContextMenu} />
+<svelte:window onclick={closeContextMenu} />
 
 <div class="server-sidebar">
   {#each $servers as server (server.id)}
@@ -41,8 +43,8 @@
         ? 'active'
         : ''}"
       title="{server.name}{server.username ? ` (${server.username})` : ''}"
-      on:click={() => onSelectServer(server)}
-      on:contextmenu={(e) => handleContextMenu(e, server.id)}
+      onclick={() => onSelectServer(server)}
+      oncontextmenu={(e) => handleContextMenu(e, server.id)}
     >
       {getInitial(server.name)}
     </button>
@@ -53,7 +55,7 @@
   <button
     class="server-sidebar-icon add-server"
     title="Add Server"
-    on:click={onAddServer}
+    onclick={onAddServer}
   >
     +
   </button>
@@ -70,14 +72,14 @@
       <button
         class="context-menu-item"
         role="menuitem"
-        on:click={() => handleCopyUrl(server)}
+        onclick={() => handleCopyUrl(server)}
       >
         Copy URL
       </button>
       <button
         class="context-menu-item danger"
         role="menuitem"
-        on:click={() => handleRemove(server.id)}
+        onclick={() => handleRemove(server.id)}
       >
         Remove Server
       </button>

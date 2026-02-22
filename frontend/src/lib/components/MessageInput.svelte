@@ -12,9 +12,9 @@
     uploading: boolean;
   }
 
-  let messageText = '';
-  let pendingFiles: PendingFile[] = [];
-  let dragOver = false;
+  let messageText = $state('');
+  let pendingFiles: PendingFile[] = $state([]);
+  let dragOver = $state(false);
   let fileInput: HTMLInputElement;
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -23,7 +23,6 @@
   async function uploadFile(pending: PendingFile) {
     pending.uploading = true;
     pending.progress = 0;
-    pendingFiles = pendingFiles;
 
     try {
       const attachment = await API.uploadAttachment(pending.file);
@@ -34,7 +33,6 @@
       pending.error = e instanceof Error ? e.message : 'Upload failed';
       pending.uploading = false;
     }
-    pendingFiles = pendingFiles;
   }
 
   function addFiles(files: FileList | File[]) {
@@ -135,9 +133,9 @@
 <div
   class="message-input-area"
   class:drag-over={dragOver}
-  on:drop={handleDrop}
-  on:dragover={handleDragOver}
-  on:dragleave={handleDragLeave}
+  ondrop={handleDrop}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
   role="region"
 >
   {#if $chatState.replyingTo}
@@ -147,7 +145,7 @@
       >
       <button
         class="reply-bar-cancel"
-        on:click={cancelReply}
+        onclick={cancelReply}
         title="Cancel reply">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
@@ -170,7 +168,7 @@
           {/if}
           <button
             class="pending-file-remove"
-            on:click={() => removeFile(i)}
+            onclick={() => removeFile(i)}
             title="Remove"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -182,7 +180,7 @@
   <div class="input-row">
     <button
       class="attach-btn"
-      on:click={() => fileInput.click()}
+      onclick={() => fileInput.click()}
       title="Attach file"
       disabled={!$chatState.selectedChannelId || pendingFiles.length >= MAX_FILES}
     >
@@ -192,8 +190,8 @@
       class="message-input"
       placeholder="Message #{$chatState.selectedChannelName || 'channel'}"
       bind:value={messageText}
-      on:keydown={handleKeydown}
-      on:paste={handlePaste}
+      onkeydown={handleKeydown}
+      onpaste={handlePaste}
       disabled={!$chatState.selectedChannelId || anyUploading}
     ></textarea>
   </div>
@@ -202,7 +200,7 @@
     type="file"
     multiple
     class="hidden-file-input"
-    on:change={handleFileSelect}
+    onchange={handleFileSelect}
   />
   {#if dragOver}
     <div class="drop-overlay">Drop files here</div>
