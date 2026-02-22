@@ -61,20 +61,31 @@
 
   let prevChannelId = $state('');
   let prevMessageCount = $state(0);
+  let needsScrollToBottom = $state(false);
   $effect(() => {
     const channelId = $chatState.selectedChannelId;
     const count = $chatState.messages.length;
     if (channelId !== prevChannelId) {
-      // Channel switched — always scroll to bottom once messages render
+      // Channel switched — mark that we need to scroll once messages load
       prevChannelId = channelId;
       prevMessageCount = count;
-      requestAnimationFrame(() => {
-        if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
-      });
+      needsScrollToBottom = true;
+      if (count > 0) {
+        requestAnimationFrame(() => {
+          if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+          needsScrollToBottom = false;
+        });
+      }
     } else if (count > prevMessageCount) {
-      // New message in same channel — only scroll if already near the bottom
       prevMessageCount = count;
-      if (isNearBottom()) {
+      if (needsScrollToBottom) {
+        // Messages just loaded for this channel — scroll to bottom
+        needsScrollToBottom = false;
+        requestAnimationFrame(() => {
+          if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+        });
+      } else if (isNearBottom()) {
+        // New message in same channel — only scroll if already near the bottom
         requestAnimationFrame(() => {
           if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
         });

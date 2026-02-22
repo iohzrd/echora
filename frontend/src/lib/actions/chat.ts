@@ -48,11 +48,22 @@ export async function selectChannel(channelId: string, channelName: string) {
   try {
     const msgs = await API.getMessages(channelId, 50);
     populateAvatarsFromMessages(msgs);
-    chatState.update((s) => ({
-      ...s,
-      messages: msgs,
-      hasMoreMessages: msgs.length >= 50,
-    }));
+    // Merge REST history with any WS events already received during the fetch.
+    // Deduplicate by ID so messages that arrived via both paths appear once.
+    // REST provides the authoritative ordered list; WS-only additions are appended.
+    chatState.update((s) => {
+      if (s.selectedChannelId !== channelId) return s;
+      const restIds = new Set(msgs.map((m) => m.id));
+      const wsOnly = s.messages.filter((m) => !restIds.has(m.id));
+      const merged = [...msgs, ...wsOnly].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
+      return {
+        ...s,
+        messages: merged,
+        hasMoreMessages: msgs.length >= 50,
+      };
+    });
     return true;
   } catch (error) {
     console.error('Failed to load messages:', error);

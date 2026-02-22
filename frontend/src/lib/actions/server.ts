@@ -152,6 +152,10 @@ async function _connectToServer() {
     setupWsHandlers();
     setupVoiceStateHandlers();
     getWs().onReconnect(() => voiceManager.reconcileProducers());
+
+    // Connect WS before fetching messages so the subscription is established
+    // before the REST fetch. Any messages that arrive during the REST fetch
+    // will be buffered via WS and deduplicated in selectChannel.
     await getWs().connect();
     syncVoiceState();
 

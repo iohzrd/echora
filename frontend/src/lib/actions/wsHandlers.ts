@@ -368,6 +368,15 @@ export function setupWsHandlers() {
       }, 3000);
     }
 
+    if (data.type === 'sync_required') {
+      // The client fell too far behind on the broadcast channel.
+      // Re-load the current channel's message history to recover state.
+      const { selectedChannelId, selectedChannelName } = cs;
+      if (selectedChannelId) {
+        selectChannel(selectedChannelId, selectedChannelName);
+      }
+    }
+
     if (data.type === 'typing') {
       const { user_id: userId, channel_id, username } = data.data;
       if (channel_id === cs.selectedChannelId) {
