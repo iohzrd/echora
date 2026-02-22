@@ -96,6 +96,18 @@
     return results;
   });
 
+  async function handleDelete(emoji: CustomEmoji) {
+    try {
+      await API.deleteCustomEmoji(emoji.id);
+      serverState.update((s) => ({
+        ...s,
+        customEmojis: s.customEmojis.filter((e) => e.id !== emoji.id),
+      }));
+    } catch (e: any) {
+      uploadError = e.message || "Delete failed";
+    }
+  }
+
   async function handleUpload() {
     if (!uploadFile || !uploadName.trim()) return;
     uploading = true;
@@ -168,17 +180,24 @@
   {:else}
     <div class="emoji-grid">
       {#each customEmojis as emoji}
-        <button
-          class="emoji-picker-btn custom-emoji-btn"
-          onclick={() => { onSelect(`:${emoji.name}:`); closeEmojiPicker(); }}
-          title=":{emoji.name}:"
-        >
-          <img
-            src={API.getCustomEmojiUrl(emoji.id)}
-            alt=":{emoji.name}:"
-            class="custom-emoji-img-picker"
-          />
-        </button>
+        <div class="custom-emoji-wrapper">
+          <button
+            class="emoji-picker-btn custom-emoji-btn"
+            onclick={() => { onSelect(`:${emoji.name}:`); closeEmojiPicker(); }}
+            title=":{emoji.name}:"
+          >
+            <img
+              src={API.getCustomEmojiUrl(emoji.id)}
+              alt=":{emoji.name}:"
+              class="custom-emoji-img-picker"
+            />
+          </button>
+          <button
+            class="custom-emoji-delete"
+            title="Delete :{emoji.name}:"
+            onclick={(e) => { e.stopPropagation(); handleDelete(emoji); }}
+          >x</button>
+        </div>
       {/each}
       {#if customEmojis.length === 0}
         <div class="emoji-picker-empty">No custom emojis yet</div>
@@ -327,6 +346,34 @@
 
 .emoji-picker-btn:hover {
 	background: var(--bg-input);
+}
+
+.custom-emoji-wrapper {
+	position: relative;
+}
+
+.custom-emoji-wrapper:hover .custom-emoji-delete {
+	display: flex;
+}
+
+.custom-emoji-delete {
+	display: none;
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	width: 14px;
+	height: 14px;
+	align-items: center;
+	justify-content: center;
+	background: var(--status-error);
+	color: var(--text-white);
+	border: none;
+	border-radius: 50%;
+	font-size: 9px;
+	line-height: 1;
+	cursor: pointer;
+	padding: 0;
+	z-index: 1;
 }
 
 .custom-emoji-btn {
