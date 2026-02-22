@@ -5,6 +5,7 @@ export interface ServerStateStore {
   onlineUsers: UserPresence[];
   userAvatars: Record<string, string | undefined>;
   userRolesMap: Record<string, string>;
+  userDisplayNames: Record<string, string>;
   serverName: string;
   backendVersion: string;
   customEmojis: CustomEmoji[];
@@ -15,6 +16,7 @@ export const serverState = $state<ServerStateStore>({
   onlineUsers: [],
   userAvatars: {},
   userRolesMap: {},
+  userDisplayNames: {},
   serverName: "",
   backendVersion: "",
   customEmojis: [],

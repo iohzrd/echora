@@ -244,7 +244,8 @@
           <button
             class="message-author"
             onclick={() => viewUserProfile(message.author_id)}
-            >{message.author}</button
+            >{serverState.userDisplayNames[message.author_id] ||
+              message.author}</button
           >
           <span class="message-timestamp"
             >{formatTimestamp(message.timestamp)}</span
