@@ -71,6 +71,7 @@ export interface SendMessageRequest {
 export interface VoiceState {
   user_id: string;
   username: string;
+  display_name?: string;
   avatar_url?: string;
   channel_id: string;
   session_id: string;
@@ -88,6 +89,7 @@ export interface JoinVoiceRequest {
 export interface UserPresence {
   user_id: string;
   username: string;
+  display_name?: string;
   avatar_url?: string;
   connected_at: string;
 }
@@ -300,11 +302,7 @@ export class API {
 
   // --- Profile ---
 
-  static async updateUsername(username: string): Promise<AuthResponse> {
-    return this.jsonRequest('/auth/me', 'PUT', { username }, 'Failed to update username');
-  }
-
-  static async updateProfile(data: { username?: string; display_name?: string | null }): Promise<AuthResponse> {
+  static async updateProfile(data: { display_name?: string | null }): Promise<AuthResponse> {
     return this.jsonRequest('/auth/me', 'PUT', data, 'Failed to update profile');
   }
 
@@ -463,7 +461,7 @@ export type WsIncomingMessage =
   | { type: 'user_online'; data: UserPresence }
   | { type: 'user_offline'; data: { user_id: string } }
   | { type: 'user_avatar_updated'; data: { user_id: string; avatar_url?: string } }
-  | { type: 'user_profile_updated'; data: { user_id: string; username: string; avatar_url?: string } }
+  | { type: 'user_profile_updated'; data: { user_id: string; username: string; display_name?: string | null; avatar_url?: string } }
   | { type: 'user_renamed'; data: { user_id: string; new_username: string } }
   | { type: 'user_role_changed'; data: { user_id: string; new_role: string } }
   | { type: 'user_kicked'; data: { user_id: string } }

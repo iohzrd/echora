@@ -135,41 +135,8 @@ pub async fn update_profile(
         .await?
         .ok_or_else(|| AppError::not_found("User not found"))?;
 
-    let mut current_username = user.username.clone();
+    let current_username = user.username.clone();
     let mut changed = false;
-
-    // Handle username change
-    if let Some(ref new_username) = payload.username {
-        let new_username = validation::validate_username(new_username)?;
-        if new_username != current_username {
-            let old_username = current_username.clone();
-            database::update_username(&state.db, user.id, &new_username).await?;
-            current_username = new_username.clone();
-            changed = true;
-
-            // Update in-memory online presence
-            if let Some(mut presence) = state.online_users.get_mut(&user.id) {
-                presence.username = new_username.clone();
-            }
-
-            // Update in-memory voice states
-            for channel_users in state.voice_states.iter() {
-                if let Some(mut vs) = channel_users.get_mut(&user.id) {
-                    vs.username = new_username.clone();
-                }
-            }
-
-            // Broadcast rename to all connected clients
-            state.broadcast_global(
-                "user_renamed",
-                serde_json::json!({
-                    "user_id": user.id,
-                    "old_username": old_username,
-                    "new_username": new_username,
-                }),
-            );
-        }
-    }
 
     // Handle display_name change
     if let Some(ref new_display_name) = payload.display_name {
@@ -178,6 +145,19 @@ pub async fn update_profile(
             None => None,
         };
         database::update_user_display_name(&state.db, user.id, validated.as_deref()).await?;
+
+        // Update in-memory online presence
+        if let Some(mut presence) = state.online_users.get_mut(&user.id) {
+            presence.display_name = validated.clone();
+        }
+
+        // Update in-memory voice states
+        for channel_users in state.voice_states.iter() {
+            if let Some(mut vs) = channel_users.get_mut(&user.id) {
+                vs.display_name = validated.clone();
+            }
+        }
+
         changed = true;
     }
 

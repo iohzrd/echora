@@ -237,7 +237,7 @@
             oncontextmenu={(e) => {
               e.preventDefault();
               if (voiceState.user_id !== currentUserId) {
-                openUserVolumeMenu(e, voiceState.user_id, voiceState.username);
+                openUserVolumeMenu(e, voiceState.user_id, voiceState.display_name || voiceState.username);
               }
             }}
             role="button"
@@ -249,7 +249,7 @@
               avatarUrl={$serverState.userAvatars[voiceState.user_id]}
               size="xs"
             />
-            <span class="username">{voiceState.username}</span>
+            <span class="username">{voiceState.display_name || voiceState.username}</span>
             {#if voiceState.is_muted}
               <span class="mute-indicator" title="Muted">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12A4.5 4.5 0 0 0 12 7.5v2.77l4.43 4.43c.04-.23.07-.46.07-.7zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A9.9 9.9 0 0 0 21 12c0-5.52-3.88-10.12-9-11.29V3a8 8 0 0 1 7 9zm-8.61-9.1L8 5.29 5.27 2.55 4 3.83l3 3V9a3 3 0 0 0 3 3h.29l1.5 1.5A4.5 4.5 0 0 1 7.5 12H5.57A8 8 0 0 0 11 20.71v2.29h2v-2.29A8 8 0 0 0 19.17 15l1.66 1.66 1.27-1.27L4 3.83z"/></svg>
@@ -263,7 +263,7 @@
             {#if voiceState.is_screen_sharing}
               <button
                 class="screen-indicator"
-                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchScreen(voiceState.user_id, voiceState.username); }}
+                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchScreen(voiceState.user_id, voiceState.display_name || voiceState.username); }}
                 title="Watch screen">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
               </button>
@@ -271,7 +271,7 @@
             {#if voiceState.is_camera_sharing}
               <button
                 class="camera-indicator"
-                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchCamera(voiceState.user_id, voiceState.username); }}
+                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchCamera(voiceState.user_id, voiceState.display_name || voiceState.username); }}
                 title="Watch camera">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
               </button>

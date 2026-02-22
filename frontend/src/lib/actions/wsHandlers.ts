@@ -157,11 +157,11 @@ export function setupWsHandlers() {
       });
     }
     if (data.type === 'user_profile_updated') {
-      const { user_id, username, avatar_url } = data.data;
+      const { user_id, username, display_name, avatar_url } = data.data;
       serverState.update((s) => ({
         ...s,
         onlineUsers: s.onlineUsers.map((u) =>
-          u.user_id === user_id ? { ...u, username } : u,
+          u.user_id === user_id ? { ...u, username, display_name: display_name ?? undefined } : u,
         ),
         userAvatars: avatar_url
           ? { ...s.userAvatars, [user_id]: API.getAvatarUrl(user_id) + '?t=' + Date.now() }
@@ -170,7 +170,7 @@ export function setupWsHandlers() {
       voiceStore.update((s) => ({
         ...s,
         voiceStates: s.voiceStates.map((v) =>
-          v.user_id === user_id ? { ...v, username } : v,
+          v.user_id === user_id ? { ...v, username, display_name: display_name ?? undefined } : v,
         ),
       }));
     }

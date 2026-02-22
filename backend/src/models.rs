@@ -157,6 +157,8 @@ pub struct VoiceState {
     pub user_id: Uuid,
     pub username: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     pub channel_id: Uuid,
     pub session_id: Uuid,
@@ -181,6 +183,8 @@ pub struct LeaveVoiceRequest {
 pub struct UserPresence {
     pub user_id: Uuid,
     pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar_url: Option<String>,
     pub connected_at: DateTime<Utc>,

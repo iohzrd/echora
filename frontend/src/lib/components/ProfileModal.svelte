@@ -10,7 +10,6 @@
   } = $props();
 
   // Self-edit state
-  let username = $state("");
   let displayName = $state("");
   let saving = $state(false);
   let uploading = $state(false);
@@ -35,7 +34,6 @@
 
   $effect(() => {
     if (!isViewMode && $user) {
-      username = $user.username;
       displayName = $user.display_name || "";
     }
   });
@@ -60,24 +58,14 @@
     error = "";
     success = "";
     try {
-      const data: { username?: string; display_name?: string | null } = {};
-
-      if (username !== $user.username) {
-        data.username = username;
-      }
-
       const currentDisplayName = $user.display_name || "";
-      if (displayName !== currentDisplayName) {
-        data.display_name = displayName.trim() || null;
-      }
-
-      if (Object.keys(data).length === 0) {
+      if (displayName === currentDisplayName) {
         success = "No changes to save.";
         saving = false;
         return;
       }
 
-      const authResponse = await API.updateProfile(data);
+      const authResponse = await API.updateProfile({ display_name: displayName.trim() || null });
       AuthService.setAuth(authResponse);
       success = "Profile updated.";
     } catch (err) {
@@ -199,7 +187,7 @@
     <div class="profile-header">
       <h2>
         {#if isViewMode}
-          {profile?.username || "Profile"}
+          {profile?.display_name || profile?.username || "Profile"}
         {:else}
           Profile Settings
         {/if}
@@ -299,15 +287,8 @@
         </div>
 
         <div class="field">
-          <label for="profile-username">Username</label>
-          <input
-            id="profile-username"
-            type="text"
-            bind:value={username}
-            onkeydown={handleKeydown}
-            disabled={saving}
-            maxlength="32"
-          />
+          <label>Username</label>
+          <div class="field-value">{$user?.username || ''}</div>
         </div>
 
         <div class="field">
