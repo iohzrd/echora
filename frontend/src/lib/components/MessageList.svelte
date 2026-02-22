@@ -21,6 +21,7 @@
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = $state(null);
+  let emojiPickerAnchorEl: HTMLElement | null = $state(null);
 
   function scrollToBottom() {
     if (messagesArea) {
@@ -108,13 +109,25 @@
     }
   }
 
-  function toggleEmojiPicker(messageId: string) {
-    emojiPickerMessageId = emojiPickerMessageId === messageId ? null : messageId;
+  function toggleEmojiPicker(messageId: string, event: MouseEvent) {
+    if (emojiPickerMessageId === messageId) {
+      emojiPickerMessageId = null;
+      emojiPickerAnchorEl = null;
+    } else {
+      emojiPickerMessageId = messageId;
+      emojiPickerAnchorEl = event.currentTarget as HTMLElement;
+    }
   }
 
   function selectEmoji(messageId: string, emoji: string) {
     toggleReaction(messageId, emoji);
     emojiPickerMessageId = null;
+    emojiPickerAnchorEl = null;
+  }
+
+  function closeEmojiPicker() {
+    emojiPickerMessageId = null;
+    emojiPickerAnchorEl = null;
   }
 
   function isImageType(contentType: string): boolean {
@@ -396,16 +409,10 @@
             {/each}
             <button
               class="reaction-btn add-reaction"
-              onclick={() => toggleEmojiPicker(message.id)}
+              onclick={(e) => toggleEmojiPicker(message.id, e)}
               title="Add reaction">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
             </button>
-            {#if emojiPickerMessageId === message.id}
-              <EmojiPicker
-                onSelect={(emoji) => selectEmoji(message.id, emoji)}
-                customEmojis={$serverState.customEmojis}
-              />
-            {/if}
           </div>
         {/if}
       </div>
@@ -419,7 +426,7 @@
           </button>
           <button
             class="msg-action-btn"
-            onclick={() => toggleEmojiPicker(message.id)}
+            onclick={(e) => toggleEmojiPicker(message.id, e)}
             title="React">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-5H11v-1h2v1zm1 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM17 9H7V7h10v2z"/></svg>
           </button>
@@ -440,17 +447,19 @@
             </button>
           {/if}
         </div>
-        {#if emojiPickerMessageId === message.id && !(message.reactions && message.reactions.length > 0)}
-          <EmojiPicker
-            floating
-            onSelect={(emoji) => selectEmoji(message.id, emoji)}
-            customEmojis={$serverState.customEmojis}
-          />
-        {/if}
       {/if}
     </div>
   {/each}
 </div>
+
+{#if emojiPickerMessageId !== null}
+  <EmojiPicker
+    anchorEl={emojiPickerAnchorEl}
+    onSelect={(emoji) => selectEmoji(emojiPickerMessageId!, emoji)}
+    onClose={closeEmojiPicker}
+    customEmojis={$serverState.customEmojis}
+  />
+{/if}
 
 {#if lightboxSrc}
   <!-- svelte-ignore a11y_click_events_have_key_events -->

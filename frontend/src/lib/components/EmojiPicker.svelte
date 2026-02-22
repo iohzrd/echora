@@ -4,35 +4,81 @@
   import { serverState } from "$lib/stores/serverState";
   import { EMOJI_CATEGORIES, type EmojiEntry } from "$lib/emoji-data";
 
-  let { floating = false, onSelect = () => {}, customEmojis = [] }: {
-    floating?: boolean;
+  let { anchorEl = null, onSelect = () => {}, onClose = () => {}, customEmojis = [] }: {
+    anchorEl?: HTMLElement | null;
     onSelect?: (emoji: string) => void;
+    onClose?: () => void;
     customEmojis?: CustomEmoji[];
   } = $props();
 
   let tab: "standard" | "custom" = $state("standard");
+  let activeCategory = $state(0);
+  let searchQuery = $state("");
   let uploadName = $state("");
   let uploadFile: File | null = $state(null);
   let uploading = $state(false);
   let uploadError = $state("");
+
   let fileInput: HTMLInputElement;
   let pickerEl: HTMLDivElement;
-  let openBelow = $state(false);
-  let activeCategory = $state(0);
-  let searchQuery = $state("");
   let searchInput: HTMLInputElement;
 
+  let posStyle = $state("");
+
+  const PICKER_WIDTH = 320;
+
   onMount(() => {
-    if (pickerEl) {
-      const rect = pickerEl.getBoundingClientRect();
-      if (rect.top < 0) {
-        openBelow = true;
+    computePosition();
+
+    if (searchInput) searchInput.focus();
+
+    function handleClickOutside(e: MouseEvent) {
+      if (pickerEl && !pickerEl.contains(e.target as Node)) {
+        if (anchorEl && anchorEl.contains(e.target as Node)) return;
+        onClose();
       }
     }
-    if (searchInput) {
-      searchInput.focus();
-    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   });
+
+  function computePosition() {
+    if (!anchorEl) {
+      posStyle = "top: 100px; left: 100px;";
+      return;
+    }
+
+    const rect = anchorEl.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Use actual rendered height now that the node is in the DOM
+    const pickerHeight = pickerEl?.offsetHeight ?? 370;
+
+    let left = rect.left;
+    if (left + PICKER_WIDTH > vw - 8) left = vw - PICKER_WIDTH - 8;
+    if (left < 8) left = 8;
+
+    const spaceAbove = rect.top;
+    const spaceBelow = vh - rect.bottom;
+
+    if (spaceAbove >= pickerHeight || spaceAbove >= spaceBelow) {
+      posStyle = `bottom: ${vh - rect.top + 4}px; left: ${left}px;`;
+    } else {
+      posStyle = `top: ${rect.bottom + 4}px; left: ${left}px;`;
+    }
+  }
+
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        if (node.parentNode === document.body) {
+          document.body.removeChild(node);
+        }
+      },
+    };
+  }
 
   let searchResults = $derived.by(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -51,17 +97,6 @@
     }
     return results;
   });
-
-  function selectCustomEmoji(emoji: CustomEmoji) {
-    onSelect(`:${emoji.name}:`);
-  }
-
-  function handleFileSelect(e: Event) {
-    const target = e.target as HTMLInputElement;
-    if (target.files && target.files.length > 0) {
-      uploadFile = target.files[0];
-    }
-  }
 
   async function handleUpload() {
     if (!uploadFile || !uploadName.trim()) return;
@@ -82,10 +117,10 @@
 </script>
 
 <div
-  class="emoji-picker {floating ? 'emoji-picker-floating' : ''} {openBelow
-    ? 'emoji-picker-below'
-    : ''}"
+  class="emoji-picker"
+  style={posStyle}
   bind:this={pickerEl}
+  use:portal
 >
   <div class="emoji-picker-tabs">
     <button
@@ -102,13 +137,8 @@
     <div class="emoji-category-bar">
       {#each EMOJI_CATEGORIES as cat, i}
         <button
-          class="emoji-category-btn {activeCategory === i && !searchQuery.trim()
-            ? 'active'
-            : ''}"
-          onclick={() => {
-            activeCategory = i;
-            searchQuery = "";
-          }}
+          class="emoji-category-btn {activeCategory === i && !searchQuery.trim() ? 'active' : ''}"
+          onclick={() => { activeCategory = i; searchQuery = ""; }}
           title={cat.name}>{cat.icon}</button
         >
       {/each}
@@ -147,7 +177,7 @@
       {#each customEmojis as emoji}
         <button
           class="emoji-picker-btn custom-emoji-btn"
-          onclick={() => selectCustomEmoji(emoji)}
+          onclick={() => onSelect(`:${emoji.name}:`)}
           title=":{emoji.name}:"
         >
           <img
@@ -173,7 +203,10 @@
         <input
           type="file"
           accept="image/png,image/gif,image/webp,image/jpeg"
-          onchange={handleFileSelect}
+          onchange={(e) => {
+            const f = (e.target as HTMLInputElement).files;
+            if (f && f.length > 0) uploadFile = f[0];
+          }}
           bind:this={fileInput}
           class="emoji-upload-file"
         />
@@ -199,27 +232,10 @@
 	background: var(--bg-secondary);
 	border: 1px solid var(--border-input);
 	border-radius: var(--radius-lg);
-	position: absolute;
-	bottom: 100%;
-	left: 0;
-	z-index: 10;
+	position: fixed;
+	z-index: 250;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	margin-bottom: 4px;
 	width: 320px;
-}
-
-.emoji-picker-floating {
-	position: absolute;
-	bottom: 100%;
-	right: 0;
-	left: auto;
-}
-
-.emoji-picker-below {
-	bottom: auto;
-	top: 100%;
-	margin-bottom: 0;
-	margin-top: 4px;
 }
 
 .emoji-picker-tabs {
