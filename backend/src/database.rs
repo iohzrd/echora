@@ -715,26 +715,6 @@ pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: Role) -> Result<(
     require_rows_affected(result, "User not found")
 }
 
-pub async fn update_username(
-    pool: &PgPool,
-    user_id: Uuid,
-    new_username: &str,
-) -> Result<(), AppError> {
-    let result = sqlx::query("UPDATE users SET username = $1 WHERE id = $2")
-        .bind(new_username)
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .map_err(|e| match &e {
-            sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
-                AppError::conflict("Username already taken")
-            }
-            _ => AppError::from(e),
-        })?;
-
-    require_rows_affected(result, "User not found")
-}
-
 pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
     let rows: Vec<(Uuid, String, String, Role, chrono::DateTime<chrono::Utc>, Option<String>)> = sqlx::query_as(
         "SELECT id, username, email, role, created_at, avatar_path FROM users ORDER BY created_at ASC",

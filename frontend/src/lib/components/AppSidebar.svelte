@@ -82,7 +82,7 @@
           avatarUrl={userAvatarUrl}
           size="small"
         />
-        <span class="user-bar-username">{$user?.username || ''}</span>
+        <span class="user-bar-username">{$user?.display_name || $user?.username || ''}</span>
       </button>
     </div>
 

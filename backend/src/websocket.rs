@@ -133,23 +133,28 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
 
     info!("WebSocket connected: {} ({})", username, user_id);
 
-    // Look up avatar for presence
-    let avatar_url = match crate::database::get_user_by_id(&state.db, user_id).await {
-        Ok(Some(user)) => crate::models::avatar_url_from_path(user_id, &user.avatar_path),
-        _ => None,
+    // Look up avatar and display_name for presence
+    let (avatar_url, display_name) = match crate::database::get_user_by_id(&state.db, user_id).await
+    {
+        Ok(Some(user)) => (
+            crate::models::avatar_url_from_path(user_id, &user.avatar_path),
+            user.display_name,
+        ),
+        _ => (None, None),
     };
 
     // Track online presence
     let presence = crate::models::UserPresence {
         user_id,
         username: username.clone(),
+        display_name: display_name.clone(),
         avatar_url: avatar_url.clone(),
         connected_at: chrono::Utc::now(),
     };
     state.online_users.insert(user_id, presence);
     state.broadcast_global(
         "user_online",
-        serde_json::json!({ "user_id": user_id, "username": &username, "avatar_url": avatar_url }),
+        serde_json::json!({ "user_id": user_id, "username": &username, "display_name": display_name, "avatar_url": avatar_url }),
     );
 
     let mut global_rx = state.global_broadcast.subscribe();
@@ -177,8 +182,9 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
                                     )).await;
                                     continue;
                                 }
+                                let author_name = display_name.as_deref().unwrap_or(&username);
                                 handle_chat_message(
-                                    &state, envelope.payload, user_id, &username,
+                                    &state, envelope.payload, user_id, author_name,
                                     &mut current_channel, &mut broadcast_rx,
                                 ).await;
                             }
@@ -190,7 +196,8 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
                                 broadcast_rx = None;
                             }
                             "typing" => {
-                                handle_typing(&state, envelope.payload, user_id, &username);
+                                let typing_name = display_name.as_deref().unwrap_or(&username);
+                                handle_typing(&state, envelope.payload, user_id, typing_name);
                             }
                             "voice_state_update" => {
                                 handle_voice_state_update(&state, envelope.payload, user_id);

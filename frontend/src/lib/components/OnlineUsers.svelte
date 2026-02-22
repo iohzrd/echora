@@ -33,7 +33,7 @@
         avatarUrl={$serverState.userAvatars[u.user_id]}
         size="xs"
       />
-      <span class="online-username">{u.username}</span>
+      <span class="online-username">{u.display_name || u.username}</span>
       {#if u.role}
         <span class="role-badge {u.role.cls}">{u.role.badge}</span>
       {/if}
