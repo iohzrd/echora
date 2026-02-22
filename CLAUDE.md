@@ -7,6 +7,7 @@
 - Always use latest dependency versions when updating
 - Always run code formatters after making changes (`cargo fmt` for backend, `npm run check` for frontend)
 - **Infra**: ALWAYS check what already exists before creating ANY resources. List/describe first, then create only if needed.
+- Always omit Claude signature when writing commit messages.
 
 ## Commands
 

@@ -1,9 +1,9 @@
 use axum::{
     extract::{
-        Query, State,
+        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
@@ -18,15 +18,18 @@ use crate::permissions;
 use crate::shared::validation;
 
 #[derive(Debug, Deserialize)]
-pub struct WsQuery {
-    pub token: String,
-}
-
-#[derive(Debug, Deserialize)]
 struct WsEnvelope {
     message_type: String,
     #[serde(flatten)]
     payload: serde_json::Value,
+}
+
+/// First message sent by the client after the WebSocket handshake completes.
+/// The token travels in the message body rather than the URL so it does not
+/// appear in server logs, browser history, or proxy/CDN access logs.
+#[derive(Debug, Deserialize)]
+struct WsAuthMessage {
+    token: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,32 +73,64 @@ struct CameraUpdate {
 
 pub async fn websocket_handler(
     State(state): State<Arc<AppState>>,
-    Query(query): Query<WsQuery>,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let claims = match auth::decode_jwt(&query.token) {
-        Ok(c) => c,
-        Err(_) => {
-            return (axum::http::StatusCode::UNAUTHORIZED, "Invalid token").into_response();
+    // Authentication happens inside the socket after the upgrade.
+    // The client sends {"token":"<jwt>"} as the very first message.
+    ws.on_upgrade(move |socket| websocket(socket, state))
+}
+
+async fn websocket(socket: WebSocket, state: Arc<AppState>) {
+    let (mut sender, mut receiver) = socket.split();
+
+    // --- Phase 1: authenticate via first message ---
+    let claims = loop {
+        match receiver.next().await {
+            Some(Ok(Message::Text(text))) => {
+                match serde_json::from_str::<WsAuthMessage>(&text) {
+                    Ok(auth_msg) => match auth::decode_jwt(&auth_msg.token) {
+                        Ok(c) => {
+                            // Reject banned users immediately
+                            match permissions::check_not_banned(&state.db, c.sub).await {
+                                Ok(()) => break c,
+                                Err(_) => {
+                                    let _ = sender
+                                        .send(Message::Text(
+                                            r#"{"type":"error","data":{"code":"banned","message":"You are banned"}}"#.into(),
+                                        ))
+                                        .await;
+                                    return;
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            let _ = sender
+                                .send(Message::Text(
+                                    r#"{"type":"error","data":{"code":"unauthorized","message":"Invalid token"}}"#.into(),
+                                ))
+                                .await;
+                            return;
+                        }
+                    },
+                    Err(_) => {
+                        // Not a valid auth message; reject
+                        let _ = sender
+                            .send(Message::Text(
+                                r#"{"type":"error","data":{"code":"unauthorized","message":"First message must be an auth message"}}"#.into(),
+                            ))
+                            .await;
+                        return;
+                    }
+                }
+            }
+            // Close or network error before auth
+            _ => return,
         }
     };
 
     let user_id = claims.sub;
+    let username = claims.username.clone();
 
-    match permissions::check_not_banned(&state.db, user_id).await {
-        Ok(()) => ws.on_upgrade(move |socket| websocket(socket, state, user_id, claims.username)),
-        Err(crate::shared::AppError::Forbidden(_)) => {
-            (axum::http::StatusCode::FORBIDDEN, "You are banned").into_response()
-        }
-        Err(_) => (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            "Server error",
-        )
-            .into_response(),
-    }
-}
-
-async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, username: String) {
     info!("WebSocket connected: {} ({})", username, user_id);
 
     // Look up avatar for presence
@@ -117,7 +152,6 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
         serde_json::json!({ "user_id": user_id, "username": &username, "avatar_url": avatar_url }),
     );
 
-    let (mut sender, mut receiver) = socket.split();
     let mut global_rx = state.global_broadcast.subscribe();
     let mut current_channel: Option<Uuid> = None;
     let mut broadcast_rx: Option<broadcast::Receiver<String>> = None;
@@ -149,7 +183,7 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>, user_id: Uuid, usern
                                 ).await;
                             }
                             "join" => {
-                                handle_join(&state, envelope.payload, &mut current_channel, &mut broadcast_rx);
+                                handle_join(&state, envelope.payload, &mut current_channel, &mut broadcast_rx).await;
                             }
                             "leave" => {
                                 current_channel = None;
@@ -273,11 +307,9 @@ async fn handle_chat_message(
         return;
     };
 
-    let (banned, muted) = tokio::join!(
-        permissions::is_banned(&state.db, user_id),
-        permissions::is_muted(&state.db, user_id),
-    );
-    if banned || muted {
+    // Use in-memory cache for ban/mute checks to avoid per-message DB queries.
+    // The cache is kept in sync by moderation event handlers in AppState.
+    if state.is_banned_cached(user_id) || state.is_muted_cached(user_id) {
         return;
     }
 
@@ -298,7 +330,7 @@ async fn handle_chat_message(
             content: chat_msg.content,
             reply_to_id: chat_msg.reply_to_id,
             attachment_ids: chat_msg.attachment_ids,
-            validate_reply_channel: false,
+            validate_reply_channel: true,
         },
     )
     .await
@@ -316,7 +348,7 @@ async fn handle_chat_message(
     }
 }
 
-fn handle_join(
+async fn handle_join(
     state: &Arc<AppState>,
     payload: serde_json::Value,
     current_channel: &mut Option<Uuid>,
@@ -325,6 +357,20 @@ fn handle_join(
     let Ok(target) = serde_json::from_value::<ChannelTarget>(payload) else {
         return;
     };
+
+    // Verify the channel actually exists before subscribing
+    match crate::database::get_channel_by_id(&state.db, target.channel_id).await {
+        Ok(Some(_)) => {}
+        Ok(None) => return,
+        Err(e) => {
+            tracing::warn!(
+                "WS join: DB error checking channel {}: {e}",
+                target.channel_id
+            );
+            return;
+        }
+    }
+
     *current_channel = Some(target.channel_id);
     let tx = get_or_create_broadcast(state, target.channel_id);
     *broadcast_rx = Some(tx.subscribe());
