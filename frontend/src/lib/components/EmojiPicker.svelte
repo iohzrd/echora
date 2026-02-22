@@ -60,11 +60,6 @@
     const target = e.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
       uploadFile = target.files[0];
-      if (!uploadName) {
-        uploadName = uploadFile.name
-          .replace(/\.[^.]+$/, "")
-          .replace(/[^a-zA-Z0-9_-]/g, "_");
-      }
     }
   }
 
