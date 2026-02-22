@@ -86,7 +86,6 @@ async function _connectToServer() {
   serverState.onlineUsers = [];
   serverState.userAvatars = {};
   serverState.userRolesMap = {};
-  serverState.userDisplayNames = {};
   serverState.serverName = "";
   serverState.backendVersion = "";
   serverState.customEmojis = [];
@@ -124,18 +123,12 @@ async function _connectToServer() {
     if (currentUser?.avatar_url)
       avatarMap[currentUser.id] = API.getAvatarUrl(currentUser.id);
 
-    const displayNameMap: Record<string, string> = {};
-    for (const u of init.online_users) {
-      displayNameMap[u.user_id] = u.display_name || u.username;
-    }
-
     serverState.channels = init.channels;
     serverState.onlineUsers = init.online_users;
     serverState.userAvatars = avatarMap;
     serverState.userRolesMap = init.users
       ? Object.fromEntries(init.users.map((u) => [u.id, u.role]))
       : {};
-    serverState.userDisplayNames = displayNameMap;
     serverState.serverName = init.server_name;
     serverState.backendVersion = init.version;
 

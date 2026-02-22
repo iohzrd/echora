@@ -162,7 +162,10 @@
   {#if chatState.replyingTo}
     <div class="reply-bar">
       <span class="reply-bar-text"
-        >Replying to <strong>{chatState.replyingTo.author}</strong></span
+        >Replying to <strong
+          >{chatState.replyingTo.display_name ||
+            chatState.replyingTo.username}</strong
+        ></span
       >
       <button
         class="reply-bar-cancel"

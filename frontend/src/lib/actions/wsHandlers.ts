@@ -145,8 +145,6 @@ export function setupWsHandlers() {
       if (!exists) {
         serverState.onlineUsers = [...serverState.onlineUsers, presence];
       }
-      serverState.userDisplayNames[presence.user_id] =
-        presence.display_name || presence.username;
       if (presence.avatar_url) {
         serverState.userAvatars[presence.user_id] = API.getAvatarUrl(
           presence.user_id,
@@ -171,7 +169,6 @@ export function setupWsHandlers() {
     }
     if (data.type === "user_profile_updated") {
       const { user_id, username, display_name, avatar_url } = data.data;
-      serverState.userDisplayNames[user_id] = display_name || username;
       serverState.onlineUsers = serverState.onlineUsers.map((u) =>
         u.user_id === user_id
           ? { ...u, username, display_name: display_name ?? undefined }

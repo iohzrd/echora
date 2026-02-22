@@ -20,7 +20,8 @@ export interface Channel {
 
 export interface ReplyPreview {
   id: string;
-  author: string;
+  username: string;
+  display_name?: string;
   content: string;
 }
 
@@ -54,7 +55,8 @@ export interface Attachment {
 export interface Message {
   id: string;
   content: string;
-  author: string;
+  username: string;
+  display_name?: string;
   author_id: string;
   channel_id: string;
   timestamp: string;

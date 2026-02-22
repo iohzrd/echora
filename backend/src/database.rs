@@ -20,7 +20,8 @@ use crate::shared::validation::REPLY_PREVIEW_LENGTH;
 struct MessageRow {
     id: Uuid,
     content: String,
-    author_username: String,
+    username: String,
+    display_name: Option<String>,
     author_id: Uuid,
     channel_id: Uuid,
     created_at: DateTime<Utc>,
@@ -33,7 +34,8 @@ impl From<MessageRow> for Message {
         Message {
             id: row.id,
             content: row.content,
-            author: row.author_username,
+            username: row.username,
+            display_name: row.display_name,
             author_id: row.author_id,
             channel_id: row.channel_id,
             timestamp: row.created_at,
@@ -50,7 +52,8 @@ impl From<MessageRow> for Message {
 #[derive(FromRow)]
 struct ReplyPreviewRow {
     id: Uuid,
-    author_username: String,
+    username: String,
+    display_name: Option<String>,
     content: String,
 }
 
@@ -237,10 +240,13 @@ pub async fn get_messages(
     // to return messages in chronological order without a .reverse() in Rust.
     let rows: Vec<MessageRow> = if let Some(before_ts) = before {
         sqlx::query_as(
-            "SELECT * FROM (
-                 SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+            "SELECT sub.id, sub.content, u.username, u.display_name, sub.author_id, sub.channel_id, sub.created_at, sub.edited_at, sub.reply_to_id
+             FROM (
+                 SELECT id, content, author_id, channel_id, created_at, edited_at, reply_to_id
                  FROM messages WHERE channel_id = $1 AND created_at < $2 ORDER BY created_at DESC LIMIT $3
-             ) sub ORDER BY created_at ASC",
+             ) sub
+             JOIN users u ON u.id = sub.author_id
+             ORDER BY sub.created_at ASC",
         )
         .bind(channel_id)
         .bind(before_ts)
@@ -249,10 +255,13 @@ pub async fn get_messages(
         .await?
     } else {
         sqlx::query_as(
-            "SELECT * FROM (
-                 SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
+            "SELECT sub.id, sub.content, u.username, u.display_name, sub.author_id, sub.channel_id, sub.created_at, sub.edited_at, sub.reply_to_id
+             FROM (
+                 SELECT id, content, author_id, channel_id, created_at, edited_at, reply_to_id
                  FROM messages WHERE channel_id = $1 ORDER BY created_at DESC LIMIT $2
-             ) sub ORDER BY created_at ASC",
+             ) sub
+             JOIN users u ON u.id = sub.author_id
+             ORDER BY sub.created_at ASC",
         )
         .bind(channel_id)
         .bind(limit)
@@ -312,8 +321,10 @@ pub async fn get_message_by_id(
     message_id: Uuid,
 ) -> Result<Option<Message>, AppError> {
     let row: Option<MessageRow> = sqlx::query_as(
-        "SELECT id, content, author_username, author_id, channel_id, created_at, edited_at, reply_to_id
-         FROM messages WHERE id = $1",
+        "SELECT m.id, m.content, u.username, u.display_name, m.author_id, m.channel_id, m.created_at, m.edited_at, m.reply_to_id
+         FROM messages m
+         JOIN users u ON u.id = m.author_id
+         WHERE m.id = $1",
     )
     .bind(message_id)
     .fetch_optional(pool)
@@ -368,13 +379,12 @@ pub async fn create_message(
     author_id: Uuid,
 ) -> Result<(), AppError> {
     sqlx::query(
-        "INSERT INTO messages (id, content, author_id, author_username, channel_id, created_at, reply_to_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "INSERT INTO messages (id, content, author_id, channel_id, created_at, reply_to_id)
+         VALUES ($1, $2, $3, $4, $5, $6)",
     )
     .bind(message.id)
     .bind(&message.content)
     .bind(author_id)
-    .bind(&message.author)
     .bind(message.channel_id)
     .bind(message.timestamp)
     .bind(message.reply_to_id)
@@ -412,11 +422,15 @@ pub async fn get_reply_previews(
     pool: &PgPool,
     reply_ids: &[Uuid],
 ) -> Result<HashMap<Uuid, ReplyPreview>, AppError> {
-    let rows: Vec<ReplyPreviewRow> =
-        sqlx::query_as("SELECT id, author_username, content FROM messages WHERE id = ANY($1)")
-            .bind(reply_ids)
-            .fetch_all(pool)
-            .await?;
+    let rows: Vec<ReplyPreviewRow> = sqlx::query_as(
+        "SELECT m.id, u.username, u.display_name, m.content
+         FROM messages m
+         JOIN users u ON u.id = m.author_id
+         WHERE m.id = ANY($1)",
+    )
+    .bind(reply_ids)
+    .fetch_all(pool)
+    .await?;
 
     Ok(rows
         .into_iter()
@@ -425,7 +439,8 @@ pub async fn get_reply_previews(
                 row.id,
                 ReplyPreview {
                     id: row.id,
-                    author: row.author_username,
+                    username: row.username,
+                    display_name: row.display_name,
                     content: truncate_string(&row.content, REPLY_PREVIEW_LENGTH),
                 },
             )
@@ -437,15 +452,20 @@ pub async fn get_reply_preview(
     pool: &PgPool,
     message_id: Uuid,
 ) -> Result<Option<ReplyPreview>, AppError> {
-    let row: Option<ReplyPreviewRow> =
-        sqlx::query_as("SELECT id, author_username, content FROM messages WHERE id = $1")
-            .bind(message_id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<ReplyPreviewRow> = sqlx::query_as(
+        "SELECT m.id, u.username, u.display_name, m.content
+         FROM messages m
+         JOIN users u ON u.id = m.author_id
+         WHERE m.id = $1",
+    )
+    .bind(message_id)
+    .fetch_optional(pool)
+    .await?;
 
     Ok(row.map(|r| ReplyPreview {
         id: r.id,
-        author: r.author_username,
+        username: r.username,
+        display_name: r.display_name,
         content: truncate_string(&r.content, REPLY_PREVIEW_LENGTH),
     }))
 }

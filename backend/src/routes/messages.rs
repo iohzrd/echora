@@ -55,7 +55,6 @@ pub async fn send_message(
         &state.db,
         crate::services::message::CreateMessageParams {
             user_id,
-            username: auth_user.0.username,
             channel_id,
             content: payload.content,
             reply_to_id: payload.reply_to_id,

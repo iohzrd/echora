@@ -9,7 +9,6 @@ use crate::shared::validation::{MAX_ATTACHMENTS_PER_MESSAGE, validate_message_co
 
 pub struct CreateMessageParams {
     pub user_id: Uuid,
-    pub username: String,
     pub channel_id: Uuid,
     pub content: Option<String>,
     pub reply_to_id: Option<Uuid>,
@@ -59,9 +58,14 @@ pub async fn create_message(
 
     let content = params.content.unwrap_or_default();
 
+    let user = database::get_user_by_id(db, params.user_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("User not found"))?;
+
     let mut new_message = Message::new(
         content.clone(),
-        params.username,
+        user.username,
+        user.display_name,
         params.user_id,
         params.channel_id,
         params.reply_to_id,
