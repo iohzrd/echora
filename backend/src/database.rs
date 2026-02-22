@@ -785,6 +785,19 @@ pub async fn update_user_display_name(
     require_rows_affected(result, "User not found")
 }
 
+pub async fn update_user_password(
+    pool: &PgPool,
+    user_id: Uuid,
+    password_hash: &str,
+) -> Result<(), AppError> {
+    let result = sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+        .bind(password_hash)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    require_rows_affected(result, "User not found")
+}
+
 // --- Bans (atomic upsert) ---
 
 pub async fn create_ban(pool: &PgPool, ban: &Ban) -> Result<(), AppError> {

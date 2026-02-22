@@ -16,6 +16,15 @@
   let success = "";
   let fileInput: HTMLInputElement;
 
+  // Password change state
+  let showPasswordSection = false;
+  let currentPassword = "";
+  let newPassword = "";
+  let confirmPassword = "";
+  let passwordSaving = false;
+  let passwordError = "";
+  let passwordSuccess = "";
+
   // View-other state
   let profile: PublicProfile | null = null;
   let loading = false;
@@ -130,6 +139,36 @@
       handleSave();
     } else if (event.key === "Escape") {
       onClose();
+    }
+  }
+
+  async function handleChangePassword() {
+    passwordError = "";
+    passwordSuccess = "";
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      passwordError = "All fields are required.";
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      passwordError = "New passwords do not match.";
+      return;
+    }
+    if (newPassword.length < 8) {
+      passwordError = "Password must be at least 8 characters.";
+      return;
+    }
+    passwordSaving = true;
+    try {
+      await API.changePassword(currentPassword, newPassword);
+      passwordSuccess = "Password changed.";
+      currentPassword = "";
+      newPassword = "";
+      confirmPassword = "";
+      showPasswordSection = false;
+    } catch (err) {
+      passwordError = err instanceof Error ? err.message : "Failed to change password";
+    } finally {
+      passwordSaving = false;
     }
   }
 
@@ -283,6 +322,67 @@
           <button class="save-btn" on:click={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </button>
+        </div>
+
+        <div class="password-section">
+          <button
+            class="password-toggle-btn"
+            on:click={() => {
+              showPasswordSection = !showPasswordSection;
+              passwordError = "";
+              passwordSuccess = "";
+            }}
+          >
+            {showPasswordSection ? "Cancel Password Change" : "Change Password"}
+          </button>
+
+          {#if showPasswordSection}
+            {#if passwordError}
+              <div class="error-message">{passwordError}</div>
+            {/if}
+            {#if passwordSuccess}
+              <div class="success-message">{passwordSuccess}</div>
+            {/if}
+            <div class="field">
+              <label for="current-password">Current Password</label>
+              <input
+                id="current-password"
+                type="password"
+                bind:value={currentPassword}
+                disabled={passwordSaving}
+                autocomplete="current-password"
+              />
+            </div>
+            <div class="field">
+              <label for="new-password">New Password</label>
+              <input
+                id="new-password"
+                type="password"
+                bind:value={newPassword}
+                disabled={passwordSaving}
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="field">
+              <label for="confirm-password">Confirm New Password</label>
+              <input
+                id="confirm-password"
+                type="password"
+                bind:value={confirmPassword}
+                disabled={passwordSaving}
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="profile-actions">
+              <button
+                class="save-btn"
+                on:click={handleChangePassword}
+                disabled={passwordSaving}
+              >
+                {passwordSaving ? "Saving..." : "Update Password"}
+              </button>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -536,5 +636,25 @@
   .save-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .password-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color, #3f4147);
+  }
+
+  .password-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted, #949ba4);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    text-decoration: underline;
+  }
+
+  .password-toggle-btn:hover {
+    color: var(--text-primary, #fff);
   }
 </style>

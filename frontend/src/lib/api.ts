@@ -301,6 +301,13 @@ export class API {
     return this.jsonRequest('/auth/me', 'PUT', data, 'Failed to update profile');
   }
 
+  static async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    return this.jsonRequest('/auth/password', 'POST', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }, 'Failed to change password');
+  }
+
   static async uploadAvatar(file: File): Promise<import('./auth').User> {
     const formData = new FormData();
     formData.append('file', file);
