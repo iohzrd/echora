@@ -5,12 +5,15 @@
   import { sendMessage, sendTyping, cancelReply } from '../actions/chat';
 
   interface PendingFile {
+    localId: number;
     file: File;
     id?: string;
     progress: number;
     error?: string;
     uploading: boolean;
   }
+
+  let nextLocalId = 0;
 
   let messageText = $state('');
   let pendingFiles: PendingFile[] = $state([]);
@@ -20,18 +23,18 @@
   const MAX_FILE_SIZE = 250 * 1024 * 1024;
   const MAX_FILES = 5;
 
-  async function uploadFile(pending: PendingFile) {
-    pending.uploading = true;
-    pending.progress = 0;
+  async function uploadFile(localId: number, file: File) {
+    const update = (patch: Partial<PendingFile>) => {
+      pendingFiles = pendingFiles.map((pf) => pf.localId === localId ? { ...pf, ...patch } : pf);
+    };
+
+    update({ uploading: true, progress: 0 });
 
     try {
-      const attachment = await API.uploadAttachment(pending.file);
-      pending.id = attachment.id;
-      pending.progress = 100;
-      pending.uploading = false;
+      const attachment = await API.uploadAttachment(file);
+      update({ id: attachment.id, progress: 100, uploading: false });
     } catch (e) {
-      pending.error = e instanceof Error ? e.message : 'Upload failed';
-      pending.uploading = false;
+      update({ error: e instanceof Error ? e.message : 'Upload failed', uploading: false });
     }
   }
 
@@ -41,6 +44,7 @@
       if (pendingFiles.length >= MAX_FILES) break;
       if (file.size > MAX_FILE_SIZE) {
         pendingFiles = [...pendingFiles, {
+          localId: nextLocalId++,
           file,
           progress: 0,
           error: `File too large (max ${formatFileSize(MAX_FILE_SIZE)})`,
@@ -48,9 +52,9 @@
         }];
         continue;
       }
-      const pending: PendingFile = { file, progress: 0, uploading: false };
-      pendingFiles = [...pendingFiles, pending];
-      uploadFile(pending);
+      const localId = nextLocalId++;
+      pendingFiles = [...pendingFiles, { localId, file, progress: 0, uploading: false }];
+      uploadFile(localId, file);
     }
   }
 
