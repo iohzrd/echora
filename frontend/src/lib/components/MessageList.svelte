@@ -234,7 +234,7 @@
     <div class="message">
       <div class="message-avatar-wrapper">
         <Avatar
-          username={message.author}
+          username={message.username}
           avatarUrl={serverState.userAvatars[message.author_id]}
           size="medium"
         />
@@ -244,8 +244,7 @@
           <button
             class="message-author"
             onclick={() => viewUserProfile(message.author_id)}
-            >{serverState.userDisplayNames[message.author_id] ||
-              message.author}</button
+            >{message.display_name || message.username}</button
           >
           <span class="message-timestamp"
             >{formatTimestamp(message.timestamp)}</span
@@ -256,7 +255,10 @@
         </div>
         {#if message.reply_to}
           <div class="reply-preview">
-            <span class="reply-author">{message.reply_to.author}</span>
+            <span class="reply-author"
+              >{message.reply_to.display_name ||
+                message.reply_to.username}</span
+            >
             <span class="reply-content"
               >{truncateContent(message.reply_to.content)}</span
             >

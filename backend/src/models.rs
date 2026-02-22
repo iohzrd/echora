@@ -44,7 +44,9 @@ impl fmt::Display for ChannelType {
 pub struct Message {
     pub id: Uuid,
     pub content: String,
-    pub author: String,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     pub author_id: Uuid,
     pub channel_id: Uuid,
     pub timestamp: DateTime<Utc>,
@@ -65,7 +67,8 @@ pub struct Message {
 impl Message {
     pub fn new(
         content: String,
-        author: String,
+        username: String,
+        display_name: Option<String>,
         author_id: Uuid,
         channel_id: Uuid,
         reply_to_id: Option<Uuid>,
@@ -74,7 +77,8 @@ impl Message {
         Self {
             id: Uuid::now_v7(),
             content,
-            author,
+            username,
+            display_name,
             author_id,
             channel_id,
             timestamp: Utc::now(),
@@ -101,7 +105,9 @@ pub struct CustomEmoji {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplyPreview {
     pub id: Uuid,
-    pub author: String,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     pub content: String,
 }
 

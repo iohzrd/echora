@@ -182,9 +182,8 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
                                     )).await;
                                     continue;
                                 }
-                                let author_name = display_name.as_deref().unwrap_or(&username);
                                 handle_chat_message(
-                                    &state, envelope.payload, user_id, author_name,
+                                    &state, envelope.payload, user_id,
                                     &mut current_channel, &mut broadcast_rx,
                                 ).await;
                             }
@@ -306,7 +305,6 @@ async fn handle_chat_message(
     state: &Arc<AppState>,
     payload: serde_json::Value,
     user_id: Uuid,
-    username: &str,
     current_channel: &mut Option<Uuid>,
     broadcast_rx: &mut Option<broadcast::Receiver<String>>,
 ) {
@@ -332,7 +330,6 @@ async fn handle_chat_message(
         &state.db,
         crate::services::message::CreateMessageParams {
             user_id,
-            username: username.to_string(),
             channel_id: chat_msg.channel_id,
             content: chat_msg.content,
             reply_to_id: chat_msg.reply_to_id,
