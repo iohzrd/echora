@@ -38,6 +38,7 @@ export async function selectChannel(channelId: string, channelName: string) {
       ...s,
       selectedChannelId: channelId,
       selectedChannelName: channelName,
+      messages: [],
       hasMoreMessages: true,
       replyingTo: null,
       typingUsers: {},
