@@ -180,7 +180,7 @@
           {#if $voiceStore.voiceInputMode === 'push-to-talk'}
             <div class="ptt-key-binding">
               {#if recordingKey}
-                <!-- svelte-ignore a11y-no-static-element-interactions -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <button
                   class="ptt-key-btn recording"
                   onkeydown={handleKeyRecord}
