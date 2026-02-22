@@ -28,12 +28,14 @@
   let searchInput: HTMLInputElement;
 
   const PICKER_WIDTH = 320;
-  const PICKER_HEIGHT_ESTIMATE = 370;
 
-  let style = $derived.by(() => {
+  let style = $state("visibility: hidden");
+
+  onMount(() => {
+    // Compute position after render so we have real offsetHeight
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const pickerHeight = pickerEl?.offsetHeight || PICKER_HEIGHT_ESTIMATE;
+    const pickerHeight = pickerEl.offsetHeight;
 
     let left = anchorRect.left;
     if (left + PICKER_WIDTH > vw - 8) left = vw - PICKER_WIDTH - 8;
@@ -43,13 +45,11 @@
     const spaceBelow = vh - anchorRect.bottom;
 
     if (spaceAbove >= pickerHeight || spaceAbove >= spaceBelow) {
-      return `bottom: ${vh - anchorRect.top + 4}px; left: ${left}px;`;
+      style = `bottom: ${vh - anchorRect.top + 4}px; left: ${left}px;`;
     } else {
-      return `top: ${anchorRect.bottom + 4}px; left: ${left}px;`;
+      style = `top: ${anchorRect.bottom + 4}px; left: ${left}px;`;
     }
-  });
 
-  onMount(() => {
     if (searchInput) searchInput.focus();
 
     function handleClickOutside(e: MouseEvent) {
