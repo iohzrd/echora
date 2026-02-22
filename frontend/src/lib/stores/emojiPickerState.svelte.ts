@@ -1,12 +1,10 @@
-import { writable } from 'svelte/store';
-
 export interface EmojiPickerState {
   messageId: string | null;
   anchorRect: { top: number; bottom: number; left: number; right: number } | null;
   onSelect: ((emoji: string) => void) | null;
 }
 
-export const emojiPickerState = writable<EmojiPickerState>({
+export const emojiPickerState = $state<EmojiPickerState>({
   messageId: null,
   anchorRect: null,
   onSelect: null,
@@ -18,13 +16,13 @@ export function openEmojiPicker(
   onSelect: (emoji: string) => void,
 ) {
   const rect = anchorEl.getBoundingClientRect();
-  emojiPickerState.set({
-    messageId,
-    anchorRect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
-    onSelect,
-  });
+  emojiPickerState.messageId = messageId;
+  emojiPickerState.anchorRect = { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+  emojiPickerState.onSelect = onSelect;
 }
 
 export function closeEmojiPicker() {
-  emojiPickerState.set({ messageId: null, anchorRect: null, onSelect: null });
+  emojiPickerState.messageId = null;
+  emojiPickerState.anchorRect = null;
+  emojiPickerState.onSelect = null;
 }

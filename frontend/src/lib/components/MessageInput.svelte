@@ -2,7 +2,7 @@
   import { onDestroy } from "svelte";
   import { API } from "../api";
   import { formatFileSize } from "../utils";
-  import { chatState } from "../stores/chatState";
+  import { chatState } from "../stores/chatState.svelte";
   import { sendMessage, sendTyping, cancelReply } from "../actions/chat";
 
   interface PendingFile {
@@ -125,7 +125,7 @@
       doSend();
       return;
     }
-    if (event.key === "Escape" && $chatState.replyingTo) {
+    if (event.key === "Escape" && chatState.replyingTo) {
       cancelReply();
       return;
     }
@@ -159,10 +159,10 @@
   ondragleave={handleDragLeave}
   role="region"
 >
-  {#if $chatState.replyingTo}
+  {#if chatState.replyingTo}
     <div class="reply-bar">
       <span class="reply-bar-text"
-        >Replying to <strong>{$chatState.replyingTo.author}</strong></span
+        >Replying to <strong>{chatState.replyingTo.author}</strong></span
       >
       <button
         class="reply-bar-cancel"
@@ -212,7 +212,7 @@
       class="attach-btn"
       onclick={() => fileInput.click()}
       title="Attach file"
-      disabled={!$chatState.selectedChannelId ||
+      disabled={!chatState.selectedChannelId ||
         pendingFiles.length >= MAX_FILES}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -223,11 +223,11 @@
     </button>
     <textarea
       class="message-input"
-      placeholder="Message #{$chatState.selectedChannelName || 'channel'}"
+      placeholder="Message #{chatState.selectedChannelName || 'channel'}"
       bind:value={messageText}
       onkeydown={handleKeydown}
       onpaste={handlePaste}
-      disabled={!$chatState.selectedChannelId || anyUploading}
+      disabled={!chatState.selectedChannelId || anyUploading}
     ></textarea>
   </div>
   <input

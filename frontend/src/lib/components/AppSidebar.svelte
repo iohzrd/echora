@@ -3,15 +3,15 @@
   import { goto } from '$app/navigation';
   import { activeServer } from '../serverManager';
   import AuthService, { user, isModerator } from '../auth';
-  import { serverState } from '../stores/serverState';
-  import { uiState } from '../stores/uiState';
+  import { serverState } from '../stores/serverState.svelte';
+  import { uiState } from '../stores/uiState.svelte';
   import { openAdminPanel, openPasskeySettings, openProfileModal, toggleSidebar } from '../actions/ui';
   import ChannelList from './ChannelList.svelte';
   import OnlineUsers from './OnlineUsers.svelte';
   import VoicePanel from './VoicePanel.svelte';
   import Avatar from './Avatar.svelte';
 
-  let activeServerName = $derived($serverState.serverName || $activeServer?.name || 'Echora');
+  let activeServerName = $derived(serverState.serverName || $activeServer?.name || 'Echora');
   let userAvatarUrl = $derived($user?.avatar_url ? API.getAvatarUrl($user.id) : undefined);
   let isMod = $derived(isModerator($user?.role));
 
@@ -21,7 +21,7 @@
   }
 </script>
 
-<div class="sidebar {$uiState.sidebarOpen ? 'open' : ''}">
+<div class="sidebar {uiState.sidebarOpen ? 'open' : ''}">
   <div class="channels-area">
     <div class="server-header">
       <span class="server-name">{activeServerName}</span>
@@ -87,12 +87,12 @@
     </div>
 
     <div class="version-bar">
-      {#if $uiState.tauriVersion}
-        <span class="version-info">app v{$uiState.tauriVersion}</span>
+      {#if uiState.tauriVersion}
+        <span class="version-info">app v{uiState.tauriVersion}</span>
       {/if}
       <span class="version-info">frontend v{FRONTEND_VERSION}</span>
       <span class="version-info"
-        >backend v{$serverState.backendVersion || '...'}</span
+        >backend v{serverState.backendVersion || '...'}</span
       >
     </div>
   </div>

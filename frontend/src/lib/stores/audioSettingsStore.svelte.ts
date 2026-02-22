@@ -1,4 +1,3 @@
-import { writable } from 'svelte/store';
 import type { AudioDevice } from '../audioSettings';
 
 export interface AudioSettingsStoreState {
@@ -12,7 +11,7 @@ export interface AudioSettingsStoreState {
   outputDevices: AudioDevice[];
 }
 
-export const audioSettingsStore = writable<AudioSettingsStoreState>({
+export const audioSettingsStore = $state<AudioSettingsStoreState>({
   inputDeviceId: '',
   outputDeviceId: '',
   inputGain: 1.0,

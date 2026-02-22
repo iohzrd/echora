@@ -1,11 +1,11 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
-  import { serverState } from "../../lib/stores/serverState";
+  import { serverState } from "../../lib/stores/serverState.svelte";
 
   let navigated = $state(false);
 
   $effect(() => {
-    const first = $serverState.channels.find((c) => c.channel_type === "text");
+    const first = serverState.channels.find((c) => c.channel_type === "text");
     if (first && !navigated) {
       navigated = true;
       goto(`/channels/${first.id}`, { replaceState: true });

@@ -55,11 +55,16 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="dialog-overlay" onclick={onCancel} role="presentation">
+<div
+  class="dialog-overlay"
+  onclick={onCancel}
+  onkeydown={(e) => e.key === "Escape" && onCancel()}
+  role="presentation"
+>
   <div
     class="dialog-content"
     onclick={(e) => e.stopPropagation()}
+    onkeydown={(e) => e.stopPropagation()}
     role="dialog"
     aria-label="Add Server"
     tabindex="-1"

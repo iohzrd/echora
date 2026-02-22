@@ -1,12 +1,12 @@
-import { get } from "svelte/store";
 import { goto } from "$app/navigation";
 import { browser } from "$app/environment";
 import { API } from "../api";
 import { user } from "../auth";
 import { getWs } from "../ws";
-import { chatState } from "../stores/chatState";
-import { serverState } from "../stores/serverState";
+import { chatState } from "../stores/chatState.svelte";
+import { serverState } from "../stores/serverState.svelte";
 import type { Message } from "../api";
+import { get } from "svelte/store";
 
 const TYPING_DEBOUNCE_MS = 3000;
 let lastTypingSent = 0;
@@ -21,31 +21,22 @@ export function resetChatActionState() {
 }
 
 export function populateAvatarsFromMessages(msgs: Message[]) {
-  const current = get(serverState);
-  const avatars = { ...current.userAvatars };
-  let changed = false;
   for (const m of msgs) {
-    if (!(m.author_id in avatars)) {
-      avatars[m.author_id] = API.getAvatarUrl(m.author_id);
-      changed = true;
+    if (!(m.author_id in serverState.userAvatars)) {
+      serverState.userAvatars[m.author_id] = API.getAvatarUrl(m.author_id);
     }
   }
-  if (changed) serverState.update((s) => ({ ...s, userAvatars: avatars }));
 }
 
 export async function selectChannel(channelId: string, channelName: string) {
-  chatState.update((s) => {
-    Object.values(s.typingUsers).forEach((u) => clearTimeout(u.timeout));
-    return {
-      ...s,
-      selectedChannelId: channelId,
-      selectedChannelName: channelName,
-      messages: [],
-      hasMoreMessages: true,
-      replyingTo: null,
-      typingUsers: {},
-    };
-  });
+  Object.values(chatState.typingUsers).forEach((u) => clearTimeout(u.timeout));
+  chatState.selectedChannelId = channelId;
+  chatState.selectedChannelName = channelName;
+  chatState.messages = [];
+  chatState.hasMoreMessages = true;
+  chatState.replyingTo = null;
+  chatState.typingUsers = {};
+
   getWs().joinChannel(channelId);
 
   if (browser)
@@ -58,81 +49,64 @@ export async function selectChannel(channelId: string, channelName: string) {
   try {
     const msgs = await API.getMessages(channelId, 50);
     populateAvatarsFromMessages(msgs);
+    // Guard: channel may have changed during the async fetch
+    if (chatState.selectedChannelId !== channelId) return true;
     // Merge REST history with any WS events already received during the fetch.
-    // Deduplicate by ID so messages that arrived via both paths appear once.
-    // REST provides the authoritative ordered list; WS-only additions are appended.
-    chatState.update((s) => {
-      if (s.selectedChannelId !== channelId) return s;
-      const restIds = new Set(msgs.map((m) => m.id));
-      const wsOnly = s.messages.filter((m) => !restIds.has(m.id));
-      const merged = [...msgs, ...wsOnly].sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-      );
-      return {
-        ...s,
-        messages: merged,
-        hasMoreMessages: msgs.length >= 50,
-      };
-    });
+    const restIds = new Set(msgs.map((m) => m.id));
+    const wsOnly = chatState.messages.filter((m) => !restIds.has(m.id));
+    const merged = [...msgs, ...wsOnly].sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+    );
+    chatState.messages = merged;
+    chatState.hasMoreMessages = msgs.length >= 50;
     return true;
   } catch (error) {
     console.error("Failed to load messages:", error);
-    chatState.update((s) => ({ ...s, messages: [] }));
+    chatState.messages = [];
     return false;
   }
 }
 
 export async function loadOlderMessages(scrollToPreserve: () => () => void) {
-  const cs = get(chatState);
   if (
-    cs.loadingMore ||
-    !cs.hasMoreMessages ||
-    !cs.selectedChannelId ||
-    cs.messages.length === 0
+    chatState.loadingMore ||
+    !chatState.hasMoreMessages ||
+    !chatState.selectedChannelId ||
+    chatState.messages.length === 0
   )
     return;
 
-  chatState.update((s) => ({ ...s, loadingMore: true }));
-  const oldestTimestamp = cs.messages[0]?.timestamp;
+  chatState.loadingMore = true;
+  const channelId = chatState.selectedChannelId;
+  const oldestTimestamp = chatState.messages[0]?.timestamp;
 
   try {
-    const olderMessages = await API.getMessages(
-      cs.selectedChannelId,
-      50,
-      oldestTimestamp,
-    );
+    const olderMessages = await API.getMessages(channelId, 50, oldestTimestamp);
     populateAvatarsFromMessages(olderMessages);
     if (olderMessages.length > 0) {
-      // Capture scroll position before DOM update, then restore after
       const restoreScroll = scrollToPreserve();
-      chatState.update((s) => {
-        // Guard: channel may have changed during the async fetch
-        if (s.selectedChannelId !== cs.selectedChannelId) return s;
-        const existingIds = new Set(s.messages.map((m) => m.id));
-        const uniqueOlder = olderMessages.filter((m) => !existingIds.has(m.id));
-        return {
-          ...s,
-          hasMoreMessages: olderMessages.length >= 50,
-          messages: [...uniqueOlder, ...s.messages],
-        };
-      });
+      // Guard: channel may have changed during the async fetch
+      if (chatState.selectedChannelId !== channelId) return;
+      const existingIds = new Set(chatState.messages.map((m) => m.id));
+      const uniqueOlder = olderMessages.filter((m) => !existingIds.has(m.id));
+      chatState.messages = [...uniqueOlder, ...chatState.messages];
+      chatState.hasMoreMessages = olderMessages.length >= 50;
       restoreScroll();
     } else {
-      chatState.update((s) => {
-        if (s.selectedChannelId !== cs.selectedChannelId) return s;
-        return { ...s, hasMoreMessages: false };
-      });
+      if (chatState.selectedChannelId === channelId) {
+        chatState.hasMoreMessages = false;
+      }
     }
   } catch (error) {
     console.error("Failed to load older messages:", error);
   } finally {
-    chatState.update((s) => ({ ...s, loadingMore: false }));
+    chatState.loadingMore = false;
   }
 }
 
 export function sendMessage(text: string, attachmentIds?: string[]) {
-  const { selectedChannelId, replyingTo } = get(chatState);
+  const { selectedChannelId, replyingTo } = chatState;
   const currentUser = get(user);
   if (selectedChannelId && currentUser) {
     const sent = getWs().sendMessage(
@@ -142,12 +116,13 @@ export function sendMessage(text: string, attachmentIds?: string[]) {
       attachmentIds,
     );
     if (sent) {
-      chatState.update((s) => ({ ...s, replyingTo: null, sendError: false }));
+      chatState.replyingTo = null;
+      chatState.sendError = false;
     } else {
-      chatState.update((s) => ({ ...s, sendError: true }));
+      chatState.sendError = true;
       if (_sendErrorTimeout) clearTimeout(_sendErrorTimeout);
       _sendErrorTimeout = setTimeout(() => {
-        chatState.update((s) => ({ ...s, sendError: false }));
+        chatState.sendError = false;
         _sendErrorTimeout = null;
       }, 4000);
     }
@@ -156,7 +131,7 @@ export function sendMessage(text: string, attachmentIds?: string[]) {
 
 export function sendTyping() {
   const now = Date.now();
-  const { selectedChannelId } = get(chatState);
+  const { selectedChannelId } = chatState;
   if (selectedChannelId && now - lastTypingSent > TYPING_DEBOUNCE_MS) {
     lastTypingSent = now;
     getWs().sendTyping(selectedChannelId);
@@ -164,37 +139,23 @@ export function sendTyping() {
 }
 
 export function startEditMessage(message: Message) {
-  chatState.update((s) => ({
-    ...s,
-    editingMessageId: message.id,
-    editMessageContent: message.content,
-  }));
+  chatState.editingMessageId = message.id;
+  chatState.editMessageContent = message.content;
 }
 
 export function cancelEditMessage() {
-  chatState.update((s) => ({
-    ...s,
-    editingMessageId: null,
-    editMessageContent: "",
-  }));
+  chatState.editingMessageId = null;
+  chatState.editMessageContent = "";
 }
 
 export async function saveEditMessage() {
-  const { editingMessageId, editMessageContent, selectedChannelId } =
-    get(chatState);
+  const { editingMessageId, editMessageContent, selectedChannelId } = chatState;
   if (!editingMessageId || !editMessageContent.trim() || !selectedChannelId)
     return;
   try {
-    await API.editMessage(
-      selectedChannelId,
-      editingMessageId,
-      editMessageContent.trim(),
-    );
-    chatState.update((s) => ({
-      ...s,
-      editingMessageId: null,
-      editMessageContent: "",
-    }));
+    await API.editMessage(selectedChannelId, editingMessageId, editMessageContent.trim());
+    chatState.editingMessageId = null;
+    chatState.editMessageContent = "";
   } catch (error) {
     console.error("Failed to edit message:", error);
   }
@@ -202,7 +163,7 @@ export async function saveEditMessage() {
 
 export async function deleteMessage(messageId: string) {
   if (!confirm("Delete this message?")) return;
-  const { selectedChannelId } = get(chatState);
+  const { selectedChannelId } = chatState;
   if (!selectedChannelId) return;
   try {
     await API.deleteMessage(selectedChannelId, messageId);
@@ -212,15 +173,15 @@ export async function deleteMessage(messageId: string) {
 }
 
 export function startReply(message: Message) {
-  chatState.update((s) => ({ ...s, replyingTo: message }));
+  chatState.replyingTo = message;
 }
 
 export function cancelReply() {
-  chatState.update((s) => ({ ...s, replyingTo: null }));
+  chatState.replyingTo = null;
 }
 
 export async function toggleReaction(messageId: string, emoji: string) {
-  const { selectedChannelId, messages } = get(chatState);
+  const { selectedChannelId, messages } = chatState;
   if (!selectedChannelId) return;
   try {
     const msg = messages.find((m) => m.id === messageId);
@@ -261,5 +222,5 @@ export async function deleteChannel(channelId: string) {
 }
 
 export function updateEditMessageContent(content: string) {
-  chatState.update((s) => ({ ...s, editMessageContent: content }));
+  chatState.editMessageContent = content;
 }

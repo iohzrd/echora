@@ -1,4 +1,3 @@
-import { writable } from 'svelte/store';
 import type { Channel, UserPresence, CustomEmoji } from '../api';
 
 export interface ServerStateStore {
@@ -11,7 +10,7 @@ export interface ServerStateStore {
   customEmojis: CustomEmoji[];
 }
 
-export const serverState = writable<ServerStateStore>({
+export const serverState = $state<ServerStateStore>({
   channels: [],
   onlineUsers: [],
   userAvatars: {},

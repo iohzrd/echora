@@ -1,4 +1,3 @@
-import { writable } from 'svelte/store';
 import type { Message } from '../api';
 
 export interface TypingUser {
@@ -20,7 +19,7 @@ export interface ChatStateStore {
   sendError: boolean;
 }
 
-export const chatState = writable<ChatStateStore>({
+export const chatState = $state<ChatStateStore>({
   messages: [],
   selectedChannelId: '',
   selectedChannelName: '',

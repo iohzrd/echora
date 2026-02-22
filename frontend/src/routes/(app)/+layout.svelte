@@ -1,7 +1,6 @@
 <script lang="ts">
   import "../../app.css";
   import { onMount, onDestroy } from "svelte";
-  import { get } from "svelte/store";
   import {
     isTauri,
     activeServer,
@@ -13,9 +12,9 @@
   } from "../../lib/serverManager";
   import { getWs } from "../../lib/ws";
   import { voiceManager } from "../../lib/voice";
-  import { voiceStore } from "../../lib/stores/voiceStore";
-  import { serverState } from "../../lib/stores/serverState";
-  import { uiState } from "../../lib/stores/uiState";
+  import { voiceStore } from "../../lib/stores/voiceStore.svelte";
+  import { serverState } from "../../lib/stores/serverState.svelte";
+  import { uiState } from "../../lib/stores/uiState.svelte";
   import { connectToServer, initPTTSettings } from "../../lib/actions/server";
   import { initAudioSettings } from "../../lib/actions/audioSettings";
   import {
@@ -40,12 +39,12 @@
   import AppSidebar from "../../lib/components/AppSidebar.svelte";
   import ChatArea from "../../lib/components/ChatArea.svelte";
   import EmojiPicker from "../../lib/components/EmojiPicker.svelte";
-  import { emojiPickerState } from "../../lib/stores/emojiPickerState";
+  import { emojiPickerState } from "../../lib/stores/emojiPickerState.svelte";
 
   let { children } = $props();
 
   let activeServerName = $derived(
-    $serverState.serverName || $activeServer?.name || "Echora",
+    serverState.serverName || $activeServer?.name || "Echora",
   );
 
   let _removeDeviceListener: (() => void) | null = null;
@@ -56,7 +55,7 @@
     if (isTauri) {
       import("@tauri-apps/api/app")
         .then((m) => m.getVersion())
-        .then((v) => uiState.update((s) => ({ ...s, tauriVersion: v })))
+        .then((v) => { uiState.tauriVersion = v; })
         .catch(() => {});
     }
 
@@ -72,7 +71,7 @@
   async function handleSelectServer(server: EchoraServer) {
     if ($activeServer?.id === server.id) return;
     getWs().disconnect();
-    const { currentVoiceChannel } = get(voiceStore);
+    const { currentVoiceChannel } = voiceStore;
     if (currentVoiceChannel) {
       await voiceManager.leaveVoiceChannel().catch(() => {});
     }
@@ -104,7 +103,7 @@
 </script>
 
 <div class="layout">
-  {#if $uiState.sidebarOpen}
+  {#if uiState.sidebarOpen}
     <div
       class="sidebar-overlay"
       onclick={closeSidebar}
@@ -130,7 +129,7 @@
         </button>
       </div>
     </div>
-  {:else if isTauri && $uiState.needsServerAuth}
+  {:else if isTauri && uiState.needsServerAuth}
     <div class="sidebar">
       <div class="channels-area">
         <div class="server-header">
@@ -141,13 +140,13 @@
     <div class="main-content tauri-auth-state">
       <div class="auth-container">
         <div class="auth-content">
-          {#if $uiState.tauriAuthIsLogin}
+          {#if uiState.tauriAuthIsLogin}
             <LoginForm onSuccess={handleTauriAuthSuccess} />
           {:else}
             <RegisterForm onSuccess={handleTauriAuthSuccess} />
           {/if}
           <div class="auth-toggle">
-            {#if $uiState.tauriAuthIsLogin}
+            {#if uiState.tauriAuthIsLogin}
               <span>Need an account?</span>
               <button
                 onclick={() => setTauriAuthIsLogin(false)}
@@ -170,34 +169,34 @@
   {/if}
 </div>
 
-{#if $uiState.showAddServerDialog}
+{#if uiState.showAddServerDialog}
   <AddServerDialog onAdd={handleAddServer} onCancel={closeAddServerDialog} />
 {/if}
 
-{#if $uiState.showAdminPanel}
+{#if uiState.showAdminPanel}
   <AdminPanel onClose={closeAdminPanel} />
 {/if}
 
-{#if $uiState.showPasskeySettings}
+{#if uiState.showPasskeySettings}
   <PasskeySettings onClose={closePasskeySettings} />
 {/if}
 
-{#if $uiState.showProfileModal}
+{#if uiState.showProfileModal}
   <ProfileModal onClose={closeProfileModal} />
 {/if}
 
-{#if $uiState.profileViewUserId}
+{#if uiState.profileViewUserId}
   <ProfileModal
-    viewUserId={$uiState.profileViewUserId}
+    viewUserId={uiState.profileViewUserId}
     onClose={closeProfileView}
   />
 {/if}
 
-{#if $emojiPickerState.anchorRect && $emojiPickerState.onSelect}
+{#if emojiPickerState.anchorRect && emojiPickerState.onSelect}
   <EmojiPicker
-    anchorRect={$emojiPickerState.anchorRect}
-    onSelect={$emojiPickerState.onSelect}
-    customEmojis={$serverState.customEmojis}
+    anchorRect={emojiPickerState.anchorRect}
+    onSelect={emojiPickerState.onSelect}
+    customEmojis={serverState.customEmojis}
   />
 {/if}
 

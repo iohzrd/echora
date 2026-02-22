@@ -18,7 +18,7 @@
   let uploading = $state(false);
   let error = $state("");
   let success = $state("");
-  let fileInput: HTMLInputElement;
+  let fileInput: HTMLInputElement = $state()!;
 
   // Password change state
   let showPasswordSection = $state(false);
@@ -35,15 +35,10 @@
 
   let isViewMode = $derived(!!viewUserId && viewUserId !== $user?.id);
 
-  let displayNameInitialized = false;
-  $effect(() => {
-    if (!isViewMode && $user && !displayNameInitialized) {
-      displayName = $user.display_name || "";
-      displayNameInitialized = true;
-    }
-  });
-
   onMount(async () => {
+    if (!isViewMode && $user) {
+      displayName = $user.display_name || "";
+    }
     if (isViewMode && viewUserId) {
       loading = true;
       try {
@@ -105,7 +100,7 @@
     success = "";
     try {
       const updatedUser = await API.uploadAvatar(file);
-      user.set(updatedUser);
+      AuthService.setUser(updatedUser);
       success = "Avatar updated.";
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to upload avatar";
@@ -122,7 +117,7 @@
     success = "";
     try {
       const updatedUser = await API.deleteAvatar();
-      user.set(updatedUser);
+      AuthService.setUser(updatedUser);
       success = "Avatar removed.";
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to remove avatar";
@@ -201,7 +196,7 @@
           Profile Settings
         {/if}
       </h2>
-      <button class="close-btn" onclick={onClose}>
+      <button class="close-btn" onclick={onClose} title="Close">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
           ><path
             d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
@@ -235,25 +230,25 @@
 
           {#if profile.display_name}
             <div class="field">
-              <label>Display Name</label>
+              <span class="field-label">Display Name</span>
               <div class="field-value">{profile.display_name}</div>
             </div>
           {/if}
 
           <div class="field">
-            <label>Username</label>
+            <span class="field-label">Username</span>
             <div class="field-value">{profile.username}</div>
           </div>
 
           <div class="field">
-            <label>Role</label>
+            <span class="field-label">Role</span>
             <div class="field-value role-badge {profile.role}">
               {formatRole(profile.role)}
             </div>
           </div>
 
           <div class="field">
-            <label>Member Since</label>
+            <span class="field-label">Member Since</span>
             <div class="field-value">{formatDate(profile.created_at)}</div>
           </div>
         {/if}
@@ -300,7 +295,7 @@
         </div>
 
         <div class="field">
-          <label>Username</label>
+          <span class="field-label">Username</span>
           <div class="field-value">{$user?.username || ""}</div>
         </div>
 

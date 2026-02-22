@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { goto } from "$app/navigation";
   import LoginForm from "../../lib/components/LoginForm.svelte";
   import RegisterForm from "../../lib/components/RegisterForm.svelte";
@@ -7,7 +6,7 @@
 
   let isLogin = $state(true);
 
-  onMount(() => {
+  $effect(() => {
     if ($user) {
       goto("/");
     }
