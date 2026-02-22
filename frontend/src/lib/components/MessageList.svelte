@@ -1,6 +1,6 @@
 <script lang="ts">
   import { API, type CustomEmoji } from "../api";
-  import { renderMarkdown } from "../markdown";
+  import { renderMessageContent } from "../markdown";
   import {
     formatTimestamp,
     truncateContent,
@@ -222,6 +222,15 @@
   }
 
   let currentUserId = $derived(authState.user?.id ?? "");
+
+  let customEmojiUrlMap = $derived(
+    Object.fromEntries(
+      serverState.customEmojis.map((e) => [
+        `:${e.name}:`,
+        resolveUrl(API.getCustomEmojiUrl(e.id)),
+      ]),
+    ),
+  );
 </script>
 
 <svelte:window onkeydown={handleLightboxKeydown} />
@@ -292,7 +301,7 @@
               !expandedMessages[message.id]}
             use:checkOverflow={message.id}
           >
-            {@html renderMarkdown(message.content)}
+            {@html renderMessageContent(message.content, customEmojiUrlMap)}
           </div>
           {#if overflowingMessages[message.id]}
             <button
@@ -421,8 +430,6 @@
                       alt={reaction.emoji}
                       class="custom-emoji-reaction"
                     />
-                  {:else}
-                    {reaction.emoji}
                   {/if}
                 {:else}
                   {reaction.emoji}

@@ -128,6 +128,23 @@ export function renderMarkdown(content: string): string {
   return sanitized;
 }
 
+const CUSTOM_EMOJI_RE = /:[a-zA-Z0-9_-]+:/g;
+
+export function renderMessageContent(
+  content: string,
+  emojiUrlMap: Record<string, string>,
+): string {
+  const sanitized = renderMarkdown(content);
+  if (Object.keys(emojiUrlMap).length === 0) return sanitized;
+  return sanitized.replace(CUSTOM_EMOJI_RE, (match) => {
+    const url = emojiUrlMap[match];
+    if (!url) return match;
+    // match only contains [:a-zA-Z0-9_-] so no escaping needed, but be explicit
+    const safeAlt = match.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    return `<img src="${url}" alt="${safeAlt}" class="custom-emoji-inline" loading="lazy">`;
+  });
+}
+
 // Configure DOMPurify to add target="_blank" and rel="noopener noreferrer" to links
 if (browser) {
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
