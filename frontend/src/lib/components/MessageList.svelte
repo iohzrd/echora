@@ -160,32 +160,24 @@
   }
 
   const COLLAPSE_HEIGHT = 300;
-  let expandedMessages = $state(new Set<string>());
-  let overflowingMessages = $state(new Set<string>());
+  let expandedMessages: Record<string, boolean> = $state({});
+  let overflowingMessages: Record<string, boolean> = $state({});
 
   function toggleExpand(messageId: string) {
-    if (expandedMessages.has(messageId)) {
-      expandedMessages.delete(messageId);
-    } else {
-      expandedMessages.add(messageId);
-    }
+    expandedMessages[messageId] = !expandedMessages[messageId];
   }
 
   function checkOverflow(node: HTMLElement, messageId: string) {
-    function update() {
-      const overflows = node.scrollHeight > COLLAPSE_HEIGHT;
-      if (overflows && !overflowingMessages.has(messageId)) {
-        overflowingMessages.add(messageId);
-      } else if (!overflows && overflowingMessages.has(messageId)) {
-        overflowingMessages.delete(messageId);
+    // Measure on next frame so the DOM has settled
+    requestAnimationFrame(() => {
+      if (node.scrollHeight > COLLAPSE_HEIGHT) {
+        overflowingMessages[messageId] = true;
       }
-    }
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
+    });
     return {
       destroy() {
-        observer.disconnect();
+        delete overflowingMessages[messageId];
+        delete expandedMessages[messageId];
       },
     };
   }
@@ -273,17 +265,17 @@
           {#if message.content}
             <div
               class="message-text"
-              class:collapsed={overflowingMessages.has(message.id) && !expandedMessages.has(message.id)}
+              class:collapsed={overflowingMessages[message.id] && !expandedMessages[message.id]}
               use:checkOverflow={message.id}
             >
               {@html renderMarkdown(message.content)}
             </div>
-            {#if overflowingMessages.has(message.id)}
+            {#if overflowingMessages[message.id]}
               <button
                 class="message-expand-btn"
                 onclick={() => toggleExpand(message.id)}
               >
-                {expandedMessages.has(message.id) ? 'Show less' : 'Show more'}
+                {expandedMessages[message.id] ? 'Show less' : 'Show more'}
               </button>
             {/if}
           {/if}
