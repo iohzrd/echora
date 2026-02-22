@@ -190,6 +190,24 @@ export class API {
     }, errorMessage);
   }
 
+  private static async multipartRequest<T>(
+    path: string,
+    formData: FormData,
+    errorMessage: string,
+  ): Promise<T> {
+    const headers: Record<string, string> = { ...AuthService.getAuthHeaders() };
+    const response = await appFetch(`${getApiBase()}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || errorMessage);
+    }
+    return response.json();
+  }
+
   static async getInit(): Promise<{
     server_name: string;
     version: string;
@@ -286,23 +304,7 @@ export class API {
   static async uploadAvatar(file: File): Promise<import('./auth').User> {
     const formData = new FormData();
     formData.append('file', file);
-
-    const headers: Record<string, string> = {
-      ...AuthService.getAuthHeaders(),
-    };
-
-    const response = await appFetch(`${getApiBase()}/auth/avatar`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to upload avatar');
-    }
-
-    return response.json();
+    return this.multipartRequest('/auth/avatar', formData, 'Failed to upload avatar');
   }
 
   static async deleteAvatar(): Promise<import('./auth').User> {
@@ -395,29 +397,10 @@ export class API {
 
   // --- Attachments ---
 
-  static async uploadAttachment(
-    file: File,
-    onProgress?: (percent: number) => void,
-  ): Promise<Attachment> {
+  static async uploadAttachment(file: File): Promise<Attachment> {
     const formData = new FormData();
     formData.append('file', file);
-
-    const headers: Record<string, string> = {
-      ...AuthService.getAuthHeaders(),
-    };
-
-    const response = await appFetch(`${getApiBase()}/attachments`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to upload file');
-    }
-
-    return response.json();
+    return this.multipartRequest('/attachments', formData, 'Failed to upload file');
   }
 
   static getAttachmentUrl(attachmentId: string, filename: string): string {
@@ -434,23 +417,7 @@ export class API {
     const formData = new FormData();
     formData.append('name', name);
     formData.append('file', file);
-
-    const headers: Record<string, string> = {
-      ...AuthService.getAuthHeaders(),
-    };
-
-    const response = await appFetch(`${getApiBase()}/custom-emojis`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to upload custom emoji');
-    }
-
-    return response.json();
+    return this.multipartRequest('/custom-emojis', formData, 'Failed to upload custom emoji');
   }
 
   static async deleteCustomEmoji(emojiId: string): Promise<void> {

@@ -8,7 +8,6 @@ export interface ServerStateStore {
   userRolesMap: Record<string, string>;
   serverName: string;
   backendVersion: string;
-  tauriVersion: string;
   customEmojis: CustomEmoji[];
 }
 
@@ -19,6 +18,5 @@ export const serverState = writable<ServerStateStore>({
   userRolesMap: {},
   serverName: '',
   backendVersion: '',
-  tauriVersion: '',
   customEmojis: [],
 });

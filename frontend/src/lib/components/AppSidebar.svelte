@@ -86,8 +86,8 @@
     </div>
 
     <div class="version-bar">
-      {#if $serverState.tauriVersion}
-        <span class="version-info">app v{$serverState.tauriVersion}</span>
+      {#if $uiState.tauriVersion}
+        <span class="version-info">app v{$uiState.tauriVersion}</span>
       {/if}
       <span class="version-info">frontend v{FRONTEND_VERSION}</span>
       <span class="version-info"

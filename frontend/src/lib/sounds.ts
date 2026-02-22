@@ -1,8 +1,17 @@
-import { loadAudioSettings } from './audioSettings';
+import { get } from 'svelte/store';
+import { audioSettingsStore } from './stores/audioSettingsStore';
 
 type SoundName = 'connect' | 'disconnect';
 
 const bufferCache = new Map<SoundName, AudioBuffer>();
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedCtx || sharedCtx.state === 'closed') {
+    sharedCtx = new AudioContext();
+  }
+  return sharedCtx;
+}
 
 function generateTone(
   ctx: OfflineAudioContext,
@@ -51,15 +60,11 @@ async function getBuffer(name: SoundName): Promise<AudioBuffer> {
 
 export async function playSound(name: SoundName): Promise<void> {
   try {
-    const settings = loadAudioSettings();
-    const ctx = new AudioContext();
-    const buffer = await getBuffer(name);
-    const source = ctx.createBufferSource();
-    const gainNode = ctx.createGain();
-    source.buffer = buffer;
-    gainNode.gain.value = settings.outputVolume;
-    source.connect(gainNode);
-    gainNode.connect(ctx.destination);
+    const settings = get(audioSettingsStore);
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
 
     if (settings.outputDeviceId && 'setSinkId' in ctx) {
       try {
@@ -71,8 +76,14 @@ export async function playSound(name: SoundName): Promise<void> {
       }
     }
 
+    const buffer = await getBuffer(name);
+    const source = ctx.createBufferSource();
+    const gainNode = ctx.createGain();
+    source.buffer = buffer;
+    gainNode.gain.value = settings.outputVolume;
+    source.connect(gainNode);
+    gainNode.connect(ctx.destination);
     source.start();
-    source.onended = () => ctx.close();
   } catch {
     // silently fail -- sounds are non-critical
   }

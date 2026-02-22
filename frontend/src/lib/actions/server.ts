@@ -77,7 +77,6 @@ export async function connectToServer() {
     userRolesMap: {},
     serverName: '',
     backendVersion: '',
-    tauriVersion: get(serverState).tauriVersion,
     customEmojis: [],
   });
   voiceStore.update((s) => ({ ...s, voiceStates: [], speakingUsers: new Set() }));

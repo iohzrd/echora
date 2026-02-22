@@ -9,6 +9,7 @@ export interface UiStateStore {
   showAddServerDialog: boolean;
   needsServerAuth: boolean;
   tauriAuthIsLogin: boolean;
+  tauriVersion: string;
 }
 
 export const uiState = writable<UiStateStore>({
@@ -20,4 +21,5 @@ export const uiState = writable<UiStateStore>({
   showAddServerDialog: false,
   needsServerAuth: false,
   tauriAuthIsLogin: true,
+  tauriVersion: '',
 });

@@ -123,17 +123,14 @@ export function setActiveServer(id: string): void {
   updateServer(id, { lastConnectedAt: new Date().toISOString() });
 }
 
-async function healthFetch(healthUrl: string): Promise<Response> {
-  if (isTauri) {
-    const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http');
-    return tauriFetch(healthUrl, { method: 'GET', connectTimeout: 10000 });
-  }
-  return fetch(healthUrl, { signal: AbortSignal.timeout(10000) });
-}
-
 async function checkHealth(baseUrl: string): Promise<{ ok: true; version: string; name?: string; baseUrl: string } | { ok: false }> {
   try {
-    const response = await healthFetch(`${baseUrl}/api/health`);
+    const response = await appFetch(`${baseUrl}/api/health`, {
+      method: 'GET',
+      // connectTimeout is forwarded to Tauri's HTTP plugin; signal is used by the browser fetch.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(isTauri ? { connectTimeout: 10000 } as any : { signal: AbortSignal.timeout(10000) }),
+    });
     if (!response.ok) return { ok: false };
     const data = await response.json();
     if (!data.version) return { ok: false };
