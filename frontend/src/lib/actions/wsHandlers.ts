@@ -1,14 +1,14 @@
-import { get } from 'svelte/store';
-import { goto } from '$app/navigation';
-import { API, type WsIncomingMessage } from '../api';
-import { playSound } from '../sounds';
-import AuthService, { user } from '../auth';
-import { voiceManager } from '../voice';
-import { getWs } from '../ws';
-import { voiceStore } from '../stores/voiceStore';
-import { serverState } from '../stores/serverState';
-import { chatState } from '../stores/chatState';
-import { selectChannel, populateAvatarsFromMessages } from './chat';
+import { get } from "svelte/store";
+import { goto } from "$app/navigation";
+import { API, type WsIncomingMessage } from "../api";
+import { playSound } from "../sounds";
+import AuthService, { user } from "../auth";
+import { voiceManager } from "../voice";
+import { getWs } from "../ws";
+import { voiceStore } from "../stores/voiceStore";
+import { serverState } from "../stores/serverState";
+import { chatState } from "../stores/chatState";
+import { selectChannel, populateAvatarsFromMessages } from "./chat";
 
 const TYPING_DISPLAY_MS = 5000;
 
@@ -56,7 +56,12 @@ function updateMessageReaction(
         } else {
           newReactions = [
             ...reactions,
-            { emoji, count: 1, reacted: userId === currentUser?.id, users: [username] },
+            {
+              emoji,
+              count: 1,
+              reacted: userId === currentUser?.id,
+              users: [username],
+            },
           ];
         }
       } else if (existingIdx >= 0) {
@@ -69,12 +74,17 @@ function updateMessageReaction(
         if (updated.count <= 0) {
           newReactions = reactions.filter((_, i) => i !== existingIdx);
         } else {
-          newReactions = reactions.map((r, i) => (i === existingIdx ? updated : r));
+          newReactions = reactions.map((r, i) =>
+            i === existingIdx ? updated : r,
+          );
         }
       } else {
         newReactions = reactions;
       }
-      return { ...m, reactions: newReactions.length > 0 ? newReactions : undefined };
+      return {
+        ...m,
+        reactions: newReactions.length > 0 ? newReactions : undefined,
+      };
     }),
   }));
 }
@@ -86,10 +96,9 @@ export function setupWsHandlers() {
   _activeHandler = (data) => {
     const cs = get(chatState);
     const vs = get(voiceStore);
-    const ss = get(serverState);
     const currentUser = get(user);
 
-    if (data.type === 'message') {
+    if (data.type === "message") {
       const msg = data.data;
       if (msg.channel_id === cs.selectedChannelId) {
         populateAvatarsFromMessages([msg]);
@@ -105,11 +114,11 @@ export function setupWsHandlers() {
       }
     }
 
-    if (data.type === 'channel_created') {
+    if (data.type === "channel_created") {
       const ch = data.data;
       serverState.update((s) => ({ ...s, channels: [...s.channels, ch] }));
     }
-    if (data.type === 'channel_updated') {
+    if (data.type === "channel_updated") {
       const ch = data.data;
       serverState.update((s) => ({
         ...s,
@@ -119,37 +128,49 @@ export function setupWsHandlers() {
         chatState.update((s) => ({ ...s, selectedChannelName: ch.name }));
       }
     }
-    if (data.type === 'channel_deleted') {
+    if (data.type === "channel_deleted") {
       const { id } = data.data;
-      const updatedChannels = ss.channels.filter((c) => c.id !== id);
-      serverState.update((s) => ({ ...s, channels: updatedChannels }));
+      serverState.update((s) => ({
+        ...s,
+        channels: s.channels.filter((c) => c.id !== id),
+      }));
       if (cs.selectedChannelId === id) {
-        const firstText = updatedChannels.find((c) => c.channel_type === 'text');
+        const updatedChannels = get(serverState).channels;
+        const firstText = updatedChannels.find(
+          (c) => c.channel_type === "text",
+        );
         if (firstText) {
           selectChannel(firstText.id, firstText.name);
         } else {
           chatState.update((s) => ({
             ...s,
-            selectedChannelId: '',
-            selectedChannelName: '',
+            selectedChannelId: "",
+            selectedChannelName: "",
             messages: [],
           }));
         }
       }
     }
 
-    if (data.type === 'user_online') {
+    if (data.type === "user_online") {
       const presence = data.data;
       serverState.update((s) => {
-        const exists = s.onlineUsers.find((u) => u.user_id === presence.user_id);
-        const onlineUsers = exists ? s.onlineUsers : [...s.onlineUsers, presence];
+        const exists = s.onlineUsers.find(
+          (u) => u.user_id === presence.user_id,
+        );
+        const onlineUsers = exists
+          ? s.onlineUsers
+          : [...s.onlineUsers, presence];
         const userAvatars = presence.avatar_url
-          ? { ...s.userAvatars, [presence.user_id]: API.getAvatarUrl(presence.user_id) }
+          ? {
+              ...s.userAvatars,
+              [presence.user_id]: API.getAvatarUrl(presence.user_id),
+            }
           : s.userAvatars;
         return { ...s, onlineUsers, userAvatars };
       });
     }
-    if (data.type === 'user_offline') {
+    if (data.type === "user_offline") {
       const { user_id } = data.data;
       serverState.update((s) => ({
         ...s,
@@ -157,7 +178,7 @@ export function setupWsHandlers() {
       }));
     }
 
-    if (data.type === 'user_avatar_updated') {
+    if (data.type === "user_avatar_updated") {
       const { user_id, avatar_url } = data.data;
       serverState.update((s) => {
         if (avatar_url) {
@@ -165,7 +186,7 @@ export function setupWsHandlers() {
             ...s,
             userAvatars: {
               ...s.userAvatars,
-              [user_id]: API.getAvatarUrl(user_id) + '?t=' + Date.now(),
+              [user_id]: API.getAvatarUrl(user_id) + "?t=" + Date.now(),
             },
           };
         } else {
@@ -174,26 +195,33 @@ export function setupWsHandlers() {
         }
       });
     }
-    if (data.type === 'user_profile_updated') {
+    if (data.type === "user_profile_updated") {
       const { user_id, username, display_name, avatar_url } = data.data;
       serverState.update((s) => ({
         ...s,
         onlineUsers: s.onlineUsers.map((u) =>
-          u.user_id === user_id ? { ...u, username, display_name: display_name ?? undefined } : u,
+          u.user_id === user_id
+            ? { ...u, username, display_name: display_name ?? undefined }
+            : u,
         ),
         userAvatars: avatar_url
-          ? { ...s.userAvatars, [user_id]: API.getAvatarUrl(user_id) + '?t=' + Date.now() }
+          ? {
+              ...s.userAvatars,
+              [user_id]: API.getAvatarUrl(user_id) + "?t=" + Date.now(),
+            }
           : s.userAvatars,
       }));
       voiceStore.update((s) => ({
         ...s,
         voiceStates: s.voiceStates.map((v) =>
-          v.user_id === user_id ? { ...v, username, display_name: display_name ?? undefined } : v,
+          v.user_id === user_id
+            ? { ...v, username, display_name: display_name ?? undefined }
+            : v,
         ),
       }));
     }
 
-    if (data.type === 'message_edited') {
+    if (data.type === "message_edited") {
       const msg = data.data;
       if (msg.channel_id === cs.selectedChannelId) {
         chatState.update((s) => ({
@@ -202,7 +230,7 @@ export function setupWsHandlers() {
         }));
       }
     }
-    if (data.type === 'message_deleted') {
+    if (data.type === "message_deleted") {
       const { id, channel_id } = data.data;
       if (channel_id === cs.selectedChannelId) {
         chatState.update((s) => ({
@@ -212,16 +240,16 @@ export function setupWsHandlers() {
       }
     }
 
-    if (data.type === 'reaction_added' && cs.selectedChannelId) {
+    if (data.type === "reaction_added" && cs.selectedChannelId) {
       const { message_id, emoji, user_id, username } = data.data;
       updateMessageReaction(message_id, emoji, user_id, username, true);
     }
-    if (data.type === 'reaction_removed' && cs.selectedChannelId) {
+    if (data.type === "reaction_removed" && cs.selectedChannelId) {
       const { message_id, emoji, user_id, username } = data.data;
       updateMessageReaction(message_id, emoji, user_id, username, false);
     }
 
-    if (data.type === 'link_preview_ready') {
+    if (data.type === "link_preview_ready") {
       const { channel_id, message_id, link_previews } = data.data;
       if (channel_id === cs.selectedChannelId) {
         chatState.update((s) => ({
@@ -233,7 +261,7 @@ export function setupWsHandlers() {
       }
     }
 
-    if (data.type === 'voice_user_joined') {
+    if (data.type === "voice_user_joined") {
       const vs_data = data.data;
       voiceStore.update((s) => ({
         ...s,
@@ -246,27 +274,48 @@ export function setupWsHandlers() {
         vs_data.channel_id === vs.currentVoiceChannel ||
         vs_data.user_id === currentUser?.id
       ) {
-        playSound('connect');
+        playSound("connect");
       }
     }
 
-    if (data.type === 'new_producer') {
+    if (data.type === "new_producer") {
       const prod = data.data;
-      if (prod.channel_id === vs.currentVoiceChannel && prod.user_id !== currentUser?.id) {
-        if (prod.label !== 'screen' && prod.label !== 'camera') {
-          voiceManager.consumeProducer(prod.producer_id, prod.user_id, prod.label);
-        } else if (prod.label === 'screen' && vs.watchingScreenUserId === prod.user_id) {
-          voiceManager.consumeProducer(prod.producer_id, prod.user_id, prod.label);
-        } else if (prod.label === 'camera' && vs.watchingCameraUserId === prod.user_id) {
-          voiceManager.consumeProducer(prod.producer_id, prod.user_id, prod.label);
+      if (
+        prod.channel_id === vs.currentVoiceChannel &&
+        prod.user_id !== currentUser?.id
+      ) {
+        if (prod.label !== "screen" && prod.label !== "camera") {
+          voiceManager.consumeProducer(
+            prod.producer_id,
+            prod.user_id,
+            prod.label,
+          );
+        } else if (
+          prod.label === "screen" &&
+          vs.watchingScreenUserId === prod.user_id
+        ) {
+          voiceManager.consumeProducer(
+            prod.producer_id,
+            prod.user_id,
+            prod.label,
+          );
+        } else if (
+          prod.label === "camera" &&
+          vs.watchingCameraUserId === prod.user_id
+        ) {
+          voiceManager.consumeProducer(
+            prod.producer_id,
+            prod.user_id,
+            prod.label,
+          );
         }
       }
     }
 
-    if (data.type === 'voice_user_left') {
+    if (data.type === "voice_user_left") {
       const { user_id, channel_id } = data.data;
       if (channel_id === vs.currentVoiceChannel) {
-        playSound('disconnect');
+        playSound("disconnect");
       }
       voiceStore.update((s) => ({
         ...s,
@@ -277,7 +326,7 @@ export function setupWsHandlers() {
       voiceManager.removeUserAudio(user_id);
     }
 
-    if (data.type === 'voice_state_updated') {
+    if (data.type === "voice_state_updated") {
       const vs_data = data.data;
       voiceStore.update((s) => ({
         ...s,
@@ -289,7 +338,7 @@ export function setupWsHandlers() {
       }));
     }
 
-    if (data.type === 'voice_speaking') {
+    if (data.type === "voice_speaking") {
       const { user_id, is_speaking } = data.data;
       voiceStore.update((s) => {
         const speakingUsers = is_speaking
@@ -301,7 +350,7 @@ export function setupWsHandlers() {
       });
     }
 
-    if (data.type === 'screen_share_updated') {
+    if (data.type === "screen_share_updated") {
       const { user_id, channel_id, is_screen_sharing } = data.data;
       voiceStore.update((s) => ({
         ...s,
@@ -316,12 +365,12 @@ export function setupWsHandlers() {
             : s.watchingScreenUserId,
         watchingScreenUsername:
           !is_screen_sharing && s.watchingScreenUserId === user_id
-            ? ''
+            ? ""
             : s.watchingScreenUsername,
       }));
     }
 
-    if (data.type === 'camera_updated') {
+    if (data.type === "camera_updated") {
       const { user_id, channel_id, is_camera_sharing } = data.data;
       voiceStore.update((s) => ({
         ...s,
@@ -336,29 +385,29 @@ export function setupWsHandlers() {
             : s.watchingCameraUserId,
         watchingCameraUsername:
           !is_camera_sharing && s.watchingCameraUserId === user_id
-            ? ''
+            ? ""
             : s.watchingCameraUsername,
       }));
     }
 
-    if (data.type === 'user_kicked') {
+    if (data.type === "user_kicked") {
       if (data.data.user_id === currentUser?.id) {
-        alert('You have been kicked from the server.');
+        alert("You have been kicked from the server.");
         AuthService.logout();
-        goto('/auth');
+        goto("/auth");
         return;
       }
     }
-    if (data.type === 'user_banned') {
+    if (data.type === "user_banned") {
       if (data.data.user_id === currentUser?.id) {
-        alert('You have been banned from the server.');
+        alert("You have been banned from the server.");
         AuthService.logout();
-        goto('/auth');
+        goto("/auth");
         return;
       }
     }
 
-    if (data.type === 'user_role_changed') {
+    if (data.type === "user_role_changed") {
       const { user_id, new_role } = data.data;
       if (user_id === currentUser?.id && currentUser) {
         user.set({ ...currentUser, role: new_role });
@@ -369,7 +418,7 @@ export function setupWsHandlers() {
       }));
     }
 
-    if (data.type === 'user_renamed') {
+    if (data.type === "user_renamed") {
       const { user_id, new_username } = data.data;
       serverState.update((s) => ({
         ...s,
@@ -385,7 +434,7 @@ export function setupWsHandlers() {
       }));
     }
 
-    if (data.type === 'error' && data.data.code === 'rate_limited') {
+    if (data.type === "error" && data.data.code === "rate_limited") {
       chatState.update((s) => ({ ...s, rateLimitWarning: true }));
       if (_rateLimitTimeout) clearTimeout(_rateLimitTimeout);
       _rateLimitTimeout = setTimeout(() => {
@@ -394,7 +443,7 @@ export function setupWsHandlers() {
       }, 3000);
     }
 
-    if (data.type === 'sync_required') {
+    if (data.type === "sync_required") {
       // The client fell too far behind on the broadcast channel.
       // Re-load the current channel's message history to recover state.
       const { selectedChannelId, selectedChannelName } = cs;
@@ -403,19 +452,23 @@ export function setupWsHandlers() {
       }
     }
 
-    if (data.type === 'typing') {
+    if (data.type === "typing") {
       const { user_id: userId, channel_id, username } = data.data;
       if (channel_id === cs.selectedChannelId) {
         if (userId === currentUser?.id) return;
         chatState.update((s) => {
-          if (s.typingUsers[userId]) clearTimeout(s.typingUsers[userId].timeout);
+          if (s.typingUsers[userId])
+            clearTimeout(s.typingUsers[userId].timeout);
           const timeout = setTimeout(() => {
             chatState.update((inner) => {
               const { [userId]: _, ...typingUsers } = inner.typingUsers;
               return { ...inner, typingUsers };
             });
           }, TYPING_DISPLAY_MS);
-          return { ...s, typingUsers: { ...s.typingUsers, [userId]: { username, timeout } } };
+          return {
+            ...s,
+            typingUsers: { ...s.typingUsers, [userId]: { username, timeout } },
+          };
         });
       }
     }

@@ -1,7 +1,10 @@
 <script lang="ts">
   import { validateServerUrl } from "../serverManager";
 
-  let { onAdd = () => {}, onCancel = () => {} }: {
+  let {
+    onAdd = () => {},
+    onCancel = () => {},
+  }: {
     onAdd?: (url: string, name: string) => void;
     onCancel?: () => void;
   } = $props();
@@ -12,6 +15,7 @@
   let validating = $state(false);
 
   async function handleSubmit() {
+    if (validating) return;
     if (!serverUrl.trim()) {
       error = "Server URL is required";
       return;

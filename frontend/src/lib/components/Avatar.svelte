@@ -4,30 +4,26 @@
   let {
     username,
     avatarUrl = undefined,
-    size = 'medium',
+    size = "medium",
   }: {
     username: string;
     avatarUrl?: string;
-    size?: 'xs' | 'small' | 'medium' | 'large';
+    size?: "xs" | "small" | "medium" | "large";
   } = $props();
 
-  let imgError = $state(false);
+  let failedUrl = $state<string | undefined>(undefined);
 
-  let showImage = $derived(!!avatarUrl && !imgError);
+  let showImage = $derived(!!avatarUrl && avatarUrl !== failedUrl);
   let sizeClass = $derived(`avatar-${size}`);
 
   function handleImgError() {
-    imgError = true;
+    failedUrl = avatarUrl;
   }
-
-  $effect(() => {
-    if (avatarUrl) imgError = false;
-  });
 </script>
 
 <div class="avatar {sizeClass}" class:has-image={showImage}>
   {#if showImage}
-    <img src={avatarUrl} alt="{username}" onerror={handleImgError} />
+    <img src={avatarUrl} alt={username} onerror={handleImgError} />
   {:else}
     {getInitial(username)}
   {/if}

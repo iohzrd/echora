@@ -1,6 +1,6 @@
-import { get } from 'svelte/store';
-import { voiceManager } from '../voice';
-import { audioSettingsStore } from '../stores/audioSettingsStore';
+import { get } from "svelte/store";
+import { voiceManager } from "../voice";
+import { audioSettingsStore } from "../stores/audioSettingsStore";
 import {
   loadAudioSettings,
   saveAudioSettings,
@@ -8,7 +8,7 @@ import {
   onDeviceChange,
   loadPerUserVolumes,
   savePerUserVolume,
-} from '../audioSettings';
+} from "../audioSettings";
 
 export async function initAudioSettings(): Promise<() => void> {
   const settings = loadAudioSettings();
@@ -32,17 +32,25 @@ export async function initAudioSettings(): Promise<() => void> {
     voiceManager.setUserVolume(userId, vol);
   }
 
-  await refreshDeviceList();
+  try {
+    await refreshDeviceList();
+  } catch (e) {
+    console.warn("Could not enumerate audio devices:", e);
+  }
   return onDeviceChange(() => refreshDeviceList());
 }
 
 export async function refreshDeviceList() {
-  const devices = await enumerateAudioDevices();
-  audioSettingsStore.update((s) => ({
-    ...s,
-    inputDevices: devices.inputs,
-    outputDevices: devices.outputs,
-  }));
+  try {
+    const devices = await enumerateAudioDevices();
+    audioSettingsStore.update((s) => ({
+      ...s,
+      inputDevices: devices.inputs,
+      outputDevices: devices.outputs,
+    }));
+  } catch (e) {
+    console.warn("Failed to enumerate audio devices:", e);
+  }
 }
 
 function saveCurrentSettings() {

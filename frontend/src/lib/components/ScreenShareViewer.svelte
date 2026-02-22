@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
 
-  let { username, type = "screen", onClose = () => {}, videoElement = $bindable() }: {
+  let {
+    username,
+    type = "screen",
+    onClose = () => {},
+    videoElement = $bindable(),
+  }: {
     username: string;
     type?: "screen" | "camera";
     onClose?: () => void;
@@ -10,6 +15,8 @@
 
   let viewerElement: HTMLElement;
   let isFullscreen = $state(false);
+  let justExitedFullscreen = false;
+  let fullscreenDebounce: ReturnType<typeof setTimeout> | null = null;
 
   function toggleFullscreen() {
     if (!viewerElement) return;
@@ -24,11 +31,23 @@
   }
 
   function onFullscreenChange() {
+    const wasFullscreen = isFullscreen;
     isFullscreen = !!document.fullscreenElement;
+    if (wasFullscreen && !isFullscreen) {
+      justExitedFullscreen = true;
+      fullscreenDebounce = setTimeout(() => {
+        justExitedFullscreen = false;
+        fullscreenDebounce = null;
+      }, 200);
+    }
   }
 
   function onKeyDown(e: KeyboardEvent) {
-    if (e.key === "Escape" && !document.fullscreenElement) {
+    if (
+      e.key === "Escape" &&
+      !document.fullscreenElement &&
+      !justExitedFullscreen
+    ) {
       onClose();
     }
   }
@@ -39,6 +58,7 @@
 
   onDestroy(() => {
     document.removeEventListener("fullscreenchange", onFullscreenChange);
+    if (fullscreenDebounce) clearTimeout(fullscreenDebounce);
   });
 </script>
 
@@ -106,112 +126,114 @@
 </div>
 
 <style>
-.screen-share-viewer {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	background-color: var(--bg-tertiary);
-	overflow: hidden;
-}
+  .screen-share-viewer {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background-color: var(--bg-tertiary);
+    overflow: hidden;
+  }
 
-.screen-share-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 8px 16px;
-	background-color: var(--bg-secondary);
-	border-bottom: 1px solid var(--border-primary);
-}
+  .screen-share-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+  }
 
-.screen-share-title {
-	color: var(--text-normal);
-	font-size: 14px;
-	font-weight: 600;
-}
+  .screen-share-title {
+    color: var(--text-normal);
+    font-size: 14px;
+    font-weight: 600;
+  }
 
-.screen-share-controls {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
+  .screen-share-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-.screen-share-control-btn {
-	background: var(--bg-input);
-	border: none;
-	color: var(--text-muted);
-	cursor: pointer;
-	padding: 6px;
-	border-radius: var(--radius-md);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: background-color 0.2s, color 0.2s;
-}
+  .screen-share-control-btn {
+    background: var(--bg-input);
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      background-color 0.2s,
+      color 0.2s;
+  }
 
-.screen-share-control-btn:hover {
-	background: var(--bg-hover-strong);
-	color: var(--text-normal);
-}
+  .screen-share-control-btn:hover {
+    background: var(--bg-hover-strong);
+    color: var(--text-normal);
+  }
 
-.screen-share-back-btn {
-	background: var(--bg-input);
-	border: none;
-	color: var(--text-normal);
-	cursor: pointer;
-	padding: 6px 12px;
-	border-radius: var(--radius-md);
-	font-size: 13px;
-	transition: background-color 0.2s;
-}
+  .screen-share-back-btn {
+    background: var(--bg-input);
+    border: none;
+    color: var(--text-normal);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    transition: background-color 0.2s;
+  }
 
-.screen-share-back-btn:hover {
-	background: var(--bg-hover-strong);
-}
+  .screen-share-back-btn:hover {
+    background: var(--bg-hover-strong);
+  }
 
-.screen-share-viewer:fullscreen {
-	background-color: #000;
-}
+  .screen-share-viewer:fullscreen {
+    background-color: #000;
+  }
 
-.screen-share-viewer:fullscreen .screen-share-header {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	z-index: 10;
-	background-color: rgba(0, 0, 0, 0.7);
-	border-bottom: none;
-	opacity: 0;
-	transition: opacity 0.3s;
-}
+  .screen-share-viewer:fullscreen .screen-share-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-bottom: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
 
-.screen-share-viewer:fullscreen:hover .screen-share-header {
-	opacity: 1;
-}
+  .screen-share-viewer:fullscreen:hover .screen-share-header {
+    opacity: 1;
+  }
 
-.screen-share-viewer:fullscreen .screen-share-video-container {
-	padding: 0;
-}
+  .screen-share-viewer:fullscreen .screen-share-video-container {
+    padding: 0;
+  }
 
-.screen-share-viewer:fullscreen .screen-share-video {
-	max-width: 100%;
-	max-height: 100%;
-	border-radius: 0;
-}
+  .screen-share-viewer:fullscreen .screen-share-video {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+  }
 
-.screen-share-video-container {
-	flex: 1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 16px;
-	overflow: hidden;
-}
+  .screen-share-video-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow: hidden;
+  }
 
-.screen-share-video {
-	max-width: 100%;
-	max-height: 100%;
-	object-fit: contain;
-	border-radius: var(--radius-lg);
-	background-color: #000;
-}
+  .screen-share-video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--radius-lg);
+    background-color: #000;
+  }
 </style>

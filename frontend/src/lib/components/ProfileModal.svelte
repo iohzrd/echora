@@ -4,7 +4,10 @@
   import AuthService, { user } from "../auth";
   import Avatar from "./Avatar.svelte";
 
-  let { onClose = () => {}, viewUserId = undefined }: {
+  let {
+    onClose = () => {},
+    viewUserId = undefined,
+  }: {
     onClose?: () => void;
     viewUserId?: string;
   } = $props();
@@ -15,7 +18,7 @@
   let uploading = $state(false);
   let error = $state("");
   let success = $state("");
-  let fileInput: HTMLInputElement = $state()!;
+  let fileInput: HTMLInputElement;
 
   // Password change state
   let showPasswordSection = $state(false);
@@ -32,9 +35,11 @@
 
   let isViewMode = $derived(!!viewUserId && viewUserId !== $user?.id);
 
+  let displayNameInitialized = false;
   $effect(() => {
-    if (!isViewMode && $user) {
+    if (!isViewMode && $user && !displayNameInitialized) {
       displayName = $user.display_name || "";
+      displayNameInitialized = true;
     }
   });
 
@@ -44,8 +49,7 @@
       try {
         profile = await API.getUserProfile(viewUserId);
       } catch (err) {
-        error =
-          err instanceof Error ? err.message : "Failed to load profile";
+        error = err instanceof Error ? err.message : "Failed to load profile";
       } finally {
         loading = false;
       }
@@ -65,7 +69,9 @@
         return;
       }
 
-      const authResponse = await API.updateProfile({ display_name: displayName.trim() || null });
+      const authResponse = await API.updateProfile({
+        display_name: displayName.trim() || null,
+      });
       AuthService.setAuth(authResponse);
       success = "Profile updated.";
     } catch (err) {
@@ -158,7 +164,8 @@
       confirmPassword = "";
       showPasswordSection = false;
     } catch (err) {
-      passwordError = err instanceof Error ? err.message : "Failed to change password";
+      passwordError =
+        err instanceof Error ? err.message : "Failed to change password";
     } finally {
       passwordSaving = false;
     }
@@ -179,7 +186,9 @@
 
 <div
   class="profile-overlay"
-  onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+  onclick={(e) => {
+    if (e.target === e.currentTarget) onClose();
+  }}
   onkeydown={(e) => e.key === "Escape" && onClose()}
   role="presentation"
 >
@@ -193,7 +202,11 @@
         {/if}
       </h2>
       <button class="close-btn" onclick={onClose}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+          ><path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          /></svg
+        >
       </button>
     </div>
 
@@ -288,7 +301,7 @@
 
         <div class="field">
           <label>Username</label>
-          <div class="field-value">{$user?.username || ''}</div>
+          <div class="field-value">{$user?.username || ""}</div>
         </div>
 
         <div class="field">
