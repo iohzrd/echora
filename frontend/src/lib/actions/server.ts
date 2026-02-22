@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { goto } from '$app/navigation';
-import { page } from '$app/stores';
+import { page } from '$app/state';
 import { API, ApiError } from '../api';
 import AuthService, { user } from '../auth';
 import { voiceManager } from '../voice';
@@ -147,7 +147,7 @@ async function _connectToServer() {
     syncVoiceState();
 
     const { channels } = serverState;
-    const urlChannelId = get(page).params.channelId;
+    const urlChannelId = page.params.channelId;
     const targetChannel = urlChannelId ? channels.find((c) => c.id === urlChannelId) : null;
     const channelToSelect = targetChannel ?? channels.find((c) => c.channel_type === 'text');
     if (channelToSelect) {

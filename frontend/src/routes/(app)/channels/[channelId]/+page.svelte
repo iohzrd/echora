@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { untrack } from 'svelte';
   import { serverState } from '../../../../lib/stores/serverState.svelte';
   import { chatState } from '../../../../lib/stores/chatState.svelte';
@@ -8,7 +8,7 @@
   // Uses untrack() intentionally to bypass reactivity tracking for store reads --
   // this effect should only re-run when the URL channelId changes, not on every store update.
   $effect(() => {
-    const channelId = $page.params.channelId;
+    const channelId = page.params.channelId;
     if (!channelId) return;
     untrack(() => {
       if (chatState.selectedChannelId === channelId) return;

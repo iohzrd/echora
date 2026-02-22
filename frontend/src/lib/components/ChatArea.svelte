@@ -9,8 +9,8 @@
   import MessageInput from "./MessageInput.svelte";
   import ScreenShareViewer from "./ScreenShareViewer.svelte";
 
-  let screenVideoElement: HTMLVideoElement = $state()!;
-  let cameraVideoElement: HTMLVideoElement = $state()!;
+  let screenVideoElement: HTMLVideoElement | undefined = $state();
+  let cameraVideoElement: HTMLVideoElement | undefined = $state();
   let screenAudioEl: HTMLAudioElement | null = null;
 
   onMount(() => {

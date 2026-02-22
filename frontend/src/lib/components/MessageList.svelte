@@ -193,8 +193,10 @@
     return {
       destroy() {
         cancelAnimationFrame(rafId);
-        delete overflowingMessages[messageId];
-        delete expandedMessages[messageId];
+        const { [messageId]: _o, ...restOverflow } = overflowingMessages;
+        overflowingMessages = restOverflow;
+        const { [messageId]: _e, ...restExpanded } = expandedMessages;
+        expandedMessages = restExpanded;
       },
     };
   }

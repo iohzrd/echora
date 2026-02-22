@@ -18,7 +18,7 @@
   let uploading = $state(false);
   let error = $state("");
   let success = $state("");
-  let fileInput: HTMLInputElement = $state()!;
+  let fileInput: HTMLInputElement | undefined = $state();
 
   // Password change state
   let showPasswordSection = $state(false);
@@ -257,7 +257,7 @@
         <div class="avatar-section">
           <button
             class="avatar-upload-btn"
-            onclick={() => fileInput.click()}
+            onclick={() => fileInput?.click()}
             disabled={uploading}
             title="Upload avatar"
           >
