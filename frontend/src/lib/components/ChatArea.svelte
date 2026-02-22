@@ -9,8 +9,8 @@
   import MessageInput from './MessageInput.svelte';
   import ScreenShareViewer from './ScreenShareViewer.svelte';
 
-  let screenVideoElement: HTMLVideoElement;
-  let cameraVideoElement: HTMLVideoElement;
+  let screenVideoElement: HTMLVideoElement = $state()!;
+  let cameraVideoElement: HTMLVideoElement = $state()!;
   let screenAudioEl: HTMLAudioElement | null = null;
 
   onMount(() => {
@@ -97,7 +97,7 @@
   <div class="chat-header">
     <button
       class="hamburger-btn"
-      on:click={toggleSidebar}
+      onclick={toggleSidebar}
     >|||</button>
     <div class="channel-name">
       {$chatState.selectedChannelName || 'Select a channel'}

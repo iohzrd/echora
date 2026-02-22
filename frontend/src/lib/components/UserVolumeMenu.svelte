@@ -1,16 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  export let userId: string;
-  export let username: string;
-  export let volume: number = 1.0;
-  export let x: number = 0;
-  export let y: number = 0;
-  export let onVolumeChange: (
-    userId: string,
-    volume: number,
-  ) => void = () => {};
-  export let onClose: () => void = () => {};
+  let { userId, username, volume = 1.0, x = 0, y = 0, onVolumeChange = () => {}, onClose = () => {} }: {
+    userId: string;
+    username: string;
+    volume?: number;
+    x?: number;
+    y?: number;
+    onVolumeChange?: (userId: string, volume: number) => void;
+    onClose?: () => void;
+  } = $props();
 
   let menuEl: HTMLDivElement;
 
@@ -47,7 +46,7 @@
       min="0"
       max="200"
       value={Math.round(volume * 100)}
-      on:input={(e) =>
+      oninput={(e) =>
         onVolumeChange(userId, parseInt(e.currentTarget.value) / 100)}
     />
     <span class="audio-value">{Math.round(volume * 100)}%</span>

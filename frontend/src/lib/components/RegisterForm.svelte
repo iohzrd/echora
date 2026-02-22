@@ -1,15 +1,14 @@
 <script lang="ts">
   import AuthService, { type RegisterRequest } from "../auth";
 
-  export let onSuccess: () => void = () => {};
-  export let inviteRequired: boolean = false;
+  let { onSuccess = () => {}, inviteRequired = false }: { onSuccess?: () => void; inviteRequired?: boolean } = $props();
 
-  let username = "";
-  let email = "";
-  let password = "";
-  let inviteCode = "";
-  let loading = false;
-  let error = "";
+  let username = $state("");
+  let email = $state("");
+  let password = $state("");
+  let inviteCode = $state("");
+  let loading = $state(false);
+  let error = $state("");
 
   async function handleSubmit() {
     if (!username.trim() || !email.trim() || !password.trim()) {
@@ -40,7 +39,7 @@
 <div class="auth-form">
   <h2>Create an account</h2>
 
-  <form on:submit|preventDefault={handleSubmit}>
+  <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
     <div class="form-group">
       <label for="username">Username</label>
       <input

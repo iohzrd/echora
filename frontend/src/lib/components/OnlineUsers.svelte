@@ -22,10 +22,10 @@
   {#each usersWithRole as u}
     <div
       class="online-user"
-      on:click={() => viewUserProfile(u.user_id)}
+      onclick={() => viewUserProfile(u.user_id)}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && viewUserProfile(u.user_id)}
+      onkeydown={(e) => e.key === 'Enter' && viewUserProfile(u.user_id)}
     >
       <div class="online-dot"></div>
       <Avatar

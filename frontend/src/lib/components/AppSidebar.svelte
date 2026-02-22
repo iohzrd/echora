@@ -29,7 +29,7 @@
         {#if isMod}
           <button
             class="header-icon-btn"
-            on:click={openAdminPanel}
+            onclick={openAdminPanel}
             title="Admin Panel"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -41,7 +41,7 @@
         {/if}
         <button
           class="header-icon-btn"
-          on:click={openPasskeySettings}
+          onclick={openPasskeySettings}
           title="Manage passkeys"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -52,7 +52,7 @@
         </button>
         <button
           class="header-icon-btn logout"
-          on:click={logout}
+          onclick={logout}
           title="Logout"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -74,7 +74,7 @@
     <div class="user-bar">
       <button
         class="user-bar-profile"
-        on:click={openProfileModal}
+        onclick={openProfileModal}
         title="Edit profile"
       >
         <Avatar

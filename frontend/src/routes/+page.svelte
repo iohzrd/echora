@@ -101,7 +101,7 @@
   {#if $uiState.sidebarOpen}
     <div
       class="sidebar-overlay"
-      on:click={closeSidebar}
+      onclick={closeSidebar}
       role="presentation"
     ></div>
   {/if}
@@ -121,7 +121,7 @@
         <p>Add a server to get started.</p>
         <button
           class="submit-btn"
-          on:click={openAddServerDialog}
+          onclick={openAddServerDialog}
         >
           Add Server
         </button>
@@ -147,13 +147,13 @@
             {#if $uiState.tauriAuthIsLogin}
               <span>Need an account?</span>
               <button
-                on:click={() => setTauriAuthIsLogin(false)}
+                onclick={() => setTauriAuthIsLogin(false)}
                 class="toggle-btn">Register</button
               >
             {:else}
               <span>Already have an account?</span>
               <button
-                on:click={() => setTauriAuthIsLogin(true)}
+                onclick={() => setTauriAuthIsLogin(true)}
                 class="toggle-btn">Login</button
               >
             {/if}

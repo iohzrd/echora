@@ -3,13 +3,13 @@
   import AuthService, { type LoginRequest } from "../auth";
   import { PasskeyService } from "../passkey";
 
-  export let onSuccess: () => void = () => {};
+  let { onSuccess = () => {} }: { onSuccess?: () => void } = $props();
 
-  let username = "";
-  let password = "";
-  let loading = false;
-  let error = "";
-  let passkeySupported = false;
+  let username = $state("");
+  let password = $state("");
+  let loading = $state(false);
+  let error = $state("");
+  let passkeySupported = $state(false);
 
   onMount(() => {
     passkeySupported = PasskeyService.isSupported();
@@ -61,7 +61,7 @@
   <h2>Welcome back!</h2>
   <p class="subtitle">We're so excited to see you again!</p>
 
-  <form on:submit|preventDefault={handleSubmit}>
+  <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
     <div class="form-group">
       <label for="username">Username</label>
       <input
@@ -105,7 +105,7 @@
         type="button"
         disabled={loading || !username.trim()}
         class="passkey-btn"
-        on:click={handlePasskeyLogin}
+        onclick={handlePasskeyLogin}
       >
         Sign in with Passkey
       </button>

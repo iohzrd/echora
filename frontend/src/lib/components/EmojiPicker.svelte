@@ -1,23 +1,26 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { API, type CustomEmoji } from "$lib/api";
+  import { serverState } from "$lib/stores/serverState";
   import { EMOJI_CATEGORIES, type EmojiEntry } from "$lib/emoji-data";
 
-  export let floating: boolean = false;
-  export let onSelect: (emoji: string) => void = () => {};
-  export let customEmojis: CustomEmoji[] = [];
+  let { floating = false, onSelect = () => {}, customEmojis = [] }: {
+    floating?: boolean;
+    onSelect?: (emoji: string) => void;
+    customEmojis?: CustomEmoji[];
+  } = $props();
 
-  let tab: "standard" | "custom" = "standard";
-  let uploadName = "";
-  let uploadFile: File | null = null;
-  let uploading = false;
-  let uploadError = "";
-  let fileInput: HTMLInputElement;
-  let pickerEl: HTMLDivElement;
-  let openBelow = false;
-  let activeCategory = 0;
-  let searchQuery = "";
-  let searchInput: HTMLInputElement;
+  let tab: "standard" | "custom" = $state("standard");
+  let uploadName = $state("");
+  let uploadFile: File | null = $state(null);
+  let uploading = $state(false);
+  let uploadError = $state("");
+  let fileInput: HTMLInputElement = $state()!;
+  let pickerEl: HTMLDivElement = $state()!;
+  let openBelow = $state(false);
+  let activeCategory = $state(0);
+  let searchQuery = $state("");
+  let searchInput: HTMLInputElement = $state()!;
 
   onMount(() => {
     if (pickerEl) {
@@ -31,7 +34,7 @@
     }
   });
 
-  $: searchResults = (() => {
+  let searchResults = $derived.by(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return null;
     const results: EmojiEntry[] = [];
@@ -47,7 +50,7 @@
       }
     }
     return results;
-  })();
+  });
 
   function selectCustomEmoji(emoji: CustomEmoji) {
     onSelect(`:${emoji.name}:`);
@@ -71,7 +74,7 @@
     uploadError = "";
     try {
       const emoji = await API.uploadCustomEmoji(uploadName.trim(), uploadFile);
-      customEmojis = [...customEmojis, emoji];
+      serverState.update((s) => ({ ...s, customEmojis: [...s.customEmojis, emoji] }));
       uploadName = "";
       uploadFile = null;
       if (fileInput) fileInput.value = "";
@@ -92,11 +95,11 @@
   <div class="emoji-picker-tabs">
     <button
       class="emoji-tab-btn {tab === 'standard' ? 'active' : ''}"
-      on:click={() => (tab = "standard")}>Standard</button
+      onclick={() => (tab = "standard")}>Standard</button
     >
     <button
       class="emoji-tab-btn {tab === 'custom' ? 'active' : ''}"
-      on:click={() => (tab = "custom")}>Custom</button
+      onclick={() => (tab = "custom")}>Custom</button
     >
   </div>
 
@@ -107,7 +110,7 @@
           class="emoji-category-btn {activeCategory === i && !searchQuery.trim()
             ? 'active'
             : ''}"
-          on:click={() => {
+          onclick={() => {
             activeCategory = i;
             searchQuery = "";
           }}
@@ -127,7 +130,7 @@
         {#each searchResults as entry}
           <button
             class="emoji-picker-btn"
-            on:click={() => onSelect(entry.emoji)}
+            onclick={() => onSelect(entry.emoji)}
             title={entry.description}>{entry.emoji}</button
           >
         {/each}
@@ -138,7 +141,7 @@
         {#each EMOJI_CATEGORIES[activeCategory].emojis as entry}
           <button
             class="emoji-picker-btn"
-            on:click={() => onSelect(entry.emoji)}
+            onclick={() => onSelect(entry.emoji)}
             title={entry.description}>{entry.emoji}</button
           >
         {/each}
@@ -149,7 +152,7 @@
       {#each customEmojis as emoji}
         <button
           class="emoji-picker-btn custom-emoji-btn"
-          on:click={() => selectCustomEmoji(emoji)}
+          onclick={() => selectCustomEmoji(emoji)}
           title=":{emoji.name}:"
         >
           <img
@@ -175,13 +178,13 @@
         <input
           type="file"
           accept="image/png,image/gif,image/webp,image/jpeg"
-          on:change={handleFileSelect}
+          onchange={handleFileSelect}
           bind:this={fileInput}
           class="emoji-upload-file"
         />
         <button
           class="emoji-upload-btn"
-          on:click={handleUpload}
+          onclick={handleUpload}
           disabled={uploading || !uploadFile || !uploadName.trim()}
           >Upload</button
         >
