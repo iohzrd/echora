@@ -86,3 +86,98 @@
     </div>
   {/if}
 {/if}
+
+<style>
+.server-sidebar {
+	width: 72px;
+	background-color: var(--bg-tertiary);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 12px 0;
+	gap: 8px;
+	flex-shrink: 0;
+	overflow-y: auto;
+}
+
+.server-sidebar-icon {
+	width: 48px;
+	height: 48px;
+	border-radius: 50%;
+	background-color: var(--bg-primary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-white);
+	font-weight: bold;
+	font-size: 18px;
+	cursor: pointer;
+	transition: border-radius 0.2s ease, background-color 0.2s ease;
+	border: none;
+	flex-shrink: 0;
+}
+
+.server-sidebar-icon:hover {
+	border-radius: 16px;
+	background-color: var(--brand-primary);
+}
+
+.server-sidebar-icon.active {
+	border-radius: 16px;
+	background-color: var(--brand-primary);
+}
+
+.server-sidebar-icon.add-server {
+	background-color: transparent;
+	border: 2px dashed var(--text-faint);
+	color: var(--text-faint);
+	font-size: 24px;
+}
+
+.server-sidebar-icon.add-server:hover {
+	border-color: var(--status-positive);
+	color: var(--status-positive);
+	background-color: transparent;
+}
+
+.server-sidebar-separator {
+	width: 32px;
+	height: 2px;
+	background-color: var(--border-primary);
+	border-radius: 1px;
+	flex-shrink: 0;
+}
+
+.server-context-menu {
+	position: fixed;
+	background-color: var(--bg-secondary);
+	border: 1px solid var(--border-primary);
+	border-radius: var(--radius-md);
+	padding: 4px;
+	z-index: 200;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	min-width: 160px;
+}
+
+.context-menu-item {
+	display: block;
+	width: 100%;
+	background: none;
+	border: none;
+	color: var(--text-normal);
+	padding: 8px 12px;
+	font-size: 13px;
+	text-align: left;
+	cursor: pointer;
+	border-radius: var(--radius-sm);
+}
+
+.context-menu-item:hover {
+	background-color: var(--brand-primary);
+	color: var(--text-white);
+}
+
+.context-menu-item.danger:hover {
+	background-color: var(--status-negative);
+}
+</style>
