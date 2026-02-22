@@ -480,7 +480,8 @@ export type WsIncomingMessage =
   | { type: 'new_producer'; data: { producer_id: string; user_id: string; channel_id: string; label?: string } }
   | { type: 'typing'; data: { user_id: string; channel_id: string; username: string } }
   | { type: 'error'; data: { code: string; message?: string } }
-  | { type: 'pong'; data: Record<string, never> };
+  | { type: 'pong'; data: Record<string, never> }
+  | { type: 'sync_required'; data: { reason: string } };
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -496,10 +497,14 @@ export class WebSocketManager {
   connect(): Promise<void> {
     this.intentionalClose = false;
     const token = AuthService.getToken();
-    this.ws = new WebSocket(`${getWsBase()}/ws?token=${token}`);
+    // Token is sent as the first message body, not in the URL, so it does not
+    // appear in server logs, browser history, or proxy access logs.
+    this.ws = new WebSocket(`${getWsBase()}/ws`);
 
     return new Promise<void>((resolve) => {
       this.ws!.onopen = () => {
+        // Send auth message immediately after the handshake
+        this.ws!.send(JSON.stringify({ token }));
         const isReconnect = this.reconnectAttempts > 0;
         this.reconnectAttempts = 0;
         if (this.currentChannelId) {
