@@ -5,6 +5,8 @@
   import { chatState } from '../../../../lib/stores/chatState';
   import { selectChannel } from '../../../../lib/actions/chat';
 
+  // Uses get() intentionally to bypass reactivity tracking -- this effect
+  // should only re-run when the URL channelId changes, not when store state changes.
   $effect(() => {
     const channelId = $page.params.channelId;
     if (!channelId) return;

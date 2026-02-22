@@ -67,10 +67,20 @@
     }
   }
 
-  let prevChannelId = $state("");
-  let prevMessageCount = $state(0);
-  let needsScrollToBottom = $state(false);
-  let scrollRafId: number | undefined;
+  // Track channel/message changes for auto-scrolling.
+  // Uses plain variables (not $state) to avoid re-triggering the effect when
+  // updating tracking state. A separate tick()-based scroll avoids the cleanup
+  // function cancelling a pending rAF on re-run.
+  let prevChannelId = "";
+  let prevMessageCount = 0;
+  let needsScrollToBottom = false;
+
+  function scheduleScrollToBottom() {
+    requestAnimationFrame(() => {
+      if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+    });
+  }
+
   $effect(() => {
     const channelId = $chatState.selectedChannelId;
     const count = $chatState.messages.length;
@@ -82,38 +92,20 @@
       expandedMessages = {};
       overflowingMessages = {};
       if (count > 0) {
-        if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
-        scrollRafId = requestAnimationFrame(() => {
-          if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
-          needsScrollToBottom = false;
-          scrollRafId = undefined;
-        });
+        needsScrollToBottom = false;
+        scheduleScrollToBottom();
       }
     } else if (count > prevMessageCount) {
       prevMessageCount = count;
       if (needsScrollToBottom) {
         // Messages just loaded for this channel — scroll to bottom
         needsScrollToBottom = false;
-        if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
-        scrollRafId = requestAnimationFrame(() => {
-          if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
-          scrollRafId = undefined;
-        });
+        scheduleScrollToBottom();
       } else if (isNearBottom()) {
         // New message in same channel — only scroll if already near the bottom
-        if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
-        scrollRafId = requestAnimationFrame(() => {
-          if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
-          scrollRafId = undefined;
-        });
+        scheduleScrollToBottom();
       }
     }
-    return () => {
-      if (scrollRafId !== undefined) {
-        cancelAnimationFrame(scrollRafId);
-        scrollRafId = undefined;
-      }
-    };
   });
 
   function handleScroll() {

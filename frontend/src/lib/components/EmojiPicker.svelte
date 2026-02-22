@@ -103,8 +103,8 @@
         ...s,
         customEmojis: s.customEmojis.filter((e) => e.id !== emoji.id),
       }));
-    } catch (e: any) {
-      uploadError = e.message || "Delete failed";
+    } catch (e: unknown) {
+      uploadError = e instanceof Error ? e.message : "Delete failed";
     }
   }
 
@@ -118,8 +118,8 @@
       uploadName = "";
       uploadFile = null;
       if (fileInput) fileInput.value = "";
-    } catch (e: any) {
-      uploadError = e.message || "Upload failed";
+    } catch (e: unknown) {
+      uploadError = e instanceof Error ? e.message : "Upload failed";
     } finally {
       uploading = false;
     }
