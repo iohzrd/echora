@@ -2,7 +2,7 @@
   import { API, type CustomEmoji } from '../api';
   import { renderMarkdown } from '../markdown';
   import { formatTimestamp, truncateContent, formatFileSize, resolveUrl } from '../utils';
-  import { user } from '../auth';
+  import { user, canDeleteMessage } from '../auth';
   import { chatState } from '../stores/chatState';
   import { serverState } from '../stores/serverState';
   import { uiState } from '../stores/uiState';
@@ -60,15 +60,18 @@
     }
   }
 
-  let prevMessageCount = 0;
-  $: if ($chatState.messages.length > prevMessageCount) {
-    prevMessageCount = $chatState.messages.length;
-    if (isNearBottom()) {
-      requestAnimationFrame(() => {
-        if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
-      });
+  let prevMessageCount = $state(0);
+  $effect(() => {
+    const count = $chatState.messages.length;
+    if (count > prevMessageCount) {
+      prevMessageCount = count;
+      if (isNearBottom()) {
+        requestAnimationFrame(() => {
+          if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+        });
+      }
     }
-  }
+  });
 
   function handleScroll() {
     if (messagesArea && messagesArea.scrollTop === 0) {
@@ -178,8 +181,7 @@
     }
   }
 
-  $: currentUserId = $user?.id || '';
-  $: userRole = $user?.role || 'member';
+  let currentUserId = $derived($user?.id ?? '');
 </script>
 
 <svelte:window on:keydown={handleLightboxKeydown} />
@@ -408,7 +410,7 @@
               title="Edit">E</button
             >
           {/if}
-          {#if message.author_id === currentUserId || userRole === 'moderator' || userRole === 'admin' || userRole === 'owner'}
+          {#if canDeleteMessage(message.author_id, currentUserId, $user?.role)}
             <button
               class="msg-action-btn delete"
               on:click={() => deleteMessage(message.id)}

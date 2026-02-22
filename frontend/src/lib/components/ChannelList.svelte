@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Channel } from '../api';
-  import { user } from '../auth';
+  import { user, isAdminRole } from '../auth';
   import { voiceStore } from '../stores/voiceStore';
   import { serverState } from '../stores/serverState';
   import { chatState } from '../stores/chatState';
@@ -86,8 +86,10 @@
     showCreateChannel = showCreateChannel === type ? null : type;
   }
 
-  $: isAdmin = $user?.role === 'admin' || $user?.role === 'owner';
-  $: currentUserId = $user?.id || '';
+  let isAdmin = $derived(isAdminRole($user?.role));
+  let currentUserId = $derived($user?.id ?? '');
+  let textChannels = $derived($serverState.channels.filter((c) => c.channel_type === 'text'));
+  let voiceChannels = $derived($serverState.channels.filter((c) => c.channel_type === 'voice'));
 </script>
 
 <div class="channel-category">
@@ -112,7 +114,7 @@
     />
   </div>
 {/if}
-{#each $serverState.channels.filter((c) => c.channel_type === 'text') as channel}
+{#each textChannels as channel}
   <div
     class="channel-item {$chatState.selectedChannelId === channel.id ? 'selected' : ''}"
     on:click={() => {
@@ -175,7 +177,7 @@
     />
   </div>
 {/if}
-{#each $serverState.channels.filter((c) => c.channel_type === 'voice') as channel}
+{#each voiceChannels as channel}
   <div class="channel-item voice-channel" role="button" tabindex="0">
     <div class="channel-header">
       <div class="channel-icon">#</div>
@@ -222,7 +224,7 @@
       <div class="voice-users">
         {#each $voiceStore.voiceStates.filter((vs) => vs.channel_id === channel.id) as voiceState}
           <div
-            class="voice-user {$voiceStore.speakingUsers.has(voiceState.user_id)
+            class="voice-user {$voiceStore.speakingUsers.includes(voiceState.user_id)
               ? 'speaking'
               : ''} {voiceState.is_screen_sharing
               ? 'screen-sharing'

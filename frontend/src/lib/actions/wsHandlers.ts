@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { goto } from '$app/navigation';
-import { API } from '../api';
+import { API, type WsIncomingMessage } from '../api';
 import { playSound } from '../sounds';
 import AuthService, { user } from '../auth';
 import { voiceManager } from '../voice';
@@ -13,6 +13,7 @@ import { selectChannel, populateAvatarsFromMessages } from './chat';
 const TYPING_DISPLAY_MS = 5000;
 
 let _rateLimitTimeout: ReturnType<typeof setTimeout> | null = null;
+let _activeHandler: ((data: WsIncomingMessage) => void) | null = null;
 
 function updateMessageReaction(msgId: string, emoji: string, userId: string, add: boolean) {
   const currentUser = get(user);
@@ -42,7 +43,10 @@ function updateMessageReaction(msgId: string, emoji: string, userId: string, add
 }
 
 export function setupWsHandlers() {
-  getWs().onMessage((data) => {
+  if (_activeHandler) {
+    getWs().offMessage(_activeHandler);
+  }
+  _activeHandler = (data) => {
     const cs = get(chatState);
     const vs = get(voiceStore);
     const ss = get(serverState);
@@ -51,13 +55,13 @@ export function setupWsHandlers() {
     if (data.type === 'message' && data.data.channel_id === cs.selectedChannelId) {
       populateAvatarsFromMessages([data.data]);
       chatState.update((s) => {
-        const typingUsers = new Map(s.typingUsers);
         const authorId = data.data.author_id;
-        if (authorId && typingUsers.has(authorId)) {
-          clearTimeout(typingUsers.get(authorId)!.timeout);
-          typingUsers.delete(authorId);
+        if (authorId && s.typingUsers[authorId]) {
+          clearTimeout(s.typingUsers[authorId].timeout);
+          const { [authorId]: _, ...typingUsers } = s.typingUsers;
+          return { ...s, messages: [...s.messages, data.data], typingUsers };
         }
-        return { ...s, messages: [...s.messages, data.data], typingUsers };
+        return { ...s, messages: [...s.messages, data.data] };
       });
     }
 
@@ -230,10 +234,12 @@ export function setupWsHandlers() {
 
     if (data.type === 'voice_speaking') {
       voiceStore.update((s) => {
-        const next = new Set(s.speakingUsers);
-        if (data.data.is_speaking) next.add(data.data.user_id);
-        else next.delete(data.data.user_id);
-        return { ...s, speakingUsers: next };
+        const speakingUsers = data.data.is_speaking
+          ? s.speakingUsers.includes(data.data.user_id)
+            ? s.speakingUsers
+            : [...s.speakingUsers, data.data.user_id]
+          : s.speakingUsers.filter((id) => id !== data.data.user_id);
+        return { ...s, speakingUsers };
       });
     }
 
@@ -327,19 +333,16 @@ export function setupWsHandlers() {
       const userId = data.data.user_id;
       if (userId === currentUser?.id) return;
       chatState.update((s) => {
-        const typingUsers = new Map(s.typingUsers);
-        const existing = typingUsers.get(userId);
-        if (existing) clearTimeout(existing.timeout);
+        if (s.typingUsers[userId]) clearTimeout(s.typingUsers[userId].timeout);
         const timeout = setTimeout(() => {
           chatState.update((inner) => {
-            const m = new Map(inner.typingUsers);
-            m.delete(userId);
-            return { ...inner, typingUsers: m };
+            const { [userId]: _, ...typingUsers } = inner.typingUsers;
+            return { ...inner, typingUsers };
           });
         }, TYPING_DISPLAY_MS);
-        typingUsers.set(userId, { username: data.data.username, timeout });
-        return { ...s, typingUsers };
+        return { ...s, typingUsers: { ...s.typingUsers, [userId]: { username: data.data.username, timeout } } };
       });
     }
-  });
+  };
+  getWs().onMessage(_activeHandler);
 }

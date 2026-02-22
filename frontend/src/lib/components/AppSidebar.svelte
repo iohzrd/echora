@@ -2,7 +2,7 @@
   import { API, FRONTEND_VERSION } from '../api';
   import { goto } from '$app/navigation';
   import { activeServer } from '../serverManager';
-  import AuthService, { user } from '../auth';
+  import AuthService, { user, isModerator } from '../auth';
   import { serverState } from '../stores/serverState';
   import { uiState } from '../stores/uiState';
   import ChannelList from './ChannelList.svelte';
@@ -10,9 +10,9 @@
   import VoicePanel from './VoicePanel.svelte';
   import Avatar from './Avatar.svelte';
 
-  $: activeServerName = $serverState.serverName || $activeServer?.name || 'Echora';
-  $: userAvatarUrl = $user?.avatar_url ? API.getAvatarUrl($user.id) : undefined;
-  $: isMod = $user?.role === 'moderator' || $user?.role === 'admin' || $user?.role === 'owner';
+  let activeServerName = $derived($serverState.serverName || $activeServer?.name || 'Echora');
+  let userAvatarUrl = $derived($user?.avatar_url ? API.getAvatarUrl($user.id) : undefined);
+  let isMod = $derived(isModerator($user?.role));
 
   function logout() {
     AuthService.logout();

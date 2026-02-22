@@ -29,7 +29,7 @@
   import AppSidebar from '../lib/components/AppSidebar.svelte';
   import ChatArea from '../lib/components/ChatArea.svelte';
 
-  $: activeServerName = $serverState.serverName || $activeServer?.name || 'Echora';
+  let activeServerName = $derived($serverState.serverName || $activeServer?.name || 'Echora');
 
   let _removeDeviceListener: (() => void) | null = null;
 

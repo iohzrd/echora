@@ -1,6 +1,11 @@
 import { writable } from 'svelte/store';
 import type { Message } from '../api';
 
+export interface TypingUser {
+  username: string;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
 export interface ChatStateStore {
   messages: Message[];
   selectedChannelId: string;
@@ -10,7 +15,7 @@ export interface ChatStateStore {
   editingMessageId: string | null;
   editMessageContent: string;
   replyingTo: Message | null;
-  typingUsers: Map<string, { username: string; timeout: ReturnType<typeof setTimeout> }>;
+  typingUsers: Record<string, TypingUser>;
   rateLimitWarning: boolean;
 }
 
@@ -23,6 +28,6 @@ export const chatState = writable<ChatStateStore>({
   editingMessageId: null,
   editMessageContent: '',
   replyingTo: null,
-  typingUsers: new Map(),
+  typingUsers: {},
   rateLimitWarning: false,
 });

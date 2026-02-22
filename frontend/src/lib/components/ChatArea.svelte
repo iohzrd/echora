@@ -74,15 +74,19 @@
   }
 
   // When the WS signals that a remote screen share stopped, tear down our DOM
-  $: if (!$voiceStore.watchingScreenUserId && screenVideoElement?.srcObject) {
-    handleStopWatching();
-  }
-  $: if (!$voiceStore.watchingCameraUserId && cameraVideoElement?.srcObject) {
-    handleStopWatchingCamera();
-  }
+  $effect(() => {
+    if (!$voiceStore.watchingScreenUserId && screenVideoElement?.srcObject) {
+      handleStopWatching();
+    }
+  });
+  $effect(() => {
+    if (!$voiceStore.watchingCameraUserId && cameraVideoElement?.srcObject) {
+      handleStopWatchingCamera();
+    }
+  });
 
   function getTypingText(): string {
-    const names = [...$chatState.typingUsers.values()].map((u) => u.username);
+    const names = Object.values($chatState.typingUsers).map((u) => u.username);
     if (names.length === 1) return `${names[0]} is typing...`;
     if (names.length <= 3) return `${names.join(', ')} are typing...`;
     return 'Several people are typing...';
@@ -116,7 +120,7 @@
   {:else}
     <MessageList />
 
-    {#if $chatState.typingUsers.size > 0}
+    {#if Object.keys($chatState.typingUsers).length > 0}
       <div class="typing-indicator">
         <span class="typing-text">{getTypingText()}</span>
       </div>

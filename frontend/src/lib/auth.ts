@@ -148,3 +148,15 @@ class AuthService {
 }
 
 export default AuthService;
+
+export function isModerator(role: string | undefined): boolean {
+  return role === 'moderator' || role === 'admin' || role === 'owner';
+}
+
+export function isAdminRole(role: string | undefined): boolean {
+  return role === 'admin' || role === 'owner';
+}
+
+export function canDeleteMessage(authorId: string, currentUserId: string, role: string | undefined): boolean {
+  return authorId === currentUserId || isModerator(role);
+}

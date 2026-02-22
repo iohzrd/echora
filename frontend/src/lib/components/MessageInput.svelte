@@ -129,7 +129,7 @@
     pendingFiles = [];
   }
 
-  $: anyUploading = pendingFiles.some((f) => f.uploading);
+  let anyUploading = $derived(pendingFiles.some((f) => f.uploading));
 </script>
 
 <div
