@@ -16,12 +16,10 @@
     toggleReaction,
     updateEditMessageContent,
   } from '../actions/chat';
-  import EmojiPicker from './EmojiPicker.svelte';
   import Avatar from './Avatar.svelte';
+  import { emojiPickerState, openEmojiPicker, closeEmojiPicker } from '../stores/emojiPickerState';
 
   let messagesArea: HTMLDivElement;
-  let emojiPickerMessageId: string | null = $state(null);
-  let emojiPickerAnchorEl: HTMLElement | null = $state(null);
 
   function scrollToBottom() {
     if (messagesArea) {
@@ -110,24 +108,13 @@
   }
 
   function toggleEmojiPicker(messageId: string, event: MouseEvent) {
-    if (emojiPickerMessageId === messageId) {
-      emojiPickerMessageId = null;
-      emojiPickerAnchorEl = null;
+    if ($emojiPickerState.messageId === messageId) {
+      closeEmojiPicker();
     } else {
-      emojiPickerMessageId = messageId;
-      emojiPickerAnchorEl = event.currentTarget as HTMLElement;
+      openEmojiPicker(messageId, event.currentTarget as HTMLElement, (emoji) => {
+        toggleReaction(messageId, emoji);
+      });
     }
-  }
-
-  function selectEmoji(messageId: string, emoji: string) {
-    toggleReaction(messageId, emoji);
-    emojiPickerMessageId = null;
-    emojiPickerAnchorEl = null;
-  }
-
-  function closeEmojiPicker() {
-    emojiPickerMessageId = null;
-    emojiPickerAnchorEl = null;
   }
 
   function isImageType(contentType: string): boolean {
@@ -451,15 +438,6 @@
     </div>
   {/each}
 </div>
-
-{#if emojiPickerMessageId !== null}
-  <EmojiPicker
-    anchorEl={emojiPickerAnchorEl}
-    onSelect={(emoji) => selectEmoji(emojiPickerMessageId!, emoji)}
-    onClose={closeEmojiPicker}
-    customEmojis={$serverState.customEmojis}
-  />
-{/if}
 
 {#if lightboxSrc}
   <!-- svelte-ignore a11y_click_events_have_key_events -->

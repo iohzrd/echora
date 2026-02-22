@@ -2,12 +2,16 @@
   import { onMount } from "svelte";
   import { API, type CustomEmoji } from "$lib/api";
   import { serverState } from "$lib/stores/serverState";
+  import { closeEmojiPicker } from "$lib/stores/emojiPickerState";
   import { EMOJI_CATEGORIES, type EmojiEntry } from "$lib/emoji-data";
 
-  let { anchorEl = null, onSelect = () => {}, onClose = () => {}, customEmojis = [] }: {
-    anchorEl?: HTMLElement | null;
+  let {
+    anchorRect,
+    onSelect = () => {},
+    customEmojis = [],
+  }: {
+    anchorRect: { top: number; bottom: number; left: number; right: number };
     onSelect?: (emoji: string) => void;
-    onClose?: () => void;
     customEmojis?: CustomEmoji[];
   } = $props();
 
@@ -24,53 +28,44 @@
   let searchInput: HTMLInputElement;
 
   const PICKER_WIDTH = 320;
+  const PICKER_HEIGHT_ESTIMATE = 370;
 
-  function computePosition(): string {
-    if (!anchorEl) return "top: 100px; left: 100px;";
-
-    const rect = anchorEl.getBoundingClientRect();
+  let style = $derived.by(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const pickerHeight = pickerEl?.offsetHeight ?? 370;
+    const pickerHeight = pickerEl?.offsetHeight || PICKER_HEIGHT_ESTIMATE;
 
-    let left = rect.left;
+    let left = anchorRect.left;
     if (left + PICKER_WIDTH > vw - 8) left = vw - PICKER_WIDTH - 8;
     if (left < 8) left = 8;
 
-    const spaceAbove = rect.top;
-    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = anchorRect.top;
+    const spaceBelow = vh - anchorRect.bottom;
 
     if (spaceAbove >= pickerHeight || spaceAbove >= spaceBelow) {
-      return `bottom: ${vh - rect.top + 4}px; left: ${left}px;`;
+      return `bottom: ${vh - anchorRect.top + 4}px; left: ${left}px;`;
     } else {
-      return `top: ${rect.bottom + 4}px; left: ${left}px;`;
+      return `top: ${anchorRect.bottom + 4}px; left: ${left}px;`;
     }
-  }
+  });
 
   onMount(() => {
-    document.body.appendChild(pickerEl);
-
-    requestAnimationFrame(() => {
-      // Apply position after the node has been laid out in body
-      const pos = computePosition();
-      pickerEl.style.cssText = pickerEl.style.cssText.replace(/visibility:\s*hidden;\s*/g, "") + pos;
-      if (searchInput) searchInput.focus();
-    });
+    if (searchInput) searchInput.focus();
 
     function handleClickOutside(e: MouseEvent) {
       if (pickerEl && !pickerEl.contains(e.target as Node)) {
-        if (anchorEl && anchorEl.contains(e.target as Node)) return;
-        onClose();
+        closeEmojiPicker();
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    // Use a timeout so the click that opened the picker doesn't immediately close it
+    const t = setTimeout(() => {
+      document.addEventListener("mousedown", handleClickOutside);
+    }, 0);
 
     return () => {
+      clearTimeout(t);
       document.removeEventListener("mousedown", handleClickOutside);
-      if (pickerEl && pickerEl.parentNode === document.body) {
-        document.body.removeChild(pickerEl);
-      }
     };
   });
 
@@ -110,11 +105,7 @@
   }
 </script>
 
-<div
-  class="emoji-picker"
-  style="visibility: hidden;"
-  bind:this={pickerEl}
->
+<div class="emoji-picker" style={style} bind:this={pickerEl}>
   <div class="emoji-picker-tabs">
     <button
       class="emoji-tab-btn {tab === 'standard' ? 'active' : ''}"
@@ -148,7 +139,7 @@
         {#each searchResults as entry}
           <button
             class="emoji-picker-btn"
-            onclick={() => onSelect(entry.emoji)}
+            onclick={() => { onSelect(entry.emoji); closeEmojiPicker(); }}
             title={entry.description}>{entry.emoji}</button
           >
         {/each}
@@ -159,7 +150,7 @@
         {#each EMOJI_CATEGORIES[activeCategory].emojis as entry}
           <button
             class="emoji-picker-btn"
-            onclick={() => onSelect(entry.emoji)}
+            onclick={() => { onSelect(entry.emoji); closeEmojiPicker(); }}
             title={entry.description}>{entry.emoji}</button
           >
         {/each}
@@ -170,7 +161,7 @@
       {#each customEmojis as emoji}
         <button
           class="emoji-picker-btn custom-emoji-btn"
-          onclick={() => onSelect(`:${emoji.name}:`)}
+          onclick={() => { onSelect(`:${emoji.name}:`); closeEmojiPicker(); }}
           title=":{emoji.name}:"
         >
           <img
@@ -218,7 +209,7 @@
 </div>
 
 <style>
-:global(.emoji-picker) {
+.emoji-picker {
 	display: flex;
 	flex-direction: column;
 	padding: 8px;
@@ -231,7 +222,7 @@
 	width: 320px;
 }
 
-:global(.emoji-picker-tabs) {
+.emoji-picker-tabs {
 	display: flex;
 	gap: 2px;
 	margin-bottom: 6px;
@@ -239,7 +230,7 @@
 	padding-bottom: 4px;
 }
 
-:global(.emoji-tab-btn) {
+.emoji-tab-btn {
 	background: none;
 	border: none;
 	color: var(--text-faint);
@@ -249,17 +240,17 @@
 	border-radius: var(--radius-sm);
 }
 
-:global(.emoji-tab-btn:hover) {
+.emoji-tab-btn:hover {
 	color: var(--text-normal);
 	background: var(--bg-input);
 }
 
-:global(.emoji-tab-btn.active) {
+.emoji-tab-btn.active {
 	color: var(--text-white);
 	background: var(--brand-primary);
 }
 
-:global(.emoji-category-bar) {
+.emoji-category-bar {
 	display: flex;
 	gap: 2px;
 	margin-bottom: 4px;
@@ -268,7 +259,7 @@
 	overflow-x: auto;
 }
 
-:global(.emoji-category-btn) {
+.emoji-category-btn {
 	background: none;
 	border: none;
 	font-size: 16px;
@@ -280,17 +271,17 @@
 	opacity: 0.5;
 }
 
-:global(.emoji-category-btn:hover) {
+.emoji-category-btn:hover {
 	background: var(--bg-input);
 	opacity: 0.8;
 }
 
-:global(.emoji-category-btn.active) {
+.emoji-category-btn.active {
 	opacity: 1;
 	background: var(--bg-input);
 }
 
-:global(.emoji-search) {
+.emoji-search {
 	width: 100%;
 	padding: 4px 8px;
 	margin-bottom: 6px;
@@ -303,11 +294,11 @@
 	box-sizing: border-box;
 }
 
-:global(.emoji-search:focus) {
+.emoji-search:focus {
 	border-color: var(--brand-primary);
 }
 
-:global(.emoji-grid) {
+.emoji-grid {
 	display: grid;
 	grid-template-columns: repeat(8, 1fr);
 	gap: 2px;
@@ -315,7 +306,7 @@
 	overflow-y: auto;
 }
 
-:global(.emoji-picker-btn) {
+.emoji-picker-btn {
 	background: none;
 	border: none;
 	font-size: 20px;
@@ -325,23 +316,23 @@
 	line-height: 1;
 }
 
-:global(.emoji-picker-btn:hover) {
+.emoji-picker-btn:hover {
 	background: var(--bg-input);
 }
 
-:global(.custom-emoji-btn) {
+.custom-emoji-btn {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-:global(.custom-emoji-img-picker) {
+.custom-emoji-img-picker {
 	width: 24px;
 	height: 24px;
 	object-fit: contain;
 }
 
-:global(.emoji-picker-empty) {
+.emoji-picker-empty {
 	grid-column: 1 / -1;
 	text-align: center;
 	color: var(--text-faint);
@@ -349,19 +340,19 @@
 	padding: 12px 0;
 }
 
-:global(.emoji-upload-section) {
+.emoji-upload-section {
 	border-top: 1px solid var(--border-input);
 	margin-top: 6px;
 	padding-top: 6px;
 }
 
-:global(.emoji-upload-row) {
+.emoji-upload-row {
 	display: flex;
 	gap: 4px;
 	align-items: center;
 }
 
-:global(.emoji-upload-name) {
+.emoji-upload-name {
 	width: 80px;
 	padding: 2px 6px;
 	border: 1px solid var(--border-input);
@@ -371,13 +362,13 @@
 	font-size: 11px;
 }
 
-:global(.emoji-upload-file) {
+.emoji-upload-file {
 	font-size: 11px;
 	color: var(--text-faint);
 	max-width: 100px;
 }
 
-:global(.emoji-upload-btn) {
+.emoji-upload-btn {
 	padding: 2px 8px;
 	border: 1px solid var(--border-input);
 	border-radius: var(--radius-sm);
@@ -387,12 +378,12 @@
 	cursor: pointer;
 }
 
-:global(.emoji-upload-btn:disabled) {
+.emoji-upload-btn:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
 
-:global(.emoji-upload-error) {
+.emoji-upload-error {
 	color: var(--status-error);
 	font-size: 11px;
 	margin-top: 4px;
