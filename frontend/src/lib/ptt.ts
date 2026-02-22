@@ -41,27 +41,31 @@ function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+// Passthrough mappings: browser KeyboardEvent.code <-> Tauri key name.
+// These are identity mappings (code === key name) for special keys that
+// aren't handled by the Key/Digit prefix rules below.
+const SPECIAL_KEY_MAP: Record<string, string> = {
+  Space: 'Space',
+  Backquote: 'Backquote',
+  CapsLock: 'CapsLock',
+  Tab: 'Tab',
+  Backslash: 'Backslash',
+  BracketLeft: 'BracketLeft',
+  BracketRight: 'BracketRight',
+  Semicolon: 'Semicolon',
+  Quote: 'Quote',
+  Comma: 'Comma',
+  Period: 'Period',
+  Slash: 'Slash',
+  Minus: 'Minus',
+  Equal: 'Equal',
+};
+
 // Map browser KeyboardEvent.code to key name for display and storage
 function tauriKeyFromCode(code: string): string {
   if (code.startsWith('Key')) return code.slice(3);
   if (code.startsWith('Digit')) return code.slice(5);
-  const map: Record<string, string> = {
-    Space: 'Space',
-    Backquote: 'Backquote',
-    CapsLock: 'CapsLock',
-    Tab: 'Tab',
-    Backslash: 'Backslash',
-    BracketLeft: 'BracketLeft',
-    BracketRight: 'BracketRight',
-    Semicolon: 'Semicolon',
-    Quote: 'Quote',
-    Comma: 'Comma',
-    Period: 'Period',
-    Slash: 'Slash',
-    Minus: 'Minus',
-    Equal: 'Equal',
-  };
-  if (map[code]) return map[code];
+  if (SPECIAL_KEY_MAP[code]) return SPECIAL_KEY_MAP[code];
   if (code.startsWith('F') && /^F\d+$/.test(code)) return code;
   return code;
 }
@@ -70,23 +74,7 @@ function tauriKeyFromCode(code: string): string {
 function codeFromTauriKey(key: string): string {
   if (key.length === 1 && /[A-Z]/.test(key)) return `Key${key}`;
   if (key.length === 1 && /[0-9]/.test(key)) return `Digit${key}`;
-  const map: Record<string, string> = {
-    Space: 'Space',
-    Backquote: 'Backquote',
-    CapsLock: 'CapsLock',
-    Tab: 'Tab',
-    Backslash: 'Backslash',
-    BracketLeft: 'BracketLeft',
-    BracketRight: 'BracketRight',
-    Semicolon: 'Semicolon',
-    Quote: 'Quote',
-    Comma: 'Comma',
-    Period: 'Period',
-    Slash: 'Slash',
-    Minus: 'Minus',
-    Equal: 'Equal',
-  };
-  if (map[key]) return map[key];
+  if (SPECIAL_KEY_MAP[key]) return SPECIAL_KEY_MAP[key];
   return key;
 }
 

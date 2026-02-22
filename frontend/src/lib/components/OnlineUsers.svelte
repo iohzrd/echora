@@ -3,28 +3,23 @@
   import { uiState } from '../stores/uiState';
   import Avatar from './Avatar.svelte';
 
-  function getRoleBadge(userId: string): string {
-    const role = $serverState.userRolesMap[userId];
-    if (role === 'owner') return 'OWN';
-    if (role === 'admin') return 'ADM';
-    if (role === 'moderator') return 'MOD';
-    return '';
-  }
+  const ROLE_INFO: Record<string, { badge: string; cls: string }> = {
+    owner:     { badge: 'OWN', cls: 'role-owner' },
+    admin:     { badge: 'ADM', cls: 'role-admin' },
+    moderator: { badge: 'MOD', cls: 'role-mod' },
+  };
 
-  function getRoleClass(userId: string): string {
-    const role = $serverState.userRolesMap[userId];
-    if (role === 'owner') return 'role-owner';
-    if (role === 'admin') return 'role-admin';
-    if (role === 'moderator') return 'role-mod';
-    return '';
-  }
+  $: usersWithRole = $serverState.onlineUsers.map((u) => ({
+    ...u,
+    role: ROLE_INFO[$serverState.userRolesMap[u.user_id]] ?? null,
+  }));
 </script>
 
-{#if $serverState.onlineUsers.length > 0}
+{#if usersWithRole.length > 0}
   <div class="channel-category">
-    <span>Online -- {$serverState.onlineUsers.length}</span>
+    <span>Online -- {usersWithRole.length}</span>
   </div>
-  {#each $serverState.onlineUsers as u}
+  {#each usersWithRole as u}
     <div
       class="online-user"
       on:click={() => uiState.update((s) => ({ ...s, profileViewUserId: u.user_id }))}
@@ -39,10 +34,8 @@
         size="xs"
       />
       <span class="online-username">{u.username}</span>
-      {#if getRoleBadge(u.user_id)}
-        <span class="role-badge {getRoleClass(u.user_id)}"
-          >{getRoleBadge(u.user_id)}</span
-        >
+      {#if u.role}
+        <span class="role-badge {u.role.cls}">{u.role.badge}</span>
       {/if}
     </div>
   {/each}

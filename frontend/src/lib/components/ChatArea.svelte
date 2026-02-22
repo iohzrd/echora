@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { voiceStore } from '../stores/voiceStore';
   import { chatState } from '../stores/chatState';
   import { uiState } from '../stores/uiState';
@@ -8,8 +8,6 @@
   import MessageList from './MessageList.svelte';
   import MessageInput from './MessageInput.svelte';
   import ScreenShareViewer from './ScreenShareViewer.svelte';
-
-  let messageList: MessageList | undefined = undefined;
 
   let screenVideoElement: HTMLVideoElement;
   let cameraVideoElement: HTMLVideoElement;
@@ -48,6 +46,16 @@
           .catch((e) => console.warn('Camera video autoplay prevented:', e));
       }
     });
+  });
+
+  onDestroy(() => {
+    voiceManager.onScreenTrack(() => {});
+    voiceManager.onCameraTrack(() => {});
+    if (screenAudioEl) {
+      screenAudioEl.srcObject = null;
+      screenAudioEl.remove();
+      screenAudioEl = null;
+    }
   });
 
   function handleStopWatching() {
@@ -106,7 +114,7 @@
       bind:videoElement={cameraVideoElement}
     />
   {:else}
-    <MessageList bind:this={messageList} />
+    <MessageList />
 
     {#if $chatState.typingUsers.size > 0}
       <div class="typing-indicator">

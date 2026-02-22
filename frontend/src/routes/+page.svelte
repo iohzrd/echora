@@ -39,7 +39,7 @@
     if (isTauri) {
       import('@tauri-apps/api/app')
         .then((m) => m.getVersion())
-        .then((v) => serverState.update((s) => ({ ...s, tauriVersion: v })))
+        .then((v) => uiState.update((s) => ({ ...s, tauriVersion: v })))
         .catch(() => {});
     }
 

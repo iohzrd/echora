@@ -451,11 +451,6 @@ export class VoiceManager {
   }
 
   async toggleMute(): Promise<void> {
-    // In PTT mode, toggleMute acts as a force-mute override
-    if (this.inputMode === 'push-to-talk') {
-      this.setMuted(!this.isMuted);
-      return;
-    }
     this.setMuted(!this.isMuted);
   }
 

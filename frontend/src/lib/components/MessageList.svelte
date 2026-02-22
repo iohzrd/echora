@@ -22,13 +22,13 @@
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;
 
-  export function scrollToBottom() {
+  function scrollToBottom() {
     if (messagesArea) {
       messagesArea.scrollTop = messagesArea.scrollHeight;
     }
   }
 
-  export function preserveScroll(callback: () => void) {
+  function preserveScroll(callback: () => void) {
     if (messagesArea) {
       const prevScrollHeight = messagesArea.scrollHeight;
       callback();
@@ -40,7 +40,7 @@
     }
   }
 
-  export function isNearBottom(): boolean {
+  function isNearBottom(): boolean {
     if (!messagesArea) return true;
     return (
       messagesArea.scrollHeight -
@@ -50,7 +50,7 @@
     );
   }
 
-  export function scrollToBottomIfNear() {
+  function scrollToBottomIfNear() {
     if (messagesArea && isNearBottom()) {
       requestAnimationFrame(() => {
         if (messagesArea) {
