@@ -1,5 +1,5 @@
-const STORAGE_KEY = 'audio-settings';
-const PER_USER_STORAGE_KEY = 'per-user-volume';
+const STORAGE_KEY = "audio-settings";
+const PER_USER_STORAGE_KEY = "per-user-volume";
 
 export interface AudioSettings {
   inputDeviceId: string;
@@ -13,13 +13,13 @@ export interface AudioSettings {
 export interface AudioDevice {
   deviceId: string;
   label: string;
-  kind: 'audioinput' | 'audiooutput';
+  kind: "audioinput" | "audiooutput";
 }
 
 function getDefaultAudioSettings(): AudioSettings {
   return {
-    inputDeviceId: '',
-    outputDeviceId: '',
+    inputDeviceId: "",
+    outputDeviceId: "",
     inputGain: 1.0,
     outputVolume: 1.0,
     vadSensitivity: 50,
@@ -53,17 +53,17 @@ export async function enumerateAudioDevices(): Promise<{
     const outputs: AudioDevice[] = [];
 
     for (const device of devices) {
-      if (device.kind === 'audioinput') {
+      if (device.kind === "audioinput") {
         inputs.push({
           deviceId: device.deviceId,
           label: device.label || `Microphone ${inputs.length + 1}`,
-          kind: 'audioinput',
+          kind: "audioinput",
         });
-      } else if (device.kind === 'audiooutput') {
+      } else if (device.kind === "audiooutput") {
         outputs.push({
           deviceId: device.deviceId,
           label: device.label || `Speaker ${outputs.length + 1}`,
-          kind: 'audiooutput',
+          kind: "audiooutput",
         });
       }
     }
@@ -75,8 +75,9 @@ export async function enumerateAudioDevices(): Promise<{
 }
 
 export function onDeviceChange(callback: () => void): () => void {
-  navigator.mediaDevices.addEventListener('devicechange', callback);
-  return () => navigator.mediaDevices.removeEventListener('devicechange', callback);
+  navigator.mediaDevices.addEventListener("devicechange", callback);
+  return () =>
+    navigator.mediaDevices.removeEventListener("devicechange", callback);
 }
 // --- Per-user volume (separate storage) ---
 

@@ -8,8 +8,8 @@
     type Invite,
     type ModLogEntry,
   } from "../api";
-  import { user } from "../auth";
   import { formatTimestamp } from "../utils";
+  import { authState } from "../stores/authState.svelte";
 
   let { onClose = () => {} }: { onClose?: () => void } = $props();
 
@@ -38,7 +38,7 @@
   let inviteExpiry = $state("");
   let lastCreatedInvite: Invite | null = $state(null);
 
-  let userRole = $derived($user?.role ?? "member");
+  let userRole = $derived(authState.user?.role ?? "member");
   let isAdmin = $derived(userRole === "admin" || userRole === "owner");
 
   function roleLevel(role: string): number {
@@ -73,23 +73,50 @@
     error = "";
     try {
       switch (tab) {
-        case "users":
-          users = await API.getUsers();
+        case "users": {
+          const data = await API.getUsers();
+          if (seq !== loadSeq) return;
+          users = data;
           break;
-        case "moderation":
-          [bans, mutes] = await Promise.all([API.getBans(), API.getMutes()]);
-          if (users.length === 0) users = await API.getUsers();
+        }
+        case "moderation": {
+          const [bansData, mutesData] = await Promise.all([
+            API.getBans(),
+            API.getMutes(),
+          ]);
+          if (seq !== loadSeq) return;
+          bans = bansData;
+          mutes = mutesData;
+          if (users.length === 0) {
+            const usersData = await API.getUsers();
+            if (seq !== loadSeq) return;
+            users = usersData;
+          }
           break;
-        case "invites":
-          invites = await API.getInvites();
+        }
+        case "invites": {
+          const data = await API.getInvites();
+          if (seq !== loadSeq) return;
+          invites = data;
           break;
-        case "settings":
-          settings = await API.getSettings();
+        }
+        case "settings": {
+          const data = await API.getSettings();
+          if (seq !== loadSeq) return;
+          settings = data;
           break;
-        case "modlog":
-          modLog = await API.getModLog();
-          if (users.length === 0) users = await API.getUsers();
+        }
+        case "modlog": {
+          const data = await API.getModLog();
+          if (seq !== loadSeq) return;
+          modLog = data;
+          if (users.length === 0) {
+            const usersData = await API.getUsers();
+            if (seq !== loadSeq) return;
+            users = usersData;
+          }
           break;
+        }
       }
     } catch (err) {
       if (seq !== loadSeq) return;
@@ -299,7 +326,7 @@
                   </td>
                   <td>{formatTimestamp(u.created_at)}</td>
                   <td class="user-actions-cell">
-                    {#if isAdmin && canModerate(u.role) && u.id !== $user?.id}
+                    {#if isAdmin && canModerate(u.role) && u.id !== authState.user?.id}
                       <select
                         value={u.role}
                         onchange={(e) =>
@@ -313,7 +340,7 @@
                         {/each}
                       </select>
                     {/if}
-                    {#if userRole === "owner" && u.role !== "owner" && u.id !== $user?.id}
+                    {#if userRole === "owner" && u.role !== "owner" && u.id !== authState.user?.id}
                       <button
                         class="mod-action-btn delete-user"
                         onclick={() => handleDeleteUser(u.id, u.username)}
@@ -334,7 +361,7 @@
               <h4>Kick User</h4>
               <select bind:value={kickUserId} class="mod-input">
                 <option value="">Select user...</option>
-                {#each users.filter((u) => canModerate(u.role) && u.id !== $user?.id) as u}
+                {#each users.filter((u) => canModerate(u.role) && u.id !== authState.user?.id) as u}
                   <option value={u.id}>{u.username}</option>
                 {/each}
               </select>
@@ -355,7 +382,7 @@
               <h4>Ban User</h4>
               <select bind:value={banUserId} class="mod-input">
                 <option value="">Select user...</option>
-                {#each users.filter((u) => canModerate(u.role) && u.id !== $user?.id) as u}
+                {#each users.filter((u) => canModerate(u.role) && u.id !== authState.user?.id) as u}
                   <option value={u.id}>{u.username}</option>
                 {/each}
               </select>
@@ -382,7 +409,7 @@
               <h4>Mute User</h4>
               <select bind:value={muteUserId} class="mod-input">
                 <option value="">Select user...</option>
-                {#each users.filter((u) => canModerate(u.role) && u.id !== $user?.id) as u}
+                {#each users.filter((u) => canModerate(u.role) && u.id !== authState.user?.id) as u}
                   <option value={u.id}>{u.username}</option>
                 {/each}
               </select>

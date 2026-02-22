@@ -1,9 +1,19 @@
 <script lang="ts">
-  import { voiceStore } from '../stores/voiceStore.svelte';
-  import { leaveVoice, toggleMute, toggleDeafen, toggleScreenShare, toggleCamera } from '../actions/voice';
-  import { switchVoiceInputMode, changePTTKey } from '../actions/server';
-  import { formatKeyLabel, keyEventToTauriKey, mouseEventToTauriKey } from '../ptt';
-  import AudioSettingsPanel from './AudioSettings.svelte';
+  import { voiceStore } from "../stores/voiceStore.svelte";
+  import {
+    leaveVoice,
+    toggleMute,
+    toggleDeafen,
+    toggleScreenShare,
+    toggleCamera,
+  } from "../actions/voice";
+  import { switchVoiceInputMode, changePTTKey } from "../actions/server";
+  import {
+    formatKeyLabel,
+    keyEventToTauriKey,
+    mouseEventToTauriKey,
+  } from "../ptt";
+  import AudioSettingsPanel from "./AudioSettings.svelte";
 
   let recordingKey = $state(false);
   let showSettings = $state(false);
@@ -34,11 +44,7 @@
   <div class="voice-panel">
     <div class="voice-panel-header">
       <span class="voice-panel-status">Voice Connected</span>
-      <button
-        class="voice-panel-leave"
-        onclick={leaveVoice}
-        title="Disconnect"
-      >
+      <button class="voice-panel-leave" onclick={leaveVoice} title="Disconnect">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
           ><path
             d="M3.7 16.3a1 1 0 0 1 0-1.4L8.6 10H2a1 1 0 1 1 0-2h6.6L3.7 3.1a1 1 0 0 1 1.4-1.4l6.7 6.7a1 1 0 0 1 0 1.4l-6.7 6.7a1 1 0 0 1-1.4-.2z"
@@ -52,18 +58,20 @@
     <div class="voice-panel-controls">
       <!-- Mic -->
       <button
-        class="voice-control-btn {voiceStore.isMuted ? 'active' : ''} {voiceStore.voiceInputMode ===
-          'push-to-talk' && voiceStore.pttActive
+        class="voice-control-btn {voiceStore.isMuted
+          ? 'active'
+          : ''} {voiceStore.voiceInputMode === 'push-to-talk' &&
+        voiceStore.pttActive
           ? 'ptt-transmitting'
           : ''}"
         onclick={toggleMute}
-        title={voiceStore.voiceInputMode === 'push-to-talk'
+        title={voiceStore.voiceInputMode === "push-to-talk"
           ? voiceStore.pttActive
-            ? 'Transmitting'
-            : 'PTT: Hold ' + formatKeyLabel(voiceStore.pttKey)
+            ? "Transmitting"
+            : "PTT: Hold " + formatKeyLabel(voiceStore.pttKey)
           : voiceStore.isMuted
-            ? 'Unmute'
-            : 'Mute'}
+            ? "Unmute"
+            : "Mute"}
       >
         {#if voiceStore.isMuted}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
@@ -95,7 +103,7 @@
       <button
         class="voice-control-btn {voiceStore.isDeafened ? 'active' : ''}"
         onclick={toggleDeafen}
-        title={voiceStore.isDeafened ? 'Undeafen' : 'Deafen'}
+        title={voiceStore.isDeafened ? "Undeafen" : "Deafen"}
       >
         {#if voiceStore.isDeafened}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
@@ -121,9 +129,11 @@
       </button>
       <!-- Screen Share -->
       <button
-        class="voice-control-btn screen {voiceStore.isScreenSharing ? 'active' : ''}"
+        class="voice-control-btn screen {voiceStore.isScreenSharing
+          ? 'active'
+          : ''}"
         onclick={toggleScreenShare}
-        title={voiceStore.isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+        title={voiceStore.isScreenSharing ? "Stop Sharing" : "Share Screen"}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
           ><path
@@ -133,9 +143,11 @@
       </button>
       <!-- Camera -->
       <button
-        class="voice-control-btn camera {voiceStore.isCameraSharing ? 'active' : ''}"
+        class="voice-control-btn camera {voiceStore.isCameraSharing
+          ? 'active'
+          : ''}"
         onclick={toggleCamera}
-        title={voiceStore.isCameraSharing ? 'Stop Camera' : 'Start Camera'}
+        title={voiceStore.isCameraSharing ? "Stop Camera" : "Start Camera"}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
           ><path
@@ -147,7 +159,7 @@
       <button
         class="voice-control-btn settings-toggle"
         onclick={() => (showSettings = !showSettings)}
-        title={showSettings ? 'Hide Settings' : 'Show Settings'}
+        title={showSettings ? "Hide Settings" : "Show Settings"}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
           ><path
@@ -162,22 +174,26 @@
         <div class="voice-settings">
           <div class="voice-mode-toggle">
             <button
-              class="mode-btn {voiceStore.voiceInputMode === 'voice-activity' ? 'active' : ''}"
-              onclick={() => switchVoiceInputMode('voice-activity')}
+              class="mode-btn {voiceStore.voiceInputMode === 'voice-activity'
+                ? 'active'
+                : ''}"
+              onclick={() => switchVoiceInputMode("voice-activity")}
               title="Voice Activity Detection"
             >
               VAD
             </button>
             <button
-              class="mode-btn {voiceStore.voiceInputMode === 'push-to-talk' ? 'active' : ''}"
-              onclick={() => switchVoiceInputMode('push-to-talk')}
+              class="mode-btn {voiceStore.voiceInputMode === 'push-to-talk'
+                ? 'active'
+                : ''}"
+              onclick={() => switchVoiceInputMode("push-to-talk")}
               title="Push to Talk"
             >
               PTT
             </button>
           </div>
 
-          {#if voiceStore.voiceInputMode === 'push-to-talk'}
+          {#if voiceStore.voiceInputMode === "push-to-talk"}
             <div class="ptt-key-binding">
               {#if recordingKey}
                 <button
@@ -203,7 +219,7 @@
         </div>
 
         <AudioSettingsPanel
-          showSensitivity={voiceStore.voiceInputMode === 'voice-activity'}
+          showSensitivity={voiceStore.voiceInputMode === "voice-activity"}
         />
       </div>
     {/if}

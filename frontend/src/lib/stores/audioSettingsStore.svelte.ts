@@ -1,4 +1,4 @@
-import type { AudioDevice } from '../audioSettings';
+import type { AudioDevice } from "../audioSettings";
 
 export interface AudioSettingsStoreState {
   inputDeviceId: string;
@@ -12,8 +12,8 @@ export interface AudioSettingsStoreState {
 }
 
 export const audioSettingsStore = $state<AudioSettingsStoreState>({
-  inputDeviceId: '',
-  outputDeviceId: '',
+  inputDeviceId: "",
+  outputDeviceId: "",
   inputGain: 1.0,
   outputVolume: 1.0,
   vadSensitivity: 50,

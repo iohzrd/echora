@@ -1,5 +1,5 @@
-import type { VoiceState } from '../api';
-import type { VoiceInputMode } from '../voice';
+import type { VoiceState } from "../api";
+import type { VoiceInputMode } from "../voice";
 
 export interface VoiceStoreState {
   currentVoiceChannel: string | null;
@@ -24,13 +24,13 @@ export const voiceStore = $state<VoiceStoreState>({
   isDeafened: false,
   isScreenSharing: false,
   isCameraSharing: false,
-  voiceInputMode: 'voice-activity',
-  pttKey: 'Space',
+  voiceInputMode: "voice-activity",
+  pttKey: "Space",
   pttActive: false,
   voiceStates: [],
   speakingUsers: [],
   watchingScreenUserId: null,
-  watchingScreenUsername: '',
+  watchingScreenUsername: "",
   watchingCameraUserId: null,
-  watchingCameraUsername: '',
+  watchingCameraUsername: "",
 });

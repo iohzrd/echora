@@ -55,7 +55,9 @@
     if (isTauri) {
       import("@tauri-apps/api/app")
         .then((m) => m.getVersion())
-        .then((v) => { uiState.tauriVersion = v; })
+        .then((v) => {
+          uiState.tauriVersion = v;
+        })
         .catch(() => {});
     }
 
@@ -166,6 +168,7 @@
   {:else}
     <AppSidebar />
     <ChatArea />
+    {@render children?.()}
   {/if}
 </div>
 
@@ -199,5 +202,3 @@
     customEmojis={serverState.customEmojis}
   />
 {/if}
-
-{@render children?.()}

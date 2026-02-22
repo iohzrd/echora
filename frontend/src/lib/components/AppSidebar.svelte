@@ -1,23 +1,35 @@
 <script lang="ts">
-  import { API, FRONTEND_VERSION } from '../api';
-  import { goto } from '$app/navigation';
-  import { activeServer } from '../serverManager';
-  import AuthService, { user, isModerator } from '../auth';
-  import { serverState } from '../stores/serverState.svelte';
-  import { uiState } from '../stores/uiState.svelte';
-  import { openAdminPanel, openPasskeySettings, openProfileModal, toggleSidebar } from '../actions/ui';
-  import ChannelList from './ChannelList.svelte';
-  import OnlineUsers from './OnlineUsers.svelte';
-  import VoicePanel from './VoicePanel.svelte';
-  import Avatar from './Avatar.svelte';
+  import { API, FRONTEND_VERSION } from "../api";
+  import { goto } from "$app/navigation";
+  import { activeServer } from "../serverManager";
+  import AuthService, { isModerator } from "../auth";
+  import { serverState } from "../stores/serverState.svelte";
+  import { uiState } from "../stores/uiState.svelte";
+  import { authState } from "../stores/authState.svelte";
+  import {
+    openAdminPanel,
+    openPasskeySettings,
+    openProfileModal,
+    toggleSidebar,
+  } from "../actions/ui";
+  import ChannelList from "./ChannelList.svelte";
+  import OnlineUsers from "./OnlineUsers.svelte";
+  import VoicePanel from "./VoicePanel.svelte";
+  import Avatar from "./Avatar.svelte";
 
-  let activeServerName = $derived(serverState.serverName || $activeServer?.name || 'Echora');
-  let userAvatarUrl = $derived($user?.avatar_url ? API.getAvatarUrl($user.id) : undefined);
-  let isMod = $derived(isModerator($user?.role));
+  let activeServerName = $derived(
+    serverState.serverName || $activeServer?.name || "Echora",
+  );
+  let userAvatarUrl = $derived(
+    authState.user?.avatar_url
+      ? API.getAvatarUrl(authState.user.id)
+      : undefined,
+  );
+  let isMod = $derived(isModerator(authState.user?.role));
 
   function logout() {
     AuthService.logout();
-    goto('/auth');
+    goto("/auth");
   }
 </script>
 
@@ -50,11 +62,7 @@
             /></svg
           >
         </button>
-        <button
-          class="header-icon-btn logout"
-          onclick={logout}
-          title="Logout"
-        >
+        <button class="header-icon-btn logout" onclick={logout} title="Logout">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
             ><path
               d="M5 5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h7v-2H5V5zm16 7l-4-4v3H9v2h8v3l4-4z"
@@ -78,11 +86,15 @@
         title="Edit profile"
       >
         <Avatar
-          username={$user?.username || ''}
+          username={authState.user?.username || ""}
           avatarUrl={userAvatarUrl}
           size="small"
         />
-        <span class="user-bar-username">{$user?.display_name || $user?.username || ''}</span>
+        <span class="user-bar-username"
+          >{authState.user?.display_name ||
+            authState.user?.username ||
+            ""}</span
+        >
       </button>
     </div>
 
@@ -92,7 +104,7 @@
       {/if}
       <span class="version-info">frontend v{FRONTEND_VERSION}</span>
       <span class="version-info"
-        >backend v{serverState.backendVersion || '...'}</span
+        >backend v{serverState.backendVersion || "..."}</span
       >
     </div>
   </div>

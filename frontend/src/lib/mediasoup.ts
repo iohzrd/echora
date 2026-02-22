@@ -1,31 +1,36 @@
-import * as mediasoupClient from 'mediasoup-client';
-import AuthService from './auth';
-import { API } from './api';
-import { getApiBase } from './config';
-import { appFetch } from './serverManager';
+import * as mediasoupClient from "mediasoup-client";
+import AuthService from "./auth";
+import { API } from "./api";
+import { getApiBase } from "./config";
+import { appFetch } from "./serverManager";
 
 // WebKitGTK's GStreamer-based WebRTC omits a=ssrc lines from SDP offers, which
 // causes mediasoup-client to fail with "no a=ssrc lines found". We inject
 // placeholder SSRC lines so mediasoup-client can parse the SDP. The real SSRC
 // is read from the RTP sender stats and patched into rtpParameters before the
 // produce request reaches the server (see fixProducerSsrc).
-if (typeof RTCPeerConnection !== 'undefined') {
-  const origCreateOffer = RTCPeerConnection.prototype.createOffer as
-    (this: RTCPeerConnection, options?: RTCOfferOptions) => Promise<RTCSessionDescriptionInit>;
+if (typeof RTCPeerConnection !== "undefined") {
+  const origCreateOffer = RTCPeerConnection.prototype.createOffer as (
+    this: RTCPeerConnection,
+    options?: RTCOfferOptions,
+  ) => Promise<RTCSessionDescriptionInit>;
 
   RTCPeerConnection.prototype.createOffer = async function (
     this: RTCPeerConnection,
     ...args: [RTCOfferOptions?]
   ): Promise<RTCSessionDescriptionInit> {
     const offer = await origCreateOffer.apply(this, args);
-    if (offer.sdp && !offer.sdp.includes('a=ssrc:')) {
+    if (offer.sdp && !offer.sdp.includes("a=ssrc:")) {
       offer.sdp = offer.sdp.replace(
         /^(m=(?:audio|video)\s.+(?:\r?\n(?!m=).+)*)/gm,
         (section: string) => {
-          if (section.includes('a=ssrc:')) return section;
-          const ssrc = Math.floor(Math.random() * 0xFFFFFFFF);
-          return section + `\r\na=ssrc:${ssrc} cname:webkitgtk\r\na=ssrc:${ssrc} msid:webkitgtk webkitgtk`;
-        }
+          if (section.includes("a=ssrc:")) return section;
+          const ssrc = Math.floor(Math.random() * 0xffffffff);
+          return (
+            section +
+            `\r\na=ssrc:${ssrc} cname:webkitgtk\r\na=ssrc:${ssrc} msid:webkitgtk webkitgtk`
+          );
+        },
       );
     }
     return offer;
@@ -39,8 +44,15 @@ interface TransportOptions {
   dtls_parameters: mediasoupClient.types.DtlsParameters;
 }
 
-async function createTransportRequest(channelId: string): Promise<TransportOptions> {
-  return API.jsonRequest('/webrtc/transport', 'POST', { channel_id: channelId }, 'Failed to create transport');
+async function createTransportRequest(
+  channelId: string,
+): Promise<TransportOptions> {
+  return API.jsonRequest(
+    "/webrtc/transport",
+    "POST",
+    { channel_id: channelId },
+    "Failed to create transport",
+  );
 }
 
 async function connectTransportRequest(
@@ -49,9 +61,9 @@ async function connectTransportRequest(
 ): Promise<void> {
   return API.jsonRequest(
     `/webrtc/transport/${transportId}/connect`,
-    'POST',
+    "POST",
     { dtls_parameters: dtlsParameters },
-    'Failed to connect transport',
+    "Failed to connect transport",
   );
 }
 
@@ -71,15 +83,19 @@ async function produceRequest(
 
   const data = await API.jsonRequest<{ producer_id: string }>(
     `/webrtc/transport/${transportId}/produce`,
-    'POST',
+    "POST",
     body,
-    'Failed to produce',
+    "Failed to produce",
   );
   return data.producer_id;
 }
 
 async function deleteTransportRequest(transportId: string): Promise<void> {
-  return API.request(`/webrtc/transport/${transportId}`, { method: 'DELETE' }, 'Failed to close transport');
+  return API.request(
+    `/webrtc/transport/${transportId}`,
+    { method: "DELETE" },
+    "Failed to close transport",
+  );
 }
 
 export interface ProducerInfo {
@@ -90,8 +106,14 @@ export interface ProducerInfo {
   label?: string;
 }
 
-export async function getChannelProducers(channelId: string): Promise<ProducerInfo[]> {
-  return API.request(`/webrtc/channel/${channelId}/producers`, {}, 'Failed to get channel producers');
+export async function getChannelProducers(
+  channelId: string,
+): Promise<ProducerInfo[]> {
+  return API.request(
+    `/webrtc/channel/${channelId}/producers`,
+    {},
+    "Failed to get channel producers",
+  );
 }
 
 export class MediasoupManager {
@@ -105,7 +127,12 @@ export class MediasoupManager {
   private consumedProducerIds: Set<string> = new Set();
 
   public onTrack:
-    | ((track: MediaStreamTrack, userId: string, kind: string, label?: string) => void)
+    | ((
+        track: MediaStreamTrack,
+        userId: string,
+        kind: string,
+        label?: string,
+      ) => void)
     | null = null;
 
   async init(channelId: string) {
@@ -117,17 +144,18 @@ export class MediasoupManager {
   private async initDevice(channelId: string) {
     this.device = new mediasoupClient.Device();
 
-    const routerRtpCapabilities = await API.request<mediasoupClient.types.RtpCapabilities>(
-      `/webrtc/channel/${channelId}/router-capabilities`,
-      {},
-      'Failed to get router capabilities',
-    );
+    const routerRtpCapabilities =
+      await API.request<mediasoupClient.types.RtpCapabilities>(
+        `/webrtc/channel/${channelId}/router-capabilities`,
+        {},
+        "Failed to get router capabilities",
+      );
     await this.device.load({ routerRtpCapabilities });
   }
 
   private async createSendTransport(channelId: string) {
     if (!this.device) {
-      throw new Error('Device not initialized');
+      throw new Error("Device not initialized");
     }
 
     const transportData = await createTransportRequest(channelId);
@@ -145,7 +173,7 @@ export class MediasoupManager {
 
   private async createRecvTransport(channelId: string) {
     if (!this.device) {
-      throw new Error('Device not initialized');
+      throw new Error("Device not initialized");
     }
 
     const transportData = await createTransportRequest(channelId);
@@ -160,25 +188,25 @@ export class MediasoupManager {
     this.setupTransportConnectHandler(this.recvTransport, transportData.id);
   }
 
-  private setupTransportConnectHandler(transport: mediasoupClient.types.Transport, transportId: string) {
-    transport.on(
-      'connect',
-      async ({ dtlsParameters }, callback, errback) => {
-        try {
-          await connectTransportRequest(transportId, dtlsParameters);
-          callback();
-        } catch (error) {
-          errback(error as Error);
-        }
-      },
-    );
+  private setupTransportConnectHandler(
+    transport: mediasoupClient.types.Transport,
+    transportId: string,
+  ) {
+    transport.on("connect", async ({ dtlsParameters }, callback, errback) => {
+      try {
+        await connectTransportRequest(transportId, dtlsParameters);
+        callback();
+      } catch (error) {
+        errback(error as Error);
+      }
+    });
   }
 
   private setupProduceHandler(transportId: string) {
     if (!this.sendTransport) return;
 
     this.sendTransport.on(
-      'produce',
+      "produce",
       async ({ kind, rtpParameters, appData }, callback, errback) => {
         try {
           // WebKitGTK SSRC fix: the SDP had a placeholder SSRC but GStreamer uses
@@ -211,23 +239,26 @@ export class MediasoupManager {
     rtpParameters: mediasoupClient.types.RtpParameters,
   ): Promise<void> {
     try {
-      const pc = (this.sendTransport as unknown as { _handler?: { _pc?: RTCPeerConnection } })
-        ?._handler?._pc;
+      const pc = (
+        this.sendTransport as unknown as {
+          _handler?: { _pc?: RTCPeerConnection };
+        }
+      )?._handler?._pc;
       if (!pc) return;
 
       // Use the LAST matching sender: when producing screen audio there are
       // multiple audio senders (voice + screen) and the newest one (last) is
       // the one currently being produced.
-      const senders = pc.getSenders().filter(s => s.track?.kind === kind);
+      const senders = pc.getSenders().filter((s) => s.track?.kind === kind);
       const sender = senders[senders.length - 1];
       if (!sender) return;
 
       let realSsrc: number | null = null;
       for (let attempt = 0; attempt < 10; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
         const stats = await sender.getStats();
         stats.forEach((stat) => {
-          if (stat.type === 'outbound-rtp' && stat.ssrc) {
+          if (stat.type === "outbound-rtp" && stat.ssrc) {
             realSsrc = stat.ssrc;
           }
         });
@@ -249,7 +280,7 @@ export class MediasoupManager {
 
   async produce(track: MediaStreamTrack) {
     if (!this.sendTransport) {
-      throw new Error('Send transport not initialized');
+      throw new Error("Send transport not initialized");
     }
 
     const producer = await this.sendTransport.produce({ track });
@@ -259,12 +290,12 @@ export class MediasoupManager {
 
   async produceScreen(track: MediaStreamTrack) {
     if (!this.sendTransport) {
-      throw new Error('Send transport not initialized');
+      throw new Error("Send transport not initialized");
     }
 
     const producer = await this.sendTransport.produce({
       track,
-      appData: { label: 'screen' },
+      appData: { label: "screen" },
     });
     this.screenProducers.push(producer);
     this.producers.set(producer.id, producer);
@@ -273,7 +304,7 @@ export class MediasoupManager {
 
   async replaceProducerTrack(newTrack: MediaStreamTrack): Promise<void> {
     for (const producer of this.producers.values()) {
-      if (producer.kind === 'audio' && !producer.closed) {
+      if (producer.kind === "audio" && !producer.closed) {
         await producer.replaceTrack({ track: newTrack });
         break;
       }
@@ -290,12 +321,12 @@ export class MediasoupManager {
 
   async produceCamera(track: MediaStreamTrack) {
     if (!this.sendTransport) {
-      throw new Error('Send transport not initialized');
+      throw new Error("Send transport not initialized");
     }
 
     const producer = await this.sendTransport.produce({
       track,
-      appData: { label: 'camera' },
+      appData: { label: "camera" },
     });
     this.cameraProducers.push(producer);
     this.producers.set(producer.id, producer);
@@ -312,7 +343,7 @@ export class MediasoupManager {
 
   async consume(producerId: string, userId: string, label?: string) {
     if (!this.recvTransport || !this.device) {
-      throw new Error('Receive transport or device not initialized');
+      throw new Error("Receive transport or device not initialized");
     }
 
     // Skip if we've already consumed this producer
@@ -325,9 +356,9 @@ export class MediasoupManager {
     const response = await appFetch(
       `${getApiBase()}/webrtc/transport/${this.recvTransport.id}/consume`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...AuthService.getAuthHeaders(),
         },
         body: JSON.stringify({
@@ -339,8 +370,8 @@ export class MediasoupManager {
 
     if (!response.ok) {
       const errorText = await response.text();
-      if (errorText.includes('Transport not found')) {
-        throw new Error('STALE_TRANSPORT');
+      if (errorText.includes("Transport not found")) {
+        throw new Error("STALE_TRANSPORT");
       }
       throw new Error(`Failed to consume producer: ${errorText}`);
     }
@@ -364,7 +395,7 @@ export class MediasoupManager {
 
   pauseAudioProducer() {
     for (const producer of this.producers.values()) {
-      if (producer.kind === 'audio' && !producer.paused) {
+      if (producer.kind === "audio" && !producer.paused) {
         producer.pause();
       }
     }
@@ -372,7 +403,7 @@ export class MediasoupManager {
 
   resumeAudioProducer() {
     for (const producer of this.producers.values()) {
-      if (producer.kind === 'audio' && producer.paused) {
+      if (producer.kind === "audio" && producer.paused) {
         producer.resume();
       }
     }
@@ -380,7 +411,7 @@ export class MediasoupManager {
 
   setConsumersEnabled(enabled: boolean) {
     for (const consumer of this.consumers.values()) {
-      if (consumer.kind === 'audio') {
+      if (consumer.kind === "audio") {
         if (enabled) {
           consumer.resume();
         } else {
@@ -395,7 +426,7 @@ export class MediasoupManager {
       try {
         await deleteTransportRequest(this.sendTransport.id);
       } catch (e) {
-        console.error('Failed to close send transport:', e);
+        console.error("Failed to close send transport:", e);
       }
       this.sendTransport.close();
     }
@@ -404,7 +435,7 @@ export class MediasoupManager {
       try {
         await deleteTransportRequest(this.recvTransport.id);
       } catch (e) {
-        console.error('Failed to close recv transport:', e);
+        console.error("Failed to close recv transport:", e);
       }
       this.recvTransport.close();
     }

@@ -1,4 +1,4 @@
-import { uiState } from '../stores/uiState.svelte';
+import { uiState } from "../stores/uiState.svelte";
 
 export function openAdminPanel() {
   uiState.showAdminPanel = true;

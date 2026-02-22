@@ -1,12 +1,11 @@
-import { type VoiceState, type WebSocketManager, API } from './api';
-import { user } from './auth';
-import { get } from 'svelte/store';
-import { MediasoupManager, getChannelProducers } from './mediasoup';
+import { type VoiceState, type WebSocketManager, API } from "./api";
+import { authState } from "./stores/authState.svelte";
+import { MediasoupManager, getChannelProducers } from "./mediasoup";
 
 /** Stop all tracks on a MediaStream and return null for assignment. */
 function stopStream(stream: MediaStream | null): null {
   if (stream) {
-    stream.getTracks().forEach(track => track.stop());
+    stream.getTracks().forEach((track) => track.stop());
   }
   return null;
 }
@@ -17,10 +16,10 @@ function detachAudioElement(audio: HTMLAudioElement): void {
   audio.remove();
 }
 
-export type VoiceInputMode = 'voice-activity' | 'push-to-talk';
+export type VoiceInputMode = "voice-activity" | "push-to-talk";
 
 function getAudioContainer(): HTMLElement {
-  return document.getElementById('audio-container') ?? document.body;
+  return document.getElementById("audio-container") ?? document.body;
 }
 
 export class VoiceManager {
@@ -44,14 +43,14 @@ export class VoiceManager {
   private voiceStates: VoiceState[] = [];
   private speakingThreshold = 50;
   private ws: WebSocketManager | null = null;
-  private inputMode: VoiceInputMode = 'voice-activity';
+  private inputMode: VoiceInputMode = "voice-activity";
   private pttActive = false;
 
   // Audio settings
   private perUserVolumes: Map<string, number> = new Map();
   private outputVolume = 1.0;
-  private currentInputDeviceId = '';
-  private currentOutputDeviceId = '';
+  private currentInputDeviceId = "";
+  private currentOutputDeviceId = "";
   private noiseSuppression = true;
 
   setWebSocketManager(wsManager: WebSocketManager) {
@@ -60,16 +59,22 @@ export class VoiceManager {
 
   // Event handlers
   private onVoiceStatesChanged: ((states: VoiceState[]) => void) | null = null;
-  private onSpeakingChanged: ((userId: string, isSpeaking: boolean) => void) | null = null;
+  private onSpeakingChanged:
+    | ((userId: string, isSpeaking: boolean) => void)
+    | null = null;
   private onStateChanged: (() => void) | null = null;
-  private onScreenTrackReceived: ((track: MediaStreamTrack, userId: string) => void) | null = null;
+  private onScreenTrackReceived:
+    | ((track: MediaStreamTrack, userId: string) => void)
+    | null = null;
   private onScreenTrackRemoved: ((userId: string) => void) | null = null;
-  private onCameraTrackReceived: ((track: MediaStreamTrack, userId: string) => void) | null = null;
+  private onCameraTrackReceived:
+    | ((track: MediaStreamTrack, userId: string) => void)
+    | null = null;
 
   async joinVoiceChannel(channelId: string): Promise<void> {
-    const currentUser = get(user);
+    const currentUser = authState.user;
     if (!currentUser) {
-      throw new Error('User not authenticated');
+      throw new Error("User not authenticated");
     }
 
     try {
@@ -107,7 +112,7 @@ export class VoiceManager {
       this.isConnected = true;
 
       // In PTT mode, start muted until key is held
-      if (this.inputMode === 'push-to-talk') {
+      if (this.inputMode === "push-to-talk") {
         this.setMuted(true);
       }
 
@@ -122,7 +127,7 @@ export class VoiceManager {
 
       this.onStateChanged?.();
     } catch (error) {
-      console.error('Failed to join voice channel:', error);
+      console.error("Failed to join voice channel:", error);
       this.cleanup();
       throw error;
     }
@@ -152,45 +157,56 @@ export class VoiceManager {
       // Local cleanup
       this.cleanup();
     } catch (error) {
-      console.error('Failed to leave voice channel:', error);
+      console.error("Failed to leave voice channel:", error);
       this.cleanup();
       throw error;
     }
   }
 
-  private async consumeExistingProducers(channelId: string, myUserId: string): Promise<void> {
+  private async consumeExistingProducers(
+    channelId: string,
+    myUserId: string,
+  ): Promise<void> {
     try {
       const producers = await getChannelProducers(channelId);
       for (const producer of producers) {
         // Skip our own producers and screen/camera producers (consumed on demand when watching)
         if (producer.user_id === myUserId) continue;
-        if (producer.label === 'screen') continue;
-        if (producer.label === 'camera') continue;
+        if (producer.label === "screen") continue;
+        if (producer.label === "camera") continue;
 
         try {
-          await this.mediasoup?.consume(producer.producer_id, producer.user_id, producer.label);
+          await this.mediasoup?.consume(
+            producer.producer_id,
+            producer.user_id,
+            producer.label,
+          );
         } catch (e) {
-          console.error('Failed to consume producer', producer.producer_id, e);
+          console.error("Failed to consume producer", producer.producer_id, e);
         }
       }
     } catch (error) {
-      console.error('Failed to fetch existing producers:', error);
+      console.error("Failed to fetch existing producers:", error);
     }
   }
 
-  async consumeProducer(producerId: string, userId: string, label?: string): Promise<void> {
+  async consumeProducer(
+    producerId: string,
+    userId: string,
+    label?: string,
+  ): Promise<void> {
     if (!this.mediasoup || !this.isConnected) return;
 
     try {
       await this.mediasoup.consume(producerId, userId, label);
     } catch (e) {
-      console.error('Failed to consume producer', producerId, e);
+      console.error("Failed to consume producer", producerId, e);
     }
   }
 
   async reconcileProducers(): Promise<void> {
     if (!this.isConnected || !this.currentChannelId) return;
-    const currentUser = get(user);
+    const currentUser = authState.user;
     if (!currentUser) return;
     await this.consumeExistingProducers(this.currentChannelId, currentUser.id);
   }
@@ -201,24 +217,29 @@ export class VoiceManager {
     return Math.min(this.outputVolume * perUser, 1.0);
   }
 
-  private handleRemoteTrack(track: MediaStreamTrack, userId: string, kind: string, label?: string): void {
+  private handleRemoteTrack(
+    track: MediaStreamTrack,
+    userId: string,
+    kind: string,
+    label?: string,
+  ): void {
     // Screen share tracks (video or audio) go to the screen track handler
-    if (label === 'screen') {
+    if (label === "screen") {
       this.onScreenTrackReceived?.(track, userId);
       return;
     }
 
     // Camera tracks go to the camera track handler
-    if (label === 'camera') {
+    if (label === "camera") {
       this.onCameraTrackReceived?.(track, userId);
       return;
     }
 
-    if (kind !== 'audio') return;
+    if (kind !== "audio") return;
 
     let remoteAudio = this.remoteAudioElements.get(userId);
     if (!remoteAudio) {
-      remoteAudio = document.createElement('audio');
+      remoteAudio = document.createElement("audio");
       remoteAudio.autoplay = true;
       getAudioContainer().appendChild(remoteAudio);
       this.remoteAudioElements.set(userId, remoteAudio);
@@ -227,14 +248,19 @@ export class VoiceManager {
     remoteAudio.volume = this.computeUserVolume(userId);
 
     // Apply output device if supported
-    if (this.currentOutputDeviceId && 'setSinkId' in remoteAudio) {
-      (remoteAudio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
-        .setSinkId(this.currentOutputDeviceId).catch(() => {});
+    if (this.currentOutputDeviceId && "setSinkId" in remoteAudio) {
+      (
+        remoteAudio as HTMLAudioElement & {
+          setSinkId: (id: string) => Promise<void>;
+        }
+      )
+        .setSinkId(this.currentOutputDeviceId)
+        .catch(() => {});
     }
 
     remoteAudio.srcObject = new MediaStream([track]);
-    remoteAudio.play().catch(e => {
-      console.warn('Auto-play prevented for user', userId, ':', e);
+    remoteAudio.play().catch((e) => {
+      console.warn("Auto-play prevented for user", userId, ":", e);
     });
   }
 
@@ -256,12 +282,16 @@ export class VoiceManager {
       constraints.deviceId = { exact: this.currentInputDeviceId };
     }
 
-    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+    this.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: constraints,
+    });
 
     // Setup Web Audio pipeline: Source -> GainNode -> AnalyserNode (VAD)
     //                                             \-> DestinationNode (producer track)
     this.audioContext = new AudioContext();
-    this.localSourceNode = this.audioContext.createMediaStreamSource(this.localStream);
+    this.localSourceNode = this.audioContext.createMediaStreamSource(
+      this.localStream,
+    );
 
     this.gainNode = this.audioContext.createGain();
     this.localSourceNode.connect(this.gainNode);
@@ -279,7 +309,7 @@ export class VoiceManager {
   private async replaceInputDevice(deviceId: string): Promise<void> {
     // Stop old local stream tracks
     if (this.localStream) {
-      this.localStream.getTracks().forEach(t => t.stop());
+      this.localStream.getTracks().forEach((t) => t.stop());
     }
 
     // Get new stream with updated constraints
@@ -292,12 +322,16 @@ export class VoiceManager {
       constraints.deviceId = { exact: deviceId };
     }
 
-    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+    this.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: constraints,
+    });
 
     // Reconnect Web Audio pipeline (GainNode, AnalyserNode, DestinationNode already exist)
     if (this.audioContext && this.gainNode) {
       this.localSourceNode?.disconnect();
-      this.localSourceNode = this.audioContext.createMediaStreamSource(this.localStream);
+      this.localSourceNode = this.audioContext.createMediaStreamSource(
+        this.localStream,
+      );
       this.localSourceNode.connect(this.gainNode);
     }
 
@@ -341,7 +375,7 @@ export class VoiceManager {
   }
 
   private updateSpeakingStatus(isSpeaking: boolean): void {
-    const currentUser = get(user);
+    const currentUser = authState.user;
     if (currentUser) {
       this.onSpeakingChanged?.(currentUser.id, isSpeaking);
     }
@@ -351,7 +385,7 @@ export class VoiceManager {
 
   async startScreenShare(): Promise<void> {
     if (!this.mediasoup || !this.isConnected || !this.currentChannelId) {
-      throw new Error('Must be in a voice channel to share screen');
+      throw new Error("Must be in a voice channel to share screen");
     }
 
     try {
@@ -362,11 +396,11 @@ export class VoiceManager {
 
       const videoTrack = this.screenStream.getVideoTracks()[0];
       if (!videoTrack) {
-        throw new Error('No video track from screen capture');
+        throw new Error("No video track from screen capture");
       }
 
       // Listen for browser's "Stop sharing" button
-      videoTrack.addEventListener('ended', () => {
+      videoTrack.addEventListener("ended", () => {
         this.stopScreenShare();
       });
 
@@ -409,7 +443,7 @@ export class VoiceManager {
 
   async startCamera(): Promise<void> {
     if (!this.mediasoup || !this.isConnected || !this.currentChannelId) {
-      throw new Error('Must be in a voice channel to share camera');
+      throw new Error("Must be in a voice channel to share camera");
     }
 
     try {
@@ -419,10 +453,10 @@ export class VoiceManager {
 
       const videoTrack = this.cameraStream.getVideoTracks()[0];
       if (!videoTrack) {
-        throw new Error('No video track from camera');
+        throw new Error("No video track from camera");
       }
 
-      videoTrack.addEventListener('ended', () => {
+      videoTrack.addEventListener("ended", () => {
         this.stopCamera();
       });
 
@@ -472,7 +506,7 @@ export class VoiceManager {
     }
 
     if (this.localStream) {
-      this.localStream.getAudioTracks().forEach(track => {
+      this.localStream.getAudioTracks().forEach((track) => {
         track.enabled = !muted;
       });
     }
@@ -485,7 +519,7 @@ export class VoiceManager {
   }
 
   setPTTActive(active: boolean): void {
-    if (this.inputMode !== 'push-to-talk') return;
+    if (this.inputMode !== "push-to-talk") return;
     this.pttActive = active;
     this.setMuted(!active);
   }
@@ -494,7 +528,7 @@ export class VoiceManager {
     this.inputMode = mode;
     // Only change mute state if currently in a voice channel
     if (this.isConnected) {
-      if (mode === 'push-to-talk') {
+      if (mode === "push-to-talk") {
         this.setMuted(true);
       } else {
         this.setMuted(false);
@@ -516,7 +550,9 @@ export class VoiceManager {
     }
 
     if (this.currentChannelId && this.ws) {
-      this.ws.sendVoiceStateUpdate(this.currentChannelId, { is_deafened: this.isDeafened });
+      this.ws.sendVoiceStateUpdate(this.currentChannelId, {
+        is_deafened: this.isDeafened,
+      });
     }
 
     this.onStateChanged?.();
@@ -569,10 +605,15 @@ export class VoiceManager {
 
   setOutputDevice(deviceId: string): void {
     this.currentOutputDeviceId = deviceId;
-    this.remoteAudioElements.forEach(audio => {
-      if ('setSinkId' in audio) {
-        (audio as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> })
-          .setSinkId(deviceId).catch(() => {});
+    this.remoteAudioElements.forEach((audio) => {
+      if ("setSinkId" in audio) {
+        (
+          audio as HTMLAudioElement & {
+            setSinkId: (id: string) => Promise<void>;
+          }
+        )
+          .setSinkId(deviceId)
+          .catch(() => {});
       }
     });
   }
@@ -584,7 +625,7 @@ export class VoiceManager {
       this.voiceStates = await API.getVoiceStates(this.currentChannelId);
       this.onVoiceStatesChanged?.(this.voiceStates);
     } catch (error) {
-      console.error('Failed to update voice states:', error);
+      console.error("Failed to update voice states:", error);
     }
   }
 
@@ -627,26 +668,54 @@ export class VoiceManager {
   }
 
   // Getters
-  get isMutedState(): boolean { return this.isMuted; }
-  get isDeafenedState(): boolean { return this.isDeafened; }
-  get isScreenSharingState(): boolean { return this.isScreenSharing; }
-  get isCameraSharingState(): boolean { return this.isCameraSharing; }
-  get isConnectedState(): boolean { return this.isConnected; }
-  get currentChannel(): string | null { return this.currentChannelId; }
-  get currentVoiceStates(): VoiceState[] { return this.voiceStates; }
-  get currentInputMode(): VoiceInputMode { return this.inputMode; }
-  get isPTTActive(): boolean { return this.pttActive; }
-  get currentInputGain(): number { return this.gainNode?.gain.value ?? 1.0; }
-  get currentOutputVolume(): number { return this.outputVolume; }
-  get currentSpeakingThresholdValue(): number { return this.speakingThreshold; }
-  get isNoiseSuppressionEnabled(): boolean { return this.noiseSuppression; }
+  get isMutedState(): boolean {
+    return this.isMuted;
+  }
+  get isDeafenedState(): boolean {
+    return this.isDeafened;
+  }
+  get isScreenSharingState(): boolean {
+    return this.isScreenSharing;
+  }
+  get isCameraSharingState(): boolean {
+    return this.isCameraSharing;
+  }
+  get isConnectedState(): boolean {
+    return this.isConnected;
+  }
+  get currentChannel(): string | null {
+    return this.currentChannelId;
+  }
+  get currentVoiceStates(): VoiceState[] {
+    return this.voiceStates;
+  }
+  get currentInputMode(): VoiceInputMode {
+    return this.inputMode;
+  }
+  get isPTTActive(): boolean {
+    return this.pttActive;
+  }
+  get currentInputGain(): number {
+    return this.gainNode?.gain.value ?? 1.0;
+  }
+  get currentOutputVolume(): number {
+    return this.outputVolume;
+  }
+  get currentSpeakingThresholdValue(): number {
+    return this.speakingThreshold;
+  }
+  get isNoiseSuppressionEnabled(): boolean {
+    return this.noiseSuppression;
+  }
 
   // Event handlers
   onVoiceStatesChange(handler: (states: VoiceState[]) => void): void {
     this.onVoiceStatesChanged = handler;
   }
 
-  onSpeakingChange(handler: (userId: string, isSpeaking: boolean) => void): void {
+  onSpeakingChange(
+    handler: (userId: string, isSpeaking: boolean) => void,
+  ): void {
     this.onSpeakingChanged = handler;
   }
 
@@ -654,7 +723,9 @@ export class VoiceManager {
     this.onStateChanged = handler;
   }
 
-  onScreenTrack(handler: (track: MediaStreamTrack, userId: string) => void): void {
+  onScreenTrack(
+    handler: (track: MediaStreamTrack, userId: string) => void,
+  ): void {
     this.onScreenTrackReceived = handler;
   }
 
@@ -662,7 +733,9 @@ export class VoiceManager {
     this.onScreenTrackRemoved = handler;
   }
 
-  onCameraTrack(handler: (track: MediaStreamTrack, userId: string) => void): void {
+  onCameraTrack(
+    handler: (track: MediaStreamTrack, userId: string) => void,
+  ): void {
     this.onCameraTrackReceived = handler;
   }
 }

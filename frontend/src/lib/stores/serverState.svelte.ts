@@ -1,4 +1,4 @@
-import type { Channel, UserPresence, CustomEmoji } from '../api';
+import type { Channel, UserPresence, CustomEmoji } from "../api";
 
 export interface ServerStateStore {
   channels: Channel[];
@@ -15,7 +15,7 @@ export const serverState = $state<ServerStateStore>({
   onlineUsers: [],
   userAvatars: {},
   userRolesMap: {},
-  serverName: '',
-  backendVersion: '',
+  serverName: "",
+  backendVersion: "",
   customEmojis: [],
 });
