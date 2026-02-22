@@ -110,6 +110,7 @@ pub struct Reaction {
     pub emoji: String,
     pub count: i64,
     pub reacted: bool,
+    pub users: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

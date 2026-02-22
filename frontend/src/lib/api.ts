@@ -25,6 +25,7 @@ export interface ReactionData {
   emoji: string;
   count: number;
   reacted: boolean;
+  users: string[];
 }
 
 export interface LinkPreview {
@@ -470,8 +471,8 @@ export type WsIncomingMessage =
   | { type: 'user_role_changed'; data: { user_id: string; new_role: string } }
   | { type: 'user_kicked'; data: { user_id: string } }
   | { type: 'user_banned'; data: { user_id: string } }
-  | { type: 'reaction_added'; data: { message_id: string; emoji: string; user_id: string } }
-  | { type: 'reaction_removed'; data: { message_id: string; emoji: string; user_id: string } }
+  | { type: 'reaction_added'; data: { message_id: string; emoji: string; user_id: string; username: string } }
+  | { type: 'reaction_removed'; data: { message_id: string; emoji: string; user_id: string; username: string } }
   | { type: 'link_preview_ready'; data: { message_id: string; channel_id: string; link_previews: LinkPreview[] } }
   | { type: 'voice_user_joined'; data: VoiceState }
   | { type: 'voice_user_left'; data: { user_id: string; channel_id: string } }
