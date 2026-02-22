@@ -14,6 +14,7 @@
 	--status-negative: #f23f43;
 	--border-primary: #111214;
 	--border-input: #2b2d31;
+	--text-primary: #f2f3f5;
 	--text-white: #f2f3f5;
 	--text-secondary: #b5bac1;
 	--text-tertiary: #949ba4;
@@ -1734,7 +1735,7 @@ body {
 	width: 32px;
 	height: 32px;
 	background: var(--brand-primary);
-	color: var(--text-primary);
+	color: var(--text-white);
 	border-radius: var(--radius-sm);
 	display: flex;
 	align-items: center;
