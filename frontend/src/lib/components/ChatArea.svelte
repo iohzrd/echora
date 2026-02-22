@@ -3,7 +3,8 @@
   import { voiceStore } from "../stores/voiceStore.svelte";
   import { chatState } from "../stores/chatState.svelte";
   import { voiceManager } from "../voice";
-  import { toggleSidebar } from "../actions/ui";
+  import { toggleSidebar, toggleMembersSidebar } from "../actions/ui";
+  import { uiState } from "../stores/uiState.svelte";
   import { stopWatching, stopWatchingCamera } from "../actions/voice";
   import MessageList from "./MessageList.svelte";
   import MessageInput from "./MessageInput.svelte";
@@ -101,6 +102,18 @@
     <div class="channel-name">
       {chatState.selectedChannelName || "Select a channel"}
     </div>
+    <button
+      class="members-toggle-btn"
+      class:active={uiState.membersSidebarOpen}
+      onclick={toggleMembersSidebar}
+      title="Toggle members list"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <path
+          d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+        />
+      </svg>
+    </button>
   </div>
 
   {#if voiceStore.watchingScreenUserId}
@@ -162,7 +175,33 @@
   }
 
   .chat-header .channel-name {
+    flex: 1;
     font-weight: 600;
+    color: var(--text-white);
+  }
+
+  .members-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .members-toggle-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-normal);
+  }
+
+  .members-toggle-btn.active {
     color: var(--text-white);
   }
 

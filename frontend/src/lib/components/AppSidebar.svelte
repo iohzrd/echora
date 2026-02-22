@@ -13,7 +13,6 @@
     toggleSidebar,
   } from "../actions/ui";
   import ChannelList from "./ChannelList.svelte";
-  import OnlineUsers from "./OnlineUsers.svelte";
   import VoicePanel from "./VoicePanel.svelte";
   import Avatar from "./Avatar.svelte";
 
@@ -74,7 +73,6 @@
 
     <div class="channels-list">
       <ChannelList />
-      <OnlineUsers />
     </div>
 
     <VoicePanel />

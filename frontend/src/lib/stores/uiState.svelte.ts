@@ -4,6 +4,7 @@ export interface UiStateStore {
   showProfileModal: boolean;
   profileViewUserId: string | null;
   sidebarOpen: boolean;
+  membersSidebarOpen: boolean;
   showAddServerDialog: boolean;
   needsServerAuth: boolean;
   tauriAuthIsLogin: boolean;
@@ -16,6 +17,7 @@ export const uiState = $state<UiStateStore>({
   showProfileModal: false,
   profileViewUserId: null,
   sidebarOpen: false,
+  membersSidebarOpen: true,
   showAddServerDialog: false,
   needsServerAuth: false,
   tauriAuthIsLogin: true,

@@ -55,3 +55,7 @@ export function setNeedsServerAuth(value: boolean) {
 export function setTauriAuthIsLogin(value: boolean) {
   uiState.tauriAuthIsLogin = value;
 }
+
+export function toggleMembersSidebar() {
+  uiState.membersSidebarOpen = !uiState.membersSidebarOpen;
+}

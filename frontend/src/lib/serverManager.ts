@@ -160,9 +160,7 @@ async function checkHealth(
  * split-domain setups (e.g. echnaos.com -> api.echnaos.com).
  * Returns the resolved API base URL so the caller can store the correct one.
  */
-export async function validateServerUrl(
-  url: string,
-): Promise<{
+export async function validateServerUrl(url: string): Promise<{
   valid: boolean;
   resolvedUrl?: string;
   name?: string;
