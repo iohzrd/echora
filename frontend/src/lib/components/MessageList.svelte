@@ -303,7 +303,7 @@
                 <video
                   class="attachment-video"
                   controls
-                  preload="none"
+                  preload="metadata"
                   src={getAttachmentUrl(attachment.id, attachment.filename)}
                 >
                   <track kind="captions" />
@@ -313,7 +313,7 @@
                   <span class="attachment-audio-name">{attachment.filename}</span>
                   <audio
                     controls
-                    preload="none"
+                    preload="metadata"
                     src={getAttachmentUrl(attachment.id, attachment.filename)}
                   ></audio>
                 </div>
