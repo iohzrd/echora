@@ -107,14 +107,25 @@
     }
   }
 
-  function toggleEmojiPicker(messageId: string, event: MouseEvent) {
+  // Tracks which message's picker was just closed by a pointerdown on the trigger
+  // button, so the subsequent click doesn't re-open it.
+  let suppressOpenForMessageId: string | null = null;
+
+  function handleEmojiButtonPointerDown(messageId: string) {
     if ($emojiPickerState.messageId === messageId) {
-      closeEmojiPicker();
-    } else {
-      openEmojiPicker(messageId, event.currentTarget as HTMLElement, (emoji) => {
-        toggleReaction(messageId, emoji);
-      });
+      suppressOpenForMessageId = messageId;
     }
+  }
+
+  function toggleEmojiPicker(messageId: string, event: MouseEvent) {
+    if (suppressOpenForMessageId === messageId) {
+      suppressOpenForMessageId = null;
+      return;
+    }
+    suppressOpenForMessageId = null;
+    openEmojiPicker(messageId, event.currentTarget as HTMLElement, (emoji) => {
+      toggleReaction(messageId, emoji);
+    });
   }
 
   function isImageType(contentType: string): boolean {
@@ -396,6 +407,7 @@
             {/each}
             <button
               class="reaction-btn add-reaction"
+              onpointerdown={() => handleEmojiButtonPointerDown(message.id)}
               onclick={(e) => toggleEmojiPicker(message.id, e)}
               title="Add reaction">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -413,6 +425,7 @@
           </button>
           <button
             class="msg-action-btn"
+            onpointerdown={() => handleEmojiButtonPointerDown(message.id)}
             onclick={(e) => toggleEmojiPicker(message.id, e)}
             title="React">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-5H11v-1h2v1zm1 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM17 9H7V7h10v2z"/></svg>

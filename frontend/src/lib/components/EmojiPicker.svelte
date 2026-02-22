@@ -29,43 +29,52 @@
 
   const PICKER_WIDTH = 320;
 
-  let style = $state("visibility: hidden");
+  let style = $state("position: fixed; visibility: hidden; top: 0; left: 0;");
 
   onMount(() => {
-    // Compute position after render so we have real offsetHeight
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const pickerHeight = pickerEl.offsetHeight;
+    const pickerHeight = pickerEl.offsetHeight || 360;
 
-    let left = anchorRect.left;
+    const { top, bottom, left: rectLeft, right: rectRight } = anchorRect;
+
+    // Prefer aligning picker's right edge to button's right edge,
+    // fall back to left-aligning if that would go off-screen left.
+    let left = rectRight - PICKER_WIDTH;
+    if (left < 8) left = rectLeft;
     if (left + PICKER_WIDTH > vw - 8) left = vw - PICKER_WIDTH - 8;
     if (left < 8) left = 8;
 
-    const spaceAbove = anchorRect.top;
-    const spaceBelow = vh - anchorRect.bottom;
+    const spaceAbove = top;
+    const spaceBelow = vh - bottom;
 
+    let posStyle: string;
     if (spaceAbove >= pickerHeight || spaceAbove >= spaceBelow) {
-      style = `bottom: ${vh - anchorRect.top + 4}px; left: ${left}px;`;
+      // Open above: anchor the picker's bottom to just above the button
+      const bottomPx = vh - top + 4;
+      posStyle = `top: auto; bottom: ${bottomPx}px; left: ${left}px;`;
     } else {
-      style = `top: ${anchorRect.bottom + 4}px; left: ${left}px;`;
+      // Open below: anchor the picker's top to just below the button
+      posStyle = `top: ${bottom + 4}px; bottom: auto; left: ${left}px;`;
     }
+
+    style = `position: fixed; ${posStyle}`;
 
     if (searchInput) searchInput.focus();
 
-    function handleClickOutside(e: MouseEvent) {
+    function handlePointerDown(e: PointerEvent) {
       if (pickerEl && !pickerEl.contains(e.target as Node)) {
         closeEmojiPicker();
       }
     }
 
-    // Use a timeout so the click that opened the picker doesn't immediately close it
     const t = setTimeout(() => {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handlePointerDown);
     }, 0);
 
     return () => {
       clearTimeout(t);
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("pointerdown", handlePointerDown);
     };
   });
 
