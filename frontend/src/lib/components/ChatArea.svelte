@@ -141,3 +141,61 @@
     <MessageInput />
   {/if}
 </div>
+
+<style>
+.main-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	background-color: var(--bg-primary);
+	min-height: 0;
+	min-width: 0;
+}
+
+.chat-header {
+	height: 48px;
+	padding: 0 16px;
+	display: flex;
+	align-items: center;
+	border-bottom: 1px solid var(--border-input);
+	background-color: var(--bg-primary);
+	flex-shrink: 0;
+}
+
+.chat-header .channel-name {
+	font-weight: 600;
+	color: var(--text-white);
+}
+
+.chat-header .channel-name::before {
+	content: '#';
+	color: var(--text-muted);
+	margin-right: 4px;
+}
+
+.typing-indicator {
+	padding: 4px 16px;
+	font-size: 12px;
+	color: var(--text-tertiary);
+	background-color: var(--bg-primary);
+	flex-shrink: 0;
+}
+
+.typing-text {
+	font-style: italic;
+}
+
+.rate-limit-warning {
+	padding: 4px 16px;
+	font-size: 12px;
+	color: var(--status-error);
+	background-color: var(--bg-primary);
+	flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+	.chat-header {
+		padding: 0 8px;
+	}
+}
+</style>

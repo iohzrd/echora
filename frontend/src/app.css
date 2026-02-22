@@ -15,10 +15,10 @@
 	--border-primary: #111214;
 	--border-input: #2b2d31;
 	--text-primary: #f2f3f5;
-	--text-white: #f2f3f5;
+	--text-white: var(--text-primary);
 	--text-secondary: #b5bac1;
-	--text-tertiary: #949ba4;
-	--bg-message-hover: #232528;
+	--text-tertiary: var(--text-muted);
+	--bg-message-hover: var(--bg-hover);
 	--bg-selected: #2a2c30;
 	--bg-hover-strong: #2e3035;
 	--border-subtle: #2b2d31;
@@ -164,7 +164,7 @@ body {
 }
 
 .header-icon-btn.logout:hover {
-	color: var(--status-danger);
+	color: var(--status-negative);
 }
 
 .channels-list {
@@ -215,36 +215,6 @@ body {
 	justify-content: center;
 }
 
-.main-content {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	background-color: var(--bg-primary);
-	min-height: 0;
-	min-width: 0;
-}
-
-.chat-header {
-	height: 48px;
-	padding: 0 16px;
-	display: flex;
-	align-items: center;
-	border-bottom: 1px solid var(--border-input);
-	background-color: var(--bg-primary);
-	flex-shrink: 0;
-}
-
-.chat-header .channel-name {
-	font-weight: 600;
-	color: var(--text-white);
-}
-
-.chat-header .channel-name::before {
-	content: '#';
-	color: var(--text-muted);
-	margin-right: 4px;
-}
-
 .messages-area {
 	flex: 1;
 	overflow-y: auto;
@@ -261,6 +231,7 @@ body {
 	gap: 16px;
 	border-radius: var(--radius-md);
 	transition: background-color 0.1s ease;
+	position: relative;
 }
 
 .message:hover {
@@ -1142,33 +1113,7 @@ body {
 	white-space: nowrap;
 }
 
-/* Typing Indicator */
-.typing-indicator {
-	padding: 4px 16px;
-	font-size: 12px;
-	color: var(--text-tertiary);
-	background-color: var(--bg-primary);
-	flex-shrink: 0;
-}
-
-.typing-text {
-	font-style: italic;
-}
-
-/* Rate Limit Warning */
-.rate-limit-warning {
-	padding: 4px 16px;
-	font-size: 12px;
-	color: var(--error, #f23f43);
-	background-color: var(--bg-primary);
-	flex-shrink: 0;
-}
-
 /* Message Actions (Edit/Delete) */
-.message {
-	position: relative;
-}
-
 .message-actions {
 	display: none;
 	gap: 2px;
@@ -1383,204 +1328,6 @@ body {
 	color: var(--text-normal);
 }
 
-/* Emoji picker */
-.emoji-picker {
-	display: flex;
-	flex-direction: column;
-	padding: 8px;
-	background: var(--bg-secondary);
-	border: 1px solid var(--border-input);
-	border-radius: var(--radius-lg);
-	position: absolute;
-	bottom: 100%;
-	left: 0;
-	z-index: 10;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	margin-bottom: 4px;
-	width: 320px;
-}
-
-.emoji-picker-floating {
-	position: absolute;
-	bottom: 100%;
-	right: 0;
-	left: auto;
-}
-
-.emoji-picker-below {
-	bottom: auto;
-	top: 100%;
-	margin-bottom: 0;
-	margin-top: 4px;
-}
-
-.emoji-picker-tabs {
-	display: flex;
-	gap: 2px;
-	margin-bottom: 6px;
-	border-bottom: 1px solid var(--border-input);
-	padding-bottom: 4px;
-}
-
-.emoji-tab-btn {
-	background: none;
-	border: none;
-	color: var(--text-faint);
-	font-size: 12px;
-	cursor: pointer;
-	padding: 2px 8px;
-	border-radius: var(--radius-sm);
-}
-
-.emoji-tab-btn:hover {
-	color: var(--text-normal);
-	background: var(--bg-input);
-}
-
-.emoji-tab-btn.active {
-	color: var(--text-white);
-	background: var(--brand-primary);
-}
-
-.emoji-category-bar {
-	display: flex;
-	gap: 2px;
-	margin-bottom: 4px;
-	padding-bottom: 4px;
-	border-bottom: 1px solid var(--border-input);
-	overflow-x: auto;
-}
-
-.emoji-category-btn {
-	background: none;
-	border: none;
-	font-size: 16px;
-	cursor: pointer;
-	padding: 2px 4px;
-	border-radius: var(--radius-sm);
-	line-height: 1;
-	flex-shrink: 0;
-	opacity: 0.5;
-}
-
-.emoji-category-btn:hover {
-	background: var(--bg-input);
-	opacity: 0.8;
-}
-
-.emoji-category-btn.active {
-	opacity: 1;
-	background: var(--bg-input);
-}
-
-.emoji-search {
-	width: 100%;
-	padding: 4px 8px;
-	margin-bottom: 6px;
-	border: 1px solid var(--border-input);
-	border-radius: var(--radius-sm);
-	background: var(--bg-input);
-	color: var(--text-normal);
-	font-size: 12px;
-	outline: none;
-	box-sizing: border-box;
-}
-
-.emoji-search:focus {
-	border-color: var(--brand-primary);
-}
-
-.emoji-grid {
-	display: grid;
-	grid-template-columns: repeat(8, 1fr);
-	gap: 2px;
-	max-height: 250px;
-	overflow-y: auto;
-}
-
-.emoji-picker-btn {
-	background: none;
-	border: none;
-	font-size: 20px;
-	cursor: pointer;
-	padding: 4px;
-	border-radius: var(--radius-md);
-	line-height: 1;
-}
-
-.emoji-picker-btn:hover {
-	background: var(--bg-input);
-}
-
-.custom-emoji-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.custom-emoji-img-picker {
-	width: 24px;
-	height: 24px;
-	object-fit: contain;
-}
-
-.emoji-picker-empty {
-	grid-column: 1 / -1;
-	text-align: center;
-	color: var(--text-faint);
-	font-size: 12px;
-	padding: 12px 0;
-}
-
-.emoji-upload-section {
-	border-top: 1px solid var(--border-input);
-	margin-top: 6px;
-	padding-top: 6px;
-}
-
-.emoji-upload-row {
-	display: flex;
-	gap: 4px;
-	align-items: center;
-}
-
-.emoji-upload-name {
-	width: 80px;
-	padding: 2px 6px;
-	border: 1px solid var(--border-input);
-	border-radius: var(--radius-sm);
-	background: var(--bg-input);
-	color: var(--text-normal);
-	font-size: 11px;
-}
-
-.emoji-upload-file {
-	font-size: 11px;
-	color: var(--text-faint);
-	max-width: 100px;
-}
-
-.emoji-upload-btn {
-	padding: 2px 8px;
-	border: 1px solid var(--border-input);
-	border-radius: var(--radius-sm);
-	background: var(--brand-primary);
-	color: var(--text-white);
-	font-size: 11px;
-	cursor: pointer;
-}
-
-.emoji-upload-btn:disabled {
-	opacity: 0.5;
-	cursor: not-allowed;
-}
-
-.emoji-upload-error {
-	color: var(--text-error, #f44);
-	font-size: 11px;
-	margin-top: 4px;
-}
-
 /* Custom emoji in reactions */
 .custom-emoji-reaction {
 	width: 16px;
@@ -1766,116 +1513,6 @@ body {
 	color: var(--text-tertiary);
 }
 
-/* Screen Share Viewer */
-.screen-share-viewer {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	background-color: var(--bg-tertiary);
-	overflow: hidden;
-}
-
-.screen-share-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 8px 16px;
-	background-color: var(--bg-secondary);
-	border-bottom: 1px solid var(--border-primary);
-}
-
-.screen-share-title {
-	color: var(--text-normal);
-	font-size: 14px;
-	font-weight: 600;
-}
-
-.screen-share-controls {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.screen-share-control-btn {
-	background: var(--bg-input);
-	border: none;
-	color: var(--text-muted);
-	cursor: pointer;
-	padding: 6px;
-	border-radius: var(--radius-md);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: background-color 0.2s, color 0.2s;
-}
-
-.screen-share-control-btn:hover {
-	background: var(--bg-hover-strong);
-	color: var(--text-normal);
-}
-
-.screen-share-back-btn {
-	background: var(--bg-input);
-	border: none;
-	color: var(--text-normal);
-	cursor: pointer;
-	padding: 6px 12px;
-	border-radius: var(--radius-md);
-	font-size: 13px;
-	transition: background-color 0.2s;
-}
-
-.screen-share-back-btn:hover {
-	background: var(--bg-hover-strong);
-}
-
-.screen-share-viewer:fullscreen {
-	background-color: #000;
-}
-
-.screen-share-viewer:fullscreen .screen-share-header {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	z-index: 10;
-	background-color: rgba(0, 0, 0, 0.7);
-	border-bottom: none;
-	opacity: 0;
-	transition: opacity 0.3s;
-}
-
-.screen-share-viewer:fullscreen:hover .screen-share-header {
-	opacity: 1;
-}
-
-.screen-share-viewer:fullscreen .screen-share-video-container {
-	padding: 0;
-}
-
-.screen-share-viewer:fullscreen .screen-share-video {
-	max-width: 100%;
-	max-height: 100%;
-	border-radius: 0;
-}
-
-.screen-share-video-container {
-	flex: 1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 16px;
-	overflow: hidden;
-}
-
-.screen-share-video {
-	max-width: 100%;
-	max-height: 100%;
-	object-fit: contain;
-	border-radius: var(--radius-lg);
-	background-color: #000;
-}
-
 /* Loading Indicator */
 .loading-more {
 	text-align: center;
@@ -1962,10 +1599,6 @@ body {
 
 	.message-input-area {
 		padding: 8px;
-	}
-
-	.chat-header {
-		padding: 0 8px;
 	}
 
 	.message-author {
@@ -2068,101 +1701,6 @@ body {
 .auth-form .submit-btn:disabled {
 	background-color: var(--brand-primary-dark);
 	cursor: not-allowed;
-}
-
-/* Server Sidebar (Tauri multi-server) */
-.server-sidebar {
-	width: 72px;
-	background-color: var(--bg-tertiary);
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	padding: 12px 0;
-	gap: 8px;
-	flex-shrink: 0;
-	overflow-y: auto;
-}
-
-.server-sidebar-icon {
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	background-color: var(--bg-primary);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--text-white);
-	font-weight: bold;
-	font-size: 18px;
-	cursor: pointer;
-	transition: border-radius 0.2s ease, background-color 0.2s ease;
-	border: none;
-	flex-shrink: 0;
-}
-
-.server-sidebar-icon:hover {
-	border-radius: 16px;
-	background-color: var(--brand-primary);
-}
-
-.server-sidebar-icon.active {
-	border-radius: 16px;
-	background-color: var(--brand-primary);
-}
-
-.server-sidebar-icon.add-server {
-	background-color: transparent;
-	border: 2px dashed var(--text-faint);
-	color: var(--text-faint);
-	font-size: 24px;
-}
-
-.server-sidebar-icon.add-server:hover {
-	border-color: var(--status-positive);
-	color: var(--status-positive);
-	background-color: transparent;
-}
-
-.server-sidebar-separator {
-	width: 32px;
-	height: 2px;
-	background-color: var(--border-primary);
-	border-radius: 1px;
-	flex-shrink: 0;
-}
-
-/* Server Context Menu */
-.server-context-menu {
-	position: fixed;
-	background-color: var(--bg-secondary);
-	border: 1px solid var(--border-primary);
-	border-radius: var(--radius-md);
-	padding: 4px;
-	z-index: 200;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-	min-width: 160px;
-}
-
-.context-menu-item {
-	display: block;
-	width: 100%;
-	background: none;
-	border: none;
-	color: var(--text-normal);
-	padding: 8px 12px;
-	font-size: 13px;
-	text-align: left;
-	cursor: pointer;
-	border-radius: var(--radius-sm);
-}
-
-.context-menu-item:hover {
-	background-color: var(--brand-primary);
-	color: var(--text-white);
-}
-
-.context-menu-item.danger:hover {
-	background-color: var(--status-negative);
 }
 
 /* Add Server Dialog */
