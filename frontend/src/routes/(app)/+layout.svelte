@@ -39,6 +39,8 @@
   import ProfileModal from '../../lib/components/ProfileModal.svelte';
   import AppSidebar from '../../lib/components/AppSidebar.svelte';
   import ChatArea from '../../lib/components/ChatArea.svelte';
+  import EmojiPicker from '../../lib/components/EmojiPicker.svelte';
+  import { emojiPickerState } from '../../lib/stores/emojiPickerState';
 
   let { children } = $props();
 
@@ -192,6 +194,14 @@
   <ProfileModal
     viewUserId={$uiState.profileViewUserId}
     onClose={closeProfileView}
+  />
+{/if}
+
+{#if $emojiPickerState.anchorRect && $emojiPickerState.onSelect}
+  <EmojiPicker
+    anchorRect={$emojiPickerState.anchorRect}
+    onSelect={$emojiPickerState.onSelect}
+    customEmojis={$serverState.customEmojis}
   />
 {/if}
 
