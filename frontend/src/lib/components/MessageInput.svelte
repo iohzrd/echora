@@ -30,8 +30,8 @@
       pending.id = attachment.id;
       pending.progress = 100;
       pending.uploading = false;
-    } catch (e: any) {
-      pending.error = e.message || 'Upload failed';
+    } catch (e) {
+      pending.error = e instanceof Error ? e.message : 'Upload failed';
       pending.uploading = false;
     }
     pendingFiles = pendingFiles;

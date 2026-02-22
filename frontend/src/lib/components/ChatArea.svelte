@@ -9,7 +9,7 @@
   import MessageInput from './MessageInput.svelte';
   import ScreenShareViewer from './ScreenShareViewer.svelte';
 
-  export let messageList: MessageList | undefined = undefined;
+  let messageList: MessageList | undefined = undefined;
 
   let screenVideoElement: HTMLVideoElement;
   let cameraVideoElement: HTMLVideoElement;

@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { voiceManager } from '../voice';
-import { audioSettingsStore } from '../stores/voiceStore';
+import { audioSettingsStore } from '../stores/audioSettingsStore';
 import {
   loadAudioSettings,
   saveAudioSettings,
@@ -96,8 +96,4 @@ export function toggleNoiseSuppression(enabled: boolean) {
 export function changeUserVolume(userId: string, volume: number) {
   voiceManager.setUserVolume(userId, volume);
   savePerUserVolume(userId, volume);
-}
-
-export function getUserVolume(userId: string): number {
-  return voiceManager.getUserVolume(userId);
 }

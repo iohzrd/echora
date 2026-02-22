@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { audioSettingsStore } from '../stores/voiceStore';
+  import { audioSettingsStore } from '../stores/audioSettingsStore';
   import {
     changeInputDevice,
     changeOutputDevice,
