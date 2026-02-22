@@ -75,18 +75,12 @@ export async function watchScreen(userId: string, username: string) {
   }
 }
 
-export function stopWatching(screenVideoElement: HTMLVideoElement | null, screenAudioElementRef: { el: HTMLAudioElement | null }) {
+export function stopWatching() {
   voiceStore.update((s) => ({
     ...s,
     watchingScreenUserId: null,
     watchingScreenUsername: '',
   }));
-  if (screenVideoElement) screenVideoElement.srcObject = null;
-  if (screenAudioElementRef.el) {
-    screenAudioElementRef.el.srcObject = null;
-    screenAudioElementRef.el.remove();
-    screenAudioElementRef.el = null;
-  }
 }
 
 export async function watchCamera(userId: string, username: string) {
@@ -109,19 +103,14 @@ export async function watchCamera(userId: string, username: string) {
   }
 }
 
-export function stopWatchingCamera(cameraVideoElement: HTMLVideoElement | null) {
+export function stopWatchingCamera() {
   voiceStore.update((s) => ({
     ...s,
     watchingCameraUserId: null,
     watchingCameraUsername: '',
   }));
-  if (cameraVideoElement) cameraVideoElement.srcObject = null;
 }
 
 export function getUserVolume(userId: string): number {
   return voiceManager.getUserVolume(userId);
-}
-
-export function setUserVolume(userId: string, volume: number) {
-  voiceManager.setUserVolume(userId, volume);
 }

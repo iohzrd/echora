@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { voiceStore } from '../stores/voiceStore';
   import { chatState } from '../stores/chatState';
   import { uiState } from '../stores/uiState';
+  import { voiceManager } from '../voice';
   import { stopWatching, stopWatchingCamera } from '../actions/voice';
-  import { registerScrollCallbacks } from '../actions/server';
   import MessageList from './MessageList.svelte';
   import MessageInput from './MessageInput.svelte';
   import ScreenShareViewer from './ScreenShareViewer.svelte';
@@ -13,23 +13,64 @@
 
   let screenVideoElement: HTMLVideoElement;
   let cameraVideoElement: HTMLVideoElement;
-  let screenAudioRef = { el: null as HTMLAudioElement | null };
+  let screenAudioEl: HTMLAudioElement | null = null;
 
   onMount(() => {
-    registerScrollCallbacks(
-      () => messageList?.scrollToBottom(),
-      () => messageList?.isNearBottom() ?? false,
-    );
+    voiceManager.onScreenTrack((track) => {
+      if (track.kind === 'video') {
+        if (screenVideoElement) {
+          screenVideoElement.srcObject = new MediaStream([track]);
+          screenVideoElement
+            .play()
+            .catch((e) => console.warn('Screen video autoplay prevented:', e));
+        }
+      } else if (track.kind === 'audio') {
+        if (screenAudioEl) {
+          screenAudioEl.srcObject = null;
+          screenAudioEl.remove();
+        }
+        screenAudioEl = document.createElement('audio');
+        screenAudioEl.autoplay = true;
+        screenAudioEl.volume = 1.0;
+        screenAudioEl.srcObject = new MediaStream([track]);
+        document.body.appendChild(screenAudioEl);
+        screenAudioEl
+          .play()
+          .catch((e) => console.warn('Screen audio autoplay prevented:', e));
+      }
+    });
+
+    voiceManager.onCameraTrack((track) => {
+      if (track.kind === 'video' && cameraVideoElement) {
+        cameraVideoElement.srcObject = new MediaStream([track]);
+        cameraVideoElement
+          .play()
+          .catch((e) => console.warn('Camera video autoplay prevented:', e));
+      }
+    });
   });
 
-  // Watch for WS-driven stop signals
-  $: if ($uiState.stopWatchingScreen) {
-    stopWatching(screenVideoElement ?? null, screenAudioRef);
-    uiState.update((s) => ({ ...s, stopWatchingScreen: false }));
+  function handleStopWatching() {
+    stopWatching();
+    if (screenVideoElement) screenVideoElement.srcObject = null;
+    if (screenAudioEl) {
+      screenAudioEl.srcObject = null;
+      screenAudioEl.remove();
+      screenAudioEl = null;
+    }
   }
-  $: if ($uiState.stopWatchingCamera) {
-    stopWatchingCamera(cameraVideoElement ?? null);
-    uiState.update((s) => ({ ...s, stopWatchingCamera: false }));
+
+  function handleStopWatchingCamera() {
+    stopWatchingCamera();
+    if (cameraVideoElement) cameraVideoElement.srcObject = null;
+  }
+
+  // When the WS signals that a remote screen share stopped, tear down our DOM
+  $: if (!$voiceStore.watchingScreenUserId && screenVideoElement?.srcObject) {
+    handleStopWatching();
+  }
+  $: if (!$voiceStore.watchingCameraUserId && cameraVideoElement?.srcObject) {
+    handleStopWatchingCamera();
   }
 
   function getTypingText(): string {
@@ -54,14 +95,14 @@
   {#if $voiceStore.watchingScreenUserId}
     <ScreenShareViewer
       username={$voiceStore.watchingScreenUsername}
-      onClose={() => stopWatching(screenVideoElement ?? null, screenAudioRef)}
+      onClose={handleStopWatching}
       bind:videoElement={screenVideoElement}
     />
   {:else if $voiceStore.watchingCameraUserId}
     <ScreenShareViewer
       username={$voiceStore.watchingCameraUsername}
       type="camera"
-      onClose={() => stopWatchingCamera(cameraVideoElement ?? null)}
+      onClose={handleStopWatchingCamera}
       bind:videoElement={cameraVideoElement}
     />
   {:else}

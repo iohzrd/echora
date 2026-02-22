@@ -16,11 +16,7 @@
   import { voiceStore } from '../lib/stores/voiceStore';
   import { serverState } from '../lib/stores/serverState';
   import { uiState } from '../lib/stores/uiState';
-  import {
-    connectToServer,
-    setupVoiceHandlers,
-    initPTTSettings,
-  } from '../lib/actions/server';
+  import { connectToServer, initPTTSettings } from '../lib/actions/server';
   import { initAudioSettings, removeDeviceListener } from '../lib/actions/audioSettings';
 
   import ServerSidebar from '../lib/components/ServerSidebar.svelte';
@@ -33,17 +29,9 @@
   import AppSidebar from '../lib/components/AppSidebar.svelte';
   import ChatArea from '../lib/components/ChatArea.svelte';
 
-  let screenAudioRef = { el: null as HTMLAudioElement | null };
-  let chatArea: ChatArea;
-
   $: activeServerName = $serverState.serverName || $activeServer?.name || 'Echora';
 
   onMount(async () => {
-    setupVoiceHandlers(
-      () => (chatArea as any)?.screenVideoElement ?? null,
-      () => (chatArea as any)?.cameraVideoElement ?? null,
-      screenAudioRef,
-    );
     await initPTTSettings();
 
     if (isTauri) {
@@ -161,7 +149,7 @@
     </div>
   {:else}
     <AppSidebar />
-    <ChatArea bind:this={chatArea} />
+    <ChatArea />
   {/if}
 </div>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { API } from '../api';
+  import { formatFileSize } from '../utils';
   import { chatState } from '../stores/chatState';
   import { sendMessage, sendTyping, cancelReply } from '../actions/chat';
 
@@ -18,12 +19,6 @@
 
   const MAX_FILE_SIZE = 25 * 1024 * 1024;
   const MAX_FILES = 5;
-
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
 
   async function uploadFile(pending: PendingFile) {
     pending.uploading = true;

@@ -70,19 +70,6 @@ function updateMessageReaction(
   }));
 }
 
-// scrollToBottom is called from the WS handler for new messages.
-// We accept it as a callback since it's a DOM operation owned by MessageList.
-let _scrollToBottom: (() => void) | null = null;
-let _isNearBottom: (() => boolean) | null = null;
-
-export function registerScrollCallbacks(
-  scrollToBottom: () => void,
-  isNearBottom: () => boolean,
-) {
-  _scrollToBottom = scrollToBottom;
-  _isNearBottom = isNearBottom;
-}
-
 let _rateLimitTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function setupWsHandlers() {
@@ -93,7 +80,6 @@ export function setupWsHandlers() {
     const currentUser = get(user);
 
     if (data.type === 'message' && data.data.channel_id === cs.selectedChannelId) {
-      const shouldScroll = _isNearBottom?.() ?? false;
       populateAvatarsFromMessages([data.data]);
       chatState.update((s) => {
         const typingUsers = new Map(s.typingUsers);
@@ -104,9 +90,6 @@ export function setupWsHandlers() {
         }
         return { ...s, messages: [...s.messages, data.data], typingUsers };
       });
-      if (shouldScroll) {
-        requestAnimationFrame(() => _scrollToBottom?.());
-      }
     }
 
     if (data.type === 'channel_created') {
@@ -288,10 +271,15 @@ export function setupWsHandlers() {
             ? { ...v, is_screen_sharing: data.data.is_screen_sharing }
             : v,
         ),
+        watchingScreenUserId:
+          !data.data.is_screen_sharing && s.watchingScreenUserId === data.data.user_id
+            ? null
+            : s.watchingScreenUserId,
+        watchingScreenUsername:
+          !data.data.is_screen_sharing && s.watchingScreenUserId === data.data.user_id
+            ? ''
+            : s.watchingScreenUsername,
       }));
-      if (!data.data.is_screen_sharing && vs.watchingScreenUserId === data.data.user_id) {
-        uiState.update((s) => ({ ...s, stopWatchingScreen: true }));
-      }
     }
 
     if (data.type === 'camera_updated') {
@@ -302,10 +290,15 @@ export function setupWsHandlers() {
             ? { ...v, is_camera_sharing: data.data.is_camera_sharing }
             : v,
         ),
+        watchingCameraUserId:
+          !data.data.is_camera_sharing && s.watchingCameraUserId === data.data.user_id
+            ? null
+            : s.watchingCameraUserId,
+        watchingCameraUsername:
+          !data.data.is_camera_sharing && s.watchingCameraUserId === data.data.user_id
+            ? ''
+            : s.watchingCameraUsername,
       }));
-      if (!data.data.is_camera_sharing && vs.watchingCameraUserId === data.data.user_id) {
-        uiState.update((s) => ({ ...s, stopWatchingCamera: true }));
-      }
     }
 
     if (data.type === 'user_kicked' && data.data.user_id === currentUser?.id) {
@@ -377,11 +370,7 @@ export function setupWsHandlers() {
   });
 }
 
-export function setupVoiceHandlers(
-  screenVideoElement: () => HTMLVideoElement | null,
-  cameraVideoElement: () => HTMLVideoElement | null,
-  screenAudioRef: { el: HTMLAudioElement | null },
-) {
+export function setupVoiceStateHandlers() {
   voiceManager.onVoiceStatesChange((states) => {
     if (states.length > 0) {
       const channelId = states[0].channel_id;
@@ -397,39 +386,6 @@ export function setupVoiceHandlers(
 
   voiceManager.onSpeakingChange(updateSpeaking);
   voiceManager.onStateChange(syncVoiceState);
-
-  voiceManager.onScreenTrack((track) => {
-    if (track.kind === 'video') {
-      const el = screenVideoElement();
-      if (el) {
-        el.srcObject = new MediaStream([track]);
-        el.play().catch((e) => console.warn('Screen video autoplay prevented:', e));
-      }
-    } else if (track.kind === 'audio') {
-      if (screenAudioRef.el) {
-        screenAudioRef.el.srcObject = null;
-        screenAudioRef.el.remove();
-      }
-      screenAudioRef.el = document.createElement('audio');
-      screenAudioRef.el.autoplay = true;
-      screenAudioRef.el.volume = 1.0;
-      screenAudioRef.el.srcObject = new MediaStream([track]);
-      document.body.appendChild(screenAudioRef.el);
-      screenAudioRef.el
-        .play()
-        .catch((e) => console.warn('Screen audio autoplay prevented:', e));
-    }
-  });
-
-  voiceManager.onCameraTrack((track) => {
-    if (track.kind === 'video') {
-      const el = cameraVideoElement();
-      if (el) {
-        el.srcObject = new MediaStream([track]);
-        el.play().catch((e) => console.warn('Camera video autoplay prevented:', e));
-      }
-    }
-  });
 }
 
 export async function connectToServer() {
@@ -513,6 +469,7 @@ export async function connectToServer() {
 
     resetWs();
     setupWsHandlers();
+    setupVoiceStateHandlers();
     getWs().onReconnect(() => voiceManager.reconcileProducers());
     await getWs().connect();
     syncVoiceState();

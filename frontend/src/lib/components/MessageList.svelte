@@ -1,7 +1,7 @@
 <script lang="ts">
   import { API, type CustomEmoji } from '../api';
   import { renderMarkdown } from '../markdown';
-  import { formatTimestamp, truncateContent } from '../utils';
+  import { formatTimestamp, truncateContent, formatFileSize } from '../utils';
   import { getApiBase } from '../config';
   import { isTauri } from '../serverManager';
   import { user } from '../auth';
@@ -71,6 +71,16 @@
     }
   }
 
+  let prevMessageCount = 0;
+  $: if ($chatState.messages.length > prevMessageCount) {
+    prevMessageCount = $chatState.messages.length;
+    if (isNearBottom()) {
+      requestAnimationFrame(() => {
+        if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+      });
+    }
+  }
+
   function handleScroll() {
     if (messagesArea && messagesArea.scrollTop === 0) {
       loadOlderMessages(() => preserveScroll(() => {}));
@@ -124,12 +134,6 @@
     const data = getCustomEmojiData(emoji);
     if (!data) return null;
     return resolveUrl(API.getCustomEmojiUrl(data.id));
-  }
-
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   const COLLAPSE_HEIGHT = 300;

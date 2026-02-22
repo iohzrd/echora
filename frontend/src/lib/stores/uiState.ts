@@ -9,9 +9,6 @@ export interface UiStateStore {
   showAddServerDialog: boolean;
   needsServerAuth: boolean;
   tauriAuthIsLogin: boolean;
-  // Signals from WS handlers back to ChatArea for stopping watchers
-  stopWatchingScreen: boolean;
-  stopWatchingCamera: boolean;
 }
 
 export const uiState = writable<UiStateStore>({
@@ -23,6 +20,4 @@ export const uiState = writable<UiStateStore>({
   showAddServerDialog: false,
   needsServerAuth: false,
   tauriAuthIsLogin: true,
-  stopWatchingScreen: false,
-  stopWatchingCamera: false,
 });
