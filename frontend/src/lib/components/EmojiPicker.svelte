@@ -15,12 +15,12 @@
   let uploadFile: File | null = $state(null);
   let uploading = $state(false);
   let uploadError = $state("");
-  let fileInput: HTMLInputElement = $state()!;
-  let pickerEl: HTMLDivElement = $state()!;
+  let fileInput: HTMLInputElement;
+  let pickerEl: HTMLDivElement;
   let openBelow = $state(false);
   let activeCategory = $state(0);
   let searchQuery = $state("");
-  let searchInput: HTMLInputElement = $state()!;
+  let searchInput: HTMLInputElement;
 
   onMount(() => {
     if (pickerEl) {
