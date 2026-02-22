@@ -183,6 +183,11 @@ export function setupWsHandlers() {
           ? { ...v, username, display_name: display_name ?? undefined }
           : v,
       );
+      chatState.messages = chatState.messages.map((m) =>
+        m.author_id === user_id
+          ? { ...m, username, display_name: display_name ?? undefined }
+          : m,
+      );
     }
 
     if (data.type === "message_edited") {
