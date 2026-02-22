@@ -1,5 +1,6 @@
 import { get } from 'svelte/store';
 import { goto } from '$app/navigation';
+import { page } from '$app/stores';
 import { API, ApiError } from '../api';
 import AuthService, { user } from '../auth';
 import { voiceManager } from '../voice';
@@ -160,9 +161,11 @@ async function _connectToServer() {
     syncVoiceState();
 
     const { channels } = get(serverState);
-    const firstTextChannel = channels.find((c) => c.channel_type === 'text');
-    if (firstTextChannel) {
-      await selectChannel(firstTextChannel.id, firstTextChannel.name);
+    const urlChannelId = get(page).params.channelId;
+    const targetChannel = urlChannelId ? channels.find((c) => c.id === urlChannelId) : null;
+    const channelToSelect = targetChannel ?? channels.find((c) => c.channel_type === 'text');
+    if (channelToSelect) {
+      await selectChannel(channelToSelect.id, channelToSelect.name);
     }
   } catch (error) {
     console.error('Failed to load initial data:', error);
