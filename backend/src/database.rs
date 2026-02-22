@@ -455,10 +455,12 @@ pub async fn get_reactions_for_messages(
     message_ids: &[Uuid],
     requesting_user_id: Uuid,
 ) -> Result<HashMap<Uuid, Vec<Reaction>>, AppError> {
-    let rows: Vec<(Uuid, String, i64, bool)> = sqlx::query_as(
+    let rows: Vec<(Uuid, String, i64, bool, Vec<String>)> = sqlx::query_as(
         "SELECT r.message_id, r.emoji, COUNT(*) as count,
-                BOOL_OR(r.user_id = $2) as reacted
+                BOOL_OR(r.user_id = $2) as reacted,
+                ARRAY_AGG(u.username ORDER BY r.created_at) as users
          FROM reactions r
+         JOIN users u ON u.id = r.user_id
          WHERE r.message_id = ANY($1)
          GROUP BY r.message_id, r.emoji
          ORDER BY MIN(r.created_at)",
@@ -469,11 +471,12 @@ pub async fn get_reactions_for_messages(
     .await?;
 
     let mut reactions_map: HashMap<Uuid, Vec<Reaction>> = HashMap::new();
-    for (message_id, emoji, count, reacted) in rows {
+    for (message_id, emoji, count, reacted, users) in rows {
         reactions_map.entry(message_id).or_default().push(Reaction {
             emoji,
             count,
             reacted,
+            users,
         });
     }
 

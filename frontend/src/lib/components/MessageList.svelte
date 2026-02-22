@@ -390,7 +390,7 @@
               <button
                 class="reaction-btn {reaction.reacted ? 'reacted' : ''}"
                 onclick={() => toggleReaction(message.id, reaction.emoji)}
-                title={reaction.emoji}
+                title={reaction.users.join(', ')}
               >
                 {#if isCustomEmoji(reaction.emoji)}
                   {@const imgUrl = getCustomEmojiImageUrl(reaction.emoji)}

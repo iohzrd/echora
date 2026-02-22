@@ -26,7 +26,13 @@ export function teardownWsHandlers() {
   }
 }
 
-function updateMessageReaction(msgId: string, emoji: string, userId: string, add: boolean) {
+function updateMessageReaction(
+  msgId: string,
+  emoji: string,
+  userId: string,
+  username: string,
+  add: boolean,
+) {
   const currentUser = get(user);
   chatState.update((s) => ({
     ...s,
@@ -39,14 +45,26 @@ function updateMessageReaction(msgId: string, emoji: string, userId: string, add
         if (existingIdx >= 0) {
           newReactions = reactions.map((r, i) =>
             i === existingIdx
-              ? { ...r, count: r.count + 1, reacted: r.reacted || userId === currentUser?.id }
+              ? {
+                  ...r,
+                  count: r.count + 1,
+                  reacted: r.reacted || userId === currentUser?.id,
+                  users: [...r.users, username],
+                }
               : r,
           );
         } else {
-          newReactions = [...reactions, { emoji, count: 1, reacted: userId === currentUser?.id }];
+          newReactions = [
+            ...reactions,
+            { emoji, count: 1, reacted: userId === currentUser?.id, users: [username] },
+          ];
         }
       } else if (existingIdx >= 0) {
-        const updated = { ...reactions[existingIdx], count: reactions[existingIdx].count - 1 };
+        const updated = {
+          ...reactions[existingIdx],
+          count: reactions[existingIdx].count - 1,
+          users: reactions[existingIdx].users.filter((u) => u !== username),
+        };
         if (userId === currentUser?.id) updated.reacted = false;
         if (updated.count <= 0) {
           newReactions = reactions.filter((_, i) => i !== existingIdx);
@@ -195,12 +213,12 @@ export function setupWsHandlers() {
     }
 
     if (data.type === 'reaction_added' && cs.selectedChannelId) {
-      const { message_id, emoji, user_id } = data.data;
-      updateMessageReaction(message_id, emoji, user_id, true);
+      const { message_id, emoji, user_id, username } = data.data;
+      updateMessageReaction(message_id, emoji, user_id, username, true);
     }
     if (data.type === 'reaction_removed' && cs.selectedChannelId) {
-      const { message_id, emoji, user_id } = data.data;
-      updateMessageReaction(message_id, emoji, user_id, false);
+      const { message_id, emoji, user_id, username } = data.data;
+      updateMessageReaction(message_id, emoji, user_id, username, false);
     }
 
     if (data.type === 'link_preview_ready') {
