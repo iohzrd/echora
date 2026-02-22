@@ -17,7 +17,7 @@
   let dragOver = $state(false);
   let fileInput: HTMLInputElement;
 
-  const MAX_FILE_SIZE = 25 * 1024 * 1024;
+  const MAX_FILE_SIZE = 250 * 1024 * 1024;
   const MAX_FILES = 5;
 
   async function uploadFile(pending: PendingFile) {
