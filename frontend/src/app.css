@@ -1119,6 +1119,11 @@ body {
 	margin: 1px 0;
 	border-radius: var(--radius-md);
 	cursor: pointer;
+	background: none;
+	border: none;
+	width: 100%;
+	text-align: left;
+	color: inherit;
 }
 
 .online-user:hover {
