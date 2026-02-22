@@ -23,7 +23,7 @@
   let messageText = $state("");
   let pendingFiles: PendingFile[] = $state([]);
   let dragOver = $state(false);
-  let fileInput: HTMLInputElement;
+  let fileInput: HTMLInputElement | undefined = $state();
 
   const MAX_FILE_SIZE = 250 * 1024 * 1024;
   const MAX_FILES = 5;
@@ -210,7 +210,7 @@
   <div class="input-row">
     <button
       class="attach-btn"
-      onclick={() => fileInput.click()}
+      onclick={() => fileInput?.click()}
       title="Attach file"
       disabled={!chatState.selectedChannelId ||
         pendingFiles.length >= MAX_FILES}

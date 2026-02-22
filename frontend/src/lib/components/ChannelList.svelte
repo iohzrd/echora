@@ -90,6 +90,7 @@
   let currentUserId = $derived($user?.id ?? '');
   let textChannels = $derived(serverState.channels.filter((c) => c.channel_type === 'text'));
   let voiceChannels = $derived(serverState.channels.filter((c) => c.channel_type === 'voice'));
+  let volumeMenuUserVolume = $derived(volumeMenuUserId ? getUserVolume(volumeMenuUserId) : 1);
 </script>
 
 <div class="channel-category">
@@ -286,7 +287,7 @@
   <UserVolumeMenu
     userId={volumeMenuUserId}
     username={volumeMenuUsername}
-    volume={getUserVolume(volumeMenuUserId)}
+    volume={volumeMenuUserVolume}
     x={volumeMenuX}
     y={volumeMenuY}
     onVolumeChange={changeUserVolume}

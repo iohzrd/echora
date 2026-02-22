@@ -23,9 +23,9 @@
   let uploading = $state(false);
   let uploadError = $state("");
 
-  let fileInput: HTMLInputElement = $state()!;
-  let pickerEl: HTMLDivElement = $state()!;
-  let searchInput: HTMLInputElement = $state()!;
+  let fileInput: HTMLInputElement | undefined = $state();
+  let pickerEl: HTMLDivElement | undefined = $state();
+  let searchInput: HTMLInputElement | undefined = $state();
 
   const PICKER_WIDTH = 320;
 
@@ -34,7 +34,7 @@
   onMount(() => {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const pickerHeight = pickerEl.offsetHeight || 360;
+    const pickerHeight = pickerEl?.offsetHeight || 360;
 
     const { top, bottom, left: rectLeft, right: rectRight } = anchorRect;
 

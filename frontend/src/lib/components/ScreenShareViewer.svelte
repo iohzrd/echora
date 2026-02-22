@@ -13,7 +13,7 @@
     videoElement?: HTMLVideoElement;
   } = $props();
 
-  let viewerElement: HTMLElement;
+  let viewerElement: HTMLElement | undefined = $state();
   let isFullscreen = $state(false);
   let justExitedFullscreen = false;
   let fullscreenDebounce: ReturnType<typeof setTimeout> | null = null;
