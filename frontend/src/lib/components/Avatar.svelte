@@ -1,26 +1,33 @@
 <script lang="ts">
   import { getInitial } from "../utils";
 
-  export let username: string;
-  export let avatarUrl: string | undefined = undefined;
-  export let size: "xs" | "small" | "medium" | "large" = "medium";
+  let {
+    username,
+    avatarUrl = undefined,
+    size = 'medium',
+  }: {
+    username: string;
+    avatarUrl?: string;
+    size?: 'xs' | 'small' | 'medium' | 'large';
+  } = $props();
 
-  let imgError = false;
+  let imgError = $state(false);
 
-  $: showImage = avatarUrl && !imgError;
-  $: sizeClass = `avatar-${size}`;
+  let showImage = $derived(!!avatarUrl && !imgError);
+  let sizeClass = $derived(`avatar-${size}`);
 
   function handleImgError() {
     imgError = true;
   }
 
-  // Reset error state when avatarUrl changes
-  $: if (avatarUrl) imgError = false;
+  $effect(() => {
+    if (avatarUrl) imgError = false;
+  });
 </script>
 
 <div class="avatar {sizeClass}" class:has-image={showImage}>
   {#if showImage}
-    <img src={avatarUrl} alt="{username}" on:error={handleImgError} />
+    <img src={avatarUrl} alt="{username}" onerror={handleImgError} />
   {:else}
     {getInitial(username)}
   {/if}

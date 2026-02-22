@@ -148,8 +148,9 @@
       <button
         class="reply-bar-cancel"
         on:click={cancelReply}
-        title="Cancel reply">X</button
-      >
+        title="Cancel reply">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
     </div>
   {/if}
   {#if pendingFiles.length > 0}
@@ -171,7 +172,9 @@
             class="pending-file-remove"
             on:click={() => removeFile(i)}
             title="Remove"
-          >X</button>
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
         </div>
       {/each}
     </div>
@@ -182,7 +185,9 @@
       on:click={() => fileInput.click()}
       title="Attach file"
       disabled={!$chatState.selectedChannelId || pendingFiles.length >= MAX_FILES}
-    >+</button>
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+    </button>
     <textarea
       class="message-input"
       placeholder="Message #{$chatState.selectedChannelName || 'channel'}"

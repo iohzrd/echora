@@ -2,8 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { voiceStore } from '../stores/voiceStore';
   import { chatState } from '../stores/chatState';
-  import { uiState } from '../stores/uiState';
   import { voiceManager } from '../voice';
+  import { toggleSidebar } from '../actions/ui';
   import { stopWatching, stopWatchingCamera } from '../actions/voice';
   import MessageList from './MessageList.svelte';
   import MessageInput from './MessageInput.svelte';
@@ -31,7 +31,7 @@
         screenAudioEl.autoplay = true;
         screenAudioEl.volume = 1.0;
         screenAudioEl.srcObject = new MediaStream([track]);
-        document.body.appendChild(screenAudioEl);
+        (document.getElementById('audio-container') ?? document.body).appendChild(screenAudioEl);
         screenAudioEl
           .play()
           .catch((e) => console.warn('Screen audio autoplay prevented:', e));
@@ -97,7 +97,7 @@
   <div class="chat-header">
     <button
       class="hamburger-btn"
-      on:click={() => uiState.update((s) => ({ ...s, sidebarOpen: !s.sidebarOpen }))}
+      on:click={toggleSidebar}
     >|||</button>
     <div class="channel-name">
       {$chatState.selectedChannelName || 'Select a channel'}
@@ -129,6 +129,12 @@
     {#if $chatState.rateLimitWarning}
       <div class="rate-limit-warning">
         Slow down! You are sending messages too fast.
+      </div>
+    {/if}
+
+    {#if $chatState.sendError}
+      <div class="rate-limit-warning">
+        Not connected. Your message was not sent.
       </div>
     {/if}
 

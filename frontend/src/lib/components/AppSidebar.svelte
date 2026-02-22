@@ -5,6 +5,7 @@
   import AuthService, { user, isModerator } from '../auth';
   import { serverState } from '../stores/serverState';
   import { uiState } from '../stores/uiState';
+  import { openAdminPanel, openPasskeySettings, openProfileModal, toggleSidebar } from '../actions/ui';
   import ChannelList from './ChannelList.svelte';
   import OnlineUsers from './OnlineUsers.svelte';
   import VoicePanel from './VoicePanel.svelte';
@@ -28,7 +29,7 @@
         {#if isMod}
           <button
             class="header-icon-btn"
-            on:click={() => uiState.update((s) => ({ ...s, showAdminPanel: true }))}
+            on:click={openAdminPanel}
             title="Admin Panel"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -40,7 +41,7 @@
         {/if}
         <button
           class="header-icon-btn"
-          on:click={() => uiState.update((s) => ({ ...s, showPasskeySettings: true }))}
+          on:click={openPasskeySettings}
           title="Manage passkeys"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
@@ -73,7 +74,7 @@
     <div class="user-bar">
       <button
         class="user-bar-profile"
-        on:click={() => uiState.update((s) => ({ ...s, showProfileModal: true }))}
+        on:click={openProfileModal}
         title="Edit profile"
       >
         <Avatar

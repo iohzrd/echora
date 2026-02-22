@@ -2,6 +2,13 @@ import AuthService, { type AuthResponse } from './auth';
 import { getApiBase, getWsBase } from './config';
 import { appFetch } from './serverManager';
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -171,7 +178,7 @@ export class API {
     const response = await appFetch(`${getApiBase()}${path}`, { ...options, headers });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || errorMessage);
+      throw new ApiError(err.error || errorMessage, response.status);
     }
     const text = await response.text();
     return text ? JSON.parse(text) : undefined as T;
@@ -203,7 +210,7 @@ export class API {
     });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || errorMessage);
+      throw new ApiError(err.error || errorMessage, response.status);
     }
     return response.json();
   }
@@ -446,11 +453,34 @@ export type WsOutgoingMessage =
   | { message_type: 'camera_update'; channel_id: string; is_camera_sharing: boolean }
   | { message_type: 'ping'; channel_id: ''; content: '' };
 
-export interface WsIncomingMessage {
-  type: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  data: any;
-}
+export type WsIncomingMessage =
+  | { type: 'message'; data: Message }
+  | { type: 'message_edited'; data: Message }
+  | { type: 'message_deleted'; data: { id: string; channel_id: string } }
+  | { type: 'channel_created'; data: Channel }
+  | { type: 'channel_updated'; data: Channel }
+  | { type: 'channel_deleted'; data: { id: string } }
+  | { type: 'user_online'; data: UserPresence }
+  | { type: 'user_offline'; data: { user_id: string } }
+  | { type: 'user_avatar_updated'; data: { user_id: string; avatar_url?: string } }
+  | { type: 'user_profile_updated'; data: { user_id: string; username: string; avatar_url?: string } }
+  | { type: 'user_renamed'; data: { user_id: string; new_username: string } }
+  | { type: 'user_role_changed'; data: { user_id: string; new_role: string } }
+  | { type: 'user_kicked'; data: { user_id: string } }
+  | { type: 'user_banned'; data: { user_id: string } }
+  | { type: 'reaction_added'; data: { message_id: string; emoji: string; user_id: string } }
+  | { type: 'reaction_removed'; data: { message_id: string; emoji: string; user_id: string } }
+  | { type: 'link_preview_ready'; data: { message_id: string; channel_id: string; link_previews: LinkPreview[] } }
+  | { type: 'voice_user_joined'; data: VoiceState }
+  | { type: 'voice_user_left'; data: { user_id: string; channel_id: string } }
+  | { type: 'voice_state_updated'; data: VoiceState }
+  | { type: 'voice_speaking'; data: { user_id: string; channel_id: string; is_speaking: boolean } }
+  | { type: 'screen_share_updated'; data: { user_id: string; channel_id: string; is_screen_sharing: boolean } }
+  | { type: 'camera_updated'; data: { user_id: string; channel_id: string; is_camera_sharing: boolean } }
+  | { type: 'new_producer'; data: { producer_id: string; user_id: string; channel_id: string; label?: string } }
+  | { type: 'typing'; data: { user_id: string; channel_id: string; username: string } }
+  | { type: 'error'; data: { code: string; message?: string } }
+  | { type: 'pong'; data: Record<string, never> };
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -546,10 +576,12 @@ export class WebSocketManager {
     this.messageHandlers = this.messageHandlers.filter(h => h !== handler);
   }
 
-  private send(message: WsOutgoingMessage) {
+  private send(message: WsOutgoingMessage): boolean {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
+      return true;
     }
+    return false;
   }
 
   joinChannel(channelId: string) {
@@ -561,7 +593,7 @@ export class WebSocketManager {
     this.send({ message_type: 'typing', channel_id: channelId, content: '' });
   }
 
-  sendMessage(channelId: string, content: string, replyToId?: string, attachmentIds?: string[]) {
+  sendMessage(channelId: string, content: string, replyToId?: string, attachmentIds?: string[]): boolean {
     const message: WsOutgoingMessage = {
       message_type: 'message',
       channel_id: channelId,
@@ -569,7 +601,7 @@ export class WebSocketManager {
       ...(replyToId ? { reply_to_id: replyToId } : {}),
       ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
     };
-    this.send(message);
+    return this.send(message);
   }
 
   sendVoiceStateUpdate(channelId: string, update: { is_muted?: boolean; is_deafened?: boolean }) {

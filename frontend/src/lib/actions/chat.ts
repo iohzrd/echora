@@ -8,6 +8,15 @@ import type { Message } from '../api';
 
 const TYPING_DEBOUNCE_MS = 3000;
 let lastTypingSent = 0;
+let _sendErrorTimeout: ReturnType<typeof setTimeout> | null = null;
+
+export function resetChatActionState() {
+  lastTypingSent = 0;
+  if (_sendErrorTimeout) {
+    clearTimeout(_sendErrorTimeout);
+    _sendErrorTimeout = null;
+  }
+}
 
 export function populateAvatarsFromMessages(msgs: Message[]) {
   const current = get(serverState);
@@ -53,7 +62,7 @@ export async function selectChannel(channelId: string, channelName: string) {
 }
 
 export async function loadOlderMessages(
-  scrollToPreserve: () => void,
+  scrollToPreserve: () => () => void,
 ) {
   const cs = get(chatState);
   if (
@@ -75,12 +84,14 @@ export async function loadOlderMessages(
     );
     populateAvatarsFromMessages(olderMessages);
     if (olderMessages.length > 0) {
-      scrollToPreserve();
+      // Capture scroll position before DOM update, then restore after
+      const restoreScroll = scrollToPreserve();
       chatState.update((s) => ({
         ...s,
         hasMoreMessages: olderMessages.length >= 50,
         messages: [...olderMessages, ...s.messages],
       }));
+      restoreScroll();
     } else {
       chatState.update((s) => ({ ...s, hasMoreMessages: false }));
     }
@@ -95,11 +106,16 @@ export function sendMessage(text: string, attachmentIds?: string[]) {
   const { selectedChannelId, replyingTo } = get(chatState);
   const currentUser = get(user);
   if (selectedChannelId && currentUser) {
-    try {
-      getWs().sendMessage(selectedChannelId, text, replyingTo?.id, attachmentIds);
-      chatState.update((s) => ({ ...s, replyingTo: null }));
-    } catch (error) {
-      console.error('Failed to send message:', error);
+    const sent = getWs().sendMessage(selectedChannelId, text, replyingTo?.id, attachmentIds);
+    if (sent) {
+      chatState.update((s) => ({ ...s, replyingTo: null, sendError: false }));
+    } else {
+      chatState.update((s) => ({ ...s, sendError: true }));
+      if (_sendErrorTimeout) clearTimeout(_sendErrorTimeout);
+      _sendErrorTimeout = setTimeout(() => {
+        chatState.update((s) => ({ ...s, sendError: false }));
+        _sendErrorTimeout = null;
+      }, 4000);
     }
   }
 }

@@ -17,6 +17,7 @@ export interface ChatStateStore {
   replyingTo: Message | null;
   typingUsers: Record<string, TypingUser>;
   rateLimitWarning: boolean;
+  sendError: boolean;
 }
 
 export const chatState = writable<ChatStateStore>({
@@ -30,4 +31,5 @@ export const chatState = writable<ChatStateStore>({
   replyingTo: null,
   typingUsers: {},
   rateLimitWarning: false,
+  sendError: false,
 });

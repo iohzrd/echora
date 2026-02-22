@@ -10,35 +10,34 @@
   import { user } from "../auth";
   import { formatTimestamp } from "../utils";
 
-  export let onClose: () => void = () => {};
+  let { onClose = () => {} }: { onClose?: () => void } = $props();
 
-  let activeTab: "users" | "moderation" | "invites" | "settings" | "modlog" =
-    "users";
-  let users: UserSummary[] = [];
-  let bans: Ban[] = [];
-  let mutes: Mute[] = [];
-  let invites: Invite[] = [];
-  let modLog: ModLogEntry[] = [];
-  let settings: Record<string, string> = {};
+  let activeTab: "users" | "moderation" | "invites" | "settings" | "modlog" = $state("users");
+  let users: UserSummary[] = $state([]);
+  let bans: Ban[] = $state([]);
+  let mutes: Mute[] = $state([]);
+  let invites: Invite[] = $state([]);
+  let modLog: ModLogEntry[] = $state([]);
+  let settings: Record<string, string> = $state({});
 
-  let loading = false;
-  let error = "";
+  let loading = $state(false);
+  let error = $state("");
 
   // Form state
-  let banUserId = "";
-  let banReason = "";
-  let banDuration = "";
-  let muteUserId = "";
-  let muteReason = "";
-  let muteDuration = "";
-  let kickUserId = "";
-  let kickReason = "";
-  let inviteMaxUses = "";
-  let inviteExpiry = "";
-  let lastCreatedInvite: Invite | null = null;
+  let banUserId = $state("");
+  let banReason = $state("");
+  let banDuration = $state("");
+  let muteUserId = $state("");
+  let muteReason = $state("");
+  let muteDuration = $state("");
+  let kickUserId = $state("");
+  let kickReason = $state("");
+  let inviteMaxUses = $state("");
+  let inviteExpiry = $state("");
+  let lastCreatedInvite: Invite | null = $state(null);
 
-  const currentRole = $user?.role || "member";
-  const isAdmin = currentRole === "admin" || currentRole === "owner";
+  let userRole = $derived($user?.role ?? "member");
+  let isAdmin = $derived(userRole === "admin" || userRole === "owner");
 
   function roleLevel(role: string): number {
     switch (role) {
@@ -54,14 +53,14 @@
   }
 
   function canModerate(targetRole: string): boolean {
-    return roleLevel(currentRole) > roleLevel(targetRole);
+    return roleLevel(userRole) > roleLevel(targetRole);
   }
 
   function assignableRoles(): string[] {
     const roles: string[] = [];
-    if (roleLevel(currentRole) > 0) roles.push("member");
-    if (roleLevel(currentRole) > 1) roles.push("moderator");
-    if (roleLevel(currentRole) > 2) roles.push("admin");
+    if (roleLevel(userRole) > 0) roles.push("member");
+    if (roleLevel(userRole) > 1) roles.push("moderator");
+    if (roleLevel(userRole) > 2) roles.push("admin");
     return roles;
   }
 
@@ -214,7 +213,9 @@
   <div class="admin-panel">
     <div class="admin-header">
       <h2>Server Administration</h2>
-      <button class="admin-close-btn" on:click={onClose}>X</button>
+      <button class="admin-close-btn" on:click={onClose}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
     </div>
 
     <div class="admin-tabs">
