@@ -83,6 +83,9 @@ pub async fn ban_user(
 
     database::create_ban(&state.db, &ban).await?;
 
+    // Keep in-memory cache in sync so WS path avoids per-message DB queries
+    state.cache_ban(payload.user_id);
+
     database::create_mod_log_entry(
         &state.db,
         &ModLogEntry::new(
@@ -118,6 +121,8 @@ pub async fn unban_user(
     permissions::require_role(actor_role, Role::Moderator)?;
 
     database::remove_ban(&state.db, target_user_id).await?;
+
+    state.uncache_ban(target_user_id);
 
     database::create_mod_log_entry(
         &state.db,
@@ -175,6 +180,8 @@ pub async fn mute_user(
 
     database::create_mute(&state.db, &mute).await?;
 
+    state.cache_mute(payload.user_id);
+
     database::create_mod_log_entry(
         &state.db,
         &ModLogEntry::new(
@@ -211,6 +218,8 @@ pub async fn unmute_user(
     permissions::require_role(actor_role, Role::Moderator)?;
 
     database::remove_mute(&state.db, target_user_id).await?;
+
+    state.uncache_mute(target_user_id);
 
     database::create_mod_log_entry(
         &state.db,

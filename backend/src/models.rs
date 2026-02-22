@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
@@ -366,6 +366,11 @@ pub struct AppState {
     pub webauthn: Arc<Webauthn>,
     pub webauthn_reg_state: DashMap<Uuid, (PasskeyRegistration, std::time::Instant)>,
     pub webauthn_auth_state: DashMap<String, (Uuid, PasskeyAuthentication, std::time::Instant)>,
+    /// In-memory cache of currently banned user IDs.
+    /// Updated by moderation handlers; avoids per-message DB queries in the WS path.
+    pub banned_users: DashSet<Uuid>,
+    /// In-memory cache of currently muted user IDs.
+    pub muted_users: DashSet<Uuid>,
 }
 
 impl AppState {
@@ -390,7 +395,33 @@ impl AppState {
             webauthn,
             webauthn_reg_state: DashMap::new(),
             webauthn_auth_state: DashMap::new(),
+            banned_users: DashSet::new(),
+            muted_users: DashSet::new(),
         }
+    }
+
+    pub fn is_banned_cached(&self, user_id: Uuid) -> bool {
+        self.banned_users.contains(&user_id)
+    }
+
+    pub fn is_muted_cached(&self, user_id: Uuid) -> bool {
+        self.muted_users.contains(&user_id)
+    }
+
+    pub fn cache_ban(&self, user_id: Uuid) {
+        self.banned_users.insert(user_id);
+    }
+
+    pub fn uncache_ban(&self, user_id: Uuid) {
+        self.banned_users.remove(&user_id);
+    }
+
+    pub fn cache_mute(&self, user_id: Uuid) {
+        self.muted_users.insert(user_id);
+    }
+
+    pub fn uncache_mute(&self, user_id: Uuid) {
+        self.muted_users.remove(&user_id);
     }
 
     /// Returns true if the user is allowed to send a message, false if rate-limited.

@@ -40,6 +40,15 @@ async fn main() {
         .await
         .expect("Failed to seed database");
 
+    // Pre-populate ban/mute caches from the database so they are accurate
+    // on startup without waiting for moderation events.
+    let initial_bans = database::get_all_bans(&db)
+        .await
+        .expect("Failed to load initial bans");
+    let initial_mutes = database::get_all_mutes(&db)
+        .await
+        .expect("Failed to load initial mutes");
+
     let sfu_service = sfu::service::SfuService::new()
         .await
         .expect("Failed to initialize SFU service");
@@ -71,14 +80,45 @@ async fn main() {
         webauthn,
     ));
 
-    // Spawn periodic cleanup of expired bans and mutes
-    let cleanup_db = state.db.clone();
+    // Seed in-memory ban/mute caches
+    for ban in &initial_bans {
+        state.cache_ban(ban.user_id);
+    }
+    for mute in &initial_mutes {
+        state.cache_mute(mute.user_id);
+    }
+
+    // Spawn periodic cleanup of expired bans and mutes.
+    // Also refreshes the in-memory caches to remove expired entries.
+    let cleanup_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
-            let _ = database::cleanup_expired_bans(&cleanup_db).await;
-            let _ = database::cleanup_expired_mutes(&cleanup_db).await;
+            let _ = database::cleanup_expired_bans(&cleanup_state.db).await;
+            let _ = database::cleanup_expired_mutes(&cleanup_state.db).await;
+
+            // Rebuild caches from DB to evict expired entries
+            if let Ok(active_bans) = database::get_all_bans(&cleanup_state.db).await {
+                let active_ids: std::collections::HashSet<uuid::Uuid> =
+                    active_bans.iter().map(|b| b.user_id).collect();
+                cleanup_state
+                    .banned_users
+                    .retain(|id| active_ids.contains(id));
+                for ban in &active_bans {
+                    cleanup_state.cache_ban(ban.user_id);
+                }
+            }
+            if let Ok(active_mutes) = database::get_all_mutes(&cleanup_state.db).await {
+                let active_ids: std::collections::HashSet<uuid::Uuid> =
+                    active_mutes.iter().map(|m| m.user_id).collect();
+                cleanup_state
+                    .muted_users
+                    .retain(|id| active_ids.contains(id));
+                for mute in &active_mutes {
+                    cleanup_state.cache_mute(mute.user_id);
+                }
+            }
         }
     });
 
