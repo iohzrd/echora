@@ -14,7 +14,7 @@ pub const MAX_SERVER_NAME_LENGTH: usize = 100;
 pub const MAX_IMAGE_PROXY_SIZE: usize = 10 * 1024 * 1024;
 pub const BROADCAST_CHANNEL_CAPACITY: usize = 256;
 pub const MAX_ATTACHMENT_SIZE: usize = 250 * 1024 * 1024; // 250MB
-pub const MAX_CUSTOM_EMOJI_SIZE: usize = 256 * 1024; // 256KB
+pub const MAX_CUSTOM_EMOJI_SIZE: usize = 1024 * 1024; // 1MB
 pub const MAX_CUSTOM_EMOJI_NAME_LENGTH: usize = 32;
 pub const MAX_ATTACHMENTS_PER_MESSAGE: usize = 5;
 pub const MAX_FILENAME_LENGTH: usize = 255;
@@ -43,7 +43,7 @@ pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
 pub const ALLOWED_EMOJI_CONTENT_TYPES: &[&str] =
     &["image/png", "image/gif", "image/webp", "image/jpeg"];
 
-pub const MAX_AVATAR_SIZE: usize = 2 * 1024 * 1024; // 2MB
+pub const MAX_AVATAR_SIZE: usize = 5 * 1024 * 1024; // 5MB
 pub const MAX_DISPLAY_NAME_LENGTH: usize = 64;
 pub const ALLOWED_AVATAR_CONTENT_TYPES: &[&str] =
     &["image/png", "image/gif", "image/webp", "image/jpeg"];

@@ -138,19 +138,8 @@ async fn main() {
         }
     });
 
-    let auth_routes = Router::new()
-        .route("/api/auth/register", post(auth_routes::register))
-        .route("/api/auth/login", post(auth_routes::login))
-        .route(
-            "/api/auth/passkey/login/start",
-            post(passkey_routes::start_passkey_auth),
-        )
-        .route(
-            "/api/auth/passkey/login/finish",
-            post(passkey_routes::finish_passkey_auth),
-        );
-
-    let app = Router::new()
+    // Routes with a 1MB body limit (default for all non-upload endpoints).
+    let general_routes = Router::new()
         .route("/api/init", get(routes::get_init))
         .route("/api/health", get(health_check))
         .route(
@@ -158,6 +147,8 @@ async fn main() {
             get(auth_routes::me).put(auth_routes::update_profile),
         )
         .route("/api/auth/password", post(auth_routes::change_password))
+        .route("/api/auth/register", post(auth_routes::register))
+        .route("/api/auth/login", post(auth_routes::login))
         .route(
             "/api/auth/passkey/register/start",
             post(passkey_routes::start_passkey_register),
@@ -170,6 +161,14 @@ async fn main() {
         .route(
             "/api/auth/passkeys/{passkey_id}",
             delete(passkey_routes::delete_passkey),
+        )
+        .route(
+            "/api/auth/passkey/login/start",
+            post(passkey_routes::start_passkey_auth),
+        )
+        .route(
+            "/api/auth/passkey/login/finish",
+            post(passkey_routes::finish_passkey_auth),
         )
         .route(
             "/api/channels",
@@ -210,7 +209,6 @@ async fn main() {
         )
         .route("/api/proxy/image", get(routes::proxy_image))
         .route("/ws", get(websocket::websocket_handler))
-        // SFU WebRTC routes
         .route("/api/webrtc/transport", post(sfu::routes::create_transport))
         .route(
             "/api/webrtc/transport/{transport_id}/connect",
@@ -236,7 +234,6 @@ async fn main() {
             "/api/webrtc/channel/{channel_id}/router-capabilities",
             get(sfu::routes::get_router_capabilities),
         )
-        // Admin / moderation routes
         .route("/api/admin/users", get(admin::get_all_users))
         .route(
             "/api/admin/users/{user_id}/role",
@@ -254,46 +251,15 @@ async fn main() {
             get(admin::get_settings).put(admin::update_setting),
         )
         .route("/api/admin/modlog", get(admin::get_moderation_log))
-        // Invite routes
         .route(
             "/api/invites",
             get(admin::list_invites).post(admin::create_invite),
         )
         .route("/api/invites/{invite_id}", delete(admin::revoke_invite))
         .route("/api/invites/{code}/validate", get(admin::validate_invite))
-        // Merge rate-limited auth routes
-        .merge(auth_routes)
-        .merge(
-            // Avatar upload needs a 2MB body limit.
-            Router::new()
-                .route(
-                    "/api/auth/avatar",
-                    post(auth_routes::upload_avatar).delete(auth_routes::delete_avatar),
-                )
-                .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024))
-                .with_state(state.clone()),
-        )
-        .merge(
-            // Attachment upload needs a 25MB body limit; merge as a sub-router so
-            // the per-route limit layer is applied before the global 1MB layer.
-            Router::new()
-                .route("/api/attachments", post(routes::upload_attachment))
-                .layer(RequestBodyLimitLayer::new(250 * 1024 * 1024))
-                .with_state(state.clone()),
-        )
         .route(
             "/api/attachments/{attachment_id}/{filename}",
             get(routes::download_attachment),
-        )
-        .merge(
-            // Custom emoji upload needs a 512KB body limit.
-            Router::new()
-                .route(
-                    "/api/custom-emojis",
-                    get(routes::list_custom_emojis).post(routes::upload_custom_emoji),
-                )
-                .layer(RequestBodyLimitLayer::new(512 * 1024))
-                .with_state(state.clone()),
         )
         .route(
             "/api/custom-emojis/{emoji_id}",
@@ -303,10 +269,40 @@ async fn main() {
             "/api/custom-emojis/{emoji_id}/image",
             get(routes::get_custom_emoji_image),
         )
+        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB for all non-upload routes
+        .with_state(state.clone());
+
+    // Upload routes each get their own body limit applied at this sub-router
+    // level, before any outer layers. These are merged separately so the
+    // 1MB general limit above does not apply to them.
+    let avatar_routes = Router::new()
+        .route(
+            "/api/auth/avatar",
+            post(auth_routes::upload_avatar).delete(auth_routes::delete_avatar),
+        )
+        .layer(RequestBodyLimitLayer::new(5 * 1024 * 1024)) // 5MB
+        .with_state(state.clone());
+
+    let attachment_routes = Router::new()
+        .route("/api/attachments", post(routes::upload_attachment))
+        .layer(RequestBodyLimitLayer::new(250 * 1024 * 1024)) // 250MB
+        .with_state(state.clone());
+
+    let emoji_upload_routes = Router::new()
+        .route(
+            "/api/custom-emojis",
+            get(routes::list_custom_emojis).post(routes::upload_custom_emoji),
+        )
+        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB
+        .with_state(state.clone());
+
+    let app = Router::new()
+        .merge(general_routes)
+        .merge(avatar_routes)
+        .merge(attachment_routes)
+        .merge(emoji_upload_routes)
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
-        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB global body limit
-        .layer(build_cors_layer())
-        .with_state(state);
+        .layer(build_cors_layer());
 
     let bind_addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".to_string());
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
