@@ -97,8 +97,3 @@ export function savePerUserVolume(userId: string, volume: number): void {
   volumes[userId] = volume;
   localStorage.setItem(PER_USER_STORAGE_KEY, JSON.stringify(volumes));
 }
-
-export function getPerUserVolume(userId: string): number {
-  const volumes = loadPerUserVolumes();
-  return volumes[userId] ?? 1.0;
-}

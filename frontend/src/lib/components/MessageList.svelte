@@ -1,9 +1,7 @@
 <script lang="ts">
   import { API, type CustomEmoji } from '../api';
   import { renderMarkdown } from '../markdown';
-  import { formatTimestamp, truncateContent, formatFileSize } from '../utils';
-  import { getApiBase } from '../config';
-  import { isTauri } from '../serverManager';
+  import { formatTimestamp, truncateContent, formatFileSize, resolveUrl } from '../utils';
   import { user } from '../auth';
   import { chatState } from '../stores/chatState';
   import { serverState } from '../stores/serverState';
@@ -20,15 +18,6 @@
   } from '../actions/chat';
   import EmojiPicker from './EmojiPicker.svelte';
   import Avatar from './Avatar.svelte';
-
-  function resolveUrl(url: string): string {
-    if (isTauri && url.startsWith('/')) {
-      const apiBase = getApiBase();
-      const origin = apiBase.replace(/\/api$/, '');
-      return origin + url;
-    }
-    return url;
-  }
 
   let messagesArea: HTMLDivElement;
   let emojiPickerMessageId: string | null = null;

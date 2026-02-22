@@ -17,7 +17,7 @@
   import { serverState } from '../lib/stores/serverState';
   import { uiState } from '../lib/stores/uiState';
   import { connectToServer, initPTTSettings } from '../lib/actions/server';
-  import { initAudioSettings, removeDeviceListener } from '../lib/actions/audioSettings';
+  import { initAudioSettings } from '../lib/actions/audioSettings';
 
   import ServerSidebar from '../lib/components/ServerSidebar.svelte';
   import AddServerDialog from '../lib/components/AddServerDialog.svelte';
@@ -31,6 +31,8 @@
 
   $: activeServerName = $serverState.serverName || $activeServer?.name || 'Echora';
 
+  let _removeDeviceListener: (() => void) | null = null;
+
   onMount(async () => {
     await initPTTSettings();
 
@@ -41,13 +43,13 @@
         .catch(() => {});
     }
 
-    await initAudioSettings();
+    _removeDeviceListener = await initAudioSettings();
     await connectToServer();
   });
 
   onDestroy(() => {
     getWs().disconnect();
-    removeDeviceListener?.();
+    _removeDeviceListener?.();
   });
 
   async function handleSelectServer(server: EchoraServer) {

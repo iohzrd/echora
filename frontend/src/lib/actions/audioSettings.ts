@@ -10,9 +10,7 @@ import {
   savePerUserVolume,
 } from '../audioSettings';
 
-export let removeDeviceListener: (() => void) | null = null;
-
-export async function initAudioSettings() {
+export async function initAudioSettings(): Promise<() => void> {
   const settings = loadAudioSettings();
   audioSettingsStore.set({
     inputDeviceId: settings.inputDeviceId,
@@ -35,7 +33,7 @@ export async function initAudioSettings() {
   }
 
   await refreshDeviceList();
-  removeDeviceListener = onDeviceChange(() => refreshDeviceList());
+  return onDeviceChange(() => refreshDeviceList());
 }
 
 export async function refreshDeviceList() {
