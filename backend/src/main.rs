@@ -1,11 +1,11 @@
 use axum::{
     Json, Router,
+    extract::DefaultBodyLimit,
     http::{HeaderValue, Method},
     routing::{delete, get, post, put},
 };
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
-use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tracing::info;
 
@@ -269,7 +269,7 @@ async fn main() {
             "/api/custom-emojis/{emoji_id}/image",
             get(routes::get_custom_emoji_image),
         )
-        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB for all non-upload routes
+        .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB for all non-upload routes
         .with_state(state.clone());
 
     // Upload routes each get their own body limit applied at this sub-router
@@ -280,12 +280,12 @@ async fn main() {
             "/api/auth/avatar",
             post(auth_routes::upload_avatar).delete(auth_routes::delete_avatar),
         )
-        .layer(RequestBodyLimitLayer::new(5 * 1024 * 1024)) // 5MB
+        .layer(DefaultBodyLimit::max(5 * 1024 * 1024)) // 5MB
         .with_state(state.clone());
 
     let attachment_routes = Router::new()
         .route("/api/attachments", post(routes::upload_attachment))
-        .layer(RequestBodyLimitLayer::new(250 * 1024 * 1024)) // 250MB
+        .layer(DefaultBodyLimit::max(250 * 1024 * 1024)) // 250MB
         .with_state(state.clone());
 
     let emoji_upload_routes = Router::new()
@@ -293,7 +293,7 @@ async fn main() {
             "/api/custom-emojis",
             get(routes::list_custom_emojis).post(routes::upload_custom_emoji),
         )
-        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB
+        .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB
         .with_state(state.clone());
 
     let app = Router::new()
