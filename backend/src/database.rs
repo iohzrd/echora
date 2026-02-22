@@ -739,11 +739,88 @@ pub async fn set_user_role(pool: &PgPool, user_id: Uuid, role: Role) -> Result<(
 }
 
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), AppError> {
+    let mut tx = pool.begin().await?;
+
+    // Delete records where user is the subject
+    sqlx::query("DELETE FROM reactions WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM bans WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM mutes WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete attachments (including orphaned ones from deleted messages)
+    sqlx::query("DELETE FROM attachments WHERE uploader_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete message_link_previews for user's messages, then messages
+    sqlx::query(
+        "DELETE FROM message_link_previews WHERE message_id IN (SELECT id FROM messages WHERE author_id = $1)",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("DELETE FROM messages WHERE author_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Nullify references where user acted as moderator/creator
+    sqlx::query("UPDATE channels SET created_by = NULL WHERE created_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM invites WHERE created_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM custom_emojis WHERE uploaded_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Clean up moderation records referencing this user
+    sqlx::query("DELETE FROM moderation_log WHERE moderator_id = $1 OR target_user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Clean up bans/mutes where this user was the moderator
+    sqlx::query("DELETE FROM bans WHERE banned_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM mutes WHERE muted_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // user_passkeys has ON DELETE CASCADE, but delete explicitly for clarity
+    sqlx::query("DELETE FROM user_passkeys WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Finally delete the user
     let result = sqlx::query("DELETE FROM users WHERE id = $1")
         .bind(user_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
-    require_rows_affected(result, "User not found")
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::not_found("User not found"));
+    }
+
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> {
