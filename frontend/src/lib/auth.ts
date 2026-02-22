@@ -156,6 +156,10 @@ class AuthService {
     token.set(authResponse.token);
     user.set(authResponse.user);
   }
+
+  static setUser(updatedUser: User) {
+    user.set(updatedUser);
+  }
 }
 
 export default AuthService;

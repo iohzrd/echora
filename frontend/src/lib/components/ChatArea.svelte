@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { voiceStore } from "../stores/voiceStore";
-  import { chatState } from "../stores/chatState";
+  import { voiceStore } from "../stores/voiceStore.svelte";
+  import { chatState } from "../stores/chatState.svelte";
   import { voiceManager } from "../voice";
   import { toggleSidebar } from "../actions/ui";
   import { stopWatching, stopWatchingCamera } from "../actions/voice";
@@ -9,8 +9,8 @@
   import MessageInput from "./MessageInput.svelte";
   import ScreenShareViewer from "./ScreenShareViewer.svelte";
 
-  let screenVideoElement: HTMLVideoElement;
-  let cameraVideoElement: HTMLVideoElement;
+  let screenVideoElement: HTMLVideoElement = $state()!;
+  let cameraVideoElement: HTMLVideoElement = $state()!;
   let screenAudioEl: HTMLAudioElement | null = null;
 
   onMount(() => {
@@ -77,18 +77,18 @@
 
   // When the WS signals that a remote screen share stopped, tear down our DOM
   $effect(() => {
-    if (!$voiceStore.watchingScreenUserId && screenVideoElement?.srcObject) {
+    if (!voiceStore.watchingScreenUserId && screenVideoElement?.srcObject) {
       handleStopWatching();
     }
   });
   $effect(() => {
-    if (!$voiceStore.watchingCameraUserId && cameraVideoElement?.srcObject) {
+    if (!voiceStore.watchingCameraUserId && cameraVideoElement?.srcObject) {
       handleStopWatchingCamera();
     }
   });
 
   function getTypingText(): string {
-    const names = Object.values($chatState.typingUsers).map((u) => u.username);
+    const names = Object.values(chatState.typingUsers).map((u) => u.username);
     if (names.length === 1) return `${names[0]} is typing...`;
     if (names.length <= 3) return `${names.join(", ")} are typing...`;
     return "Several people are typing...";
@@ -99,19 +99,19 @@
   <div class="chat-header">
     <button class="hamburger-btn" onclick={toggleSidebar}>|||</button>
     <div class="channel-name">
-      {$chatState.selectedChannelName || "Select a channel"}
+      {chatState.selectedChannelName || "Select a channel"}
     </div>
   </div>
 
-  {#if $voiceStore.watchingScreenUserId}
+  {#if voiceStore.watchingScreenUserId}
     <ScreenShareViewer
-      username={$voiceStore.watchingScreenUsername}
+      username={voiceStore.watchingScreenUsername}
       onClose={handleStopWatching}
       bind:videoElement={screenVideoElement}
     />
-  {:else if $voiceStore.watchingCameraUserId}
+  {:else if voiceStore.watchingCameraUserId}
     <ScreenShareViewer
-      username={$voiceStore.watchingCameraUsername}
+      username={voiceStore.watchingCameraUsername}
       type="camera"
       onClose={handleStopWatchingCamera}
       bind:videoElement={cameraVideoElement}
@@ -119,19 +119,19 @@
   {:else}
     <MessageList />
 
-    {#if Object.keys($chatState.typingUsers).length > 0}
+    {#if Object.keys(chatState.typingUsers).length > 0}
       <div class="typing-indicator">
         <span class="typing-text">{getTypingText()}</span>
       </div>
     {/if}
 
-    {#if $chatState.rateLimitWarning}
+    {#if chatState.rateLimitWarning}
       <div class="rate-limit-warning">
         Slow down! You are sending messages too fast.
       </div>
     {/if}
 
-    {#if $chatState.sendError}
+    {#if chatState.sendError}
       <div class="rate-limit-warning">
         Not connected. Your message was not sent.
       </div>

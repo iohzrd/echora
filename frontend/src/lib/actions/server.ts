@@ -6,51 +6,44 @@ import AuthService, { user } from '../auth';
 import { voiceManager } from '../voice';
 import { isTauri, activeServer } from '../serverManager';
 import { getWs, resetWs } from '../ws';
-import { voiceStore } from '../stores/voiceStore';
-import { serverState } from '../stores/serverState';
-import { chatState } from '../stores/chatState';
-import { uiState } from '../stores/uiState';
+import { voiceStore } from '../stores/voiceStore.svelte';
+import { serverState } from '../stores/serverState.svelte';
+import { chatState } from '../stores/chatState.svelte';
+import { uiState } from '../stores/uiState.svelte';
 import { selectChannel, resetChatActionState } from './chat';
 import { setupWsHandlers, teardownWsHandlers } from './wsHandlers';
 import { initPTT, switchInputMode as pttSwitchInputMode, changePTTKey as pttChangePTTKey } from '../ptt';
 import type { VoiceInputMode } from '../voice';
 
 export function syncVoiceState() {
-  voiceStore.update((s) => ({
-    ...s,
-    currentVoiceChannel: voiceManager.currentChannel,
-    isMuted: voiceManager.isMutedState,
-    isDeafened: voiceManager.isDeafenedState,
-    isScreenSharing: voiceManager.isScreenSharingState,
-    isCameraSharing: voiceManager.isCameraSharingState,
-    voiceInputMode: voiceManager.currentInputMode,
-    pttActive: voiceManager.isPTTActive,
-  }));
+  voiceStore.currentVoiceChannel = voiceManager.currentChannel;
+  voiceStore.isMuted = voiceManager.isMutedState;
+  voiceStore.isDeafened = voiceManager.isDeafenedState;
+  voiceStore.isScreenSharing = voiceManager.isScreenSharingState;
+  voiceStore.isCameraSharing = voiceManager.isCameraSharingState;
+  voiceStore.voiceInputMode = voiceManager.currentInputMode;
+  voiceStore.pttActive = voiceManager.isPTTActive;
 }
 
 function setupVoiceStateHandlers() {
   voiceManager.onVoiceStatesChange((states) => {
     if (states.length > 0) {
       const channelId = states[0].channel_id;
-      voiceStore.update((s) => ({
-        ...s,
-        voiceStates: [
-          ...s.voiceStates.filter((v) => v.channel_id !== channelId),
-          ...states,
-        ],
-      }));
+      voiceStore.voiceStates = [
+        ...voiceStore.voiceStates.filter((v) => v.channel_id !== channelId),
+        ...states,
+      ];
     }
   });
 
   voiceManager.onSpeakingChange((userId, speaking) => {
-    voiceStore.update((s) => {
-      const speakingUsers = speaking
-        ? s.speakingUsers.includes(userId)
-          ? s.speakingUsers
-          : [...s.speakingUsers, userId]
-        : s.speakingUsers.filter((id) => id !== userId);
-      return { ...s, speakingUsers };
-    });
+    if (speaking) {
+      if (!voiceStore.speakingUsers.includes(userId)) {
+        voiceStore.speakingUsers = [...voiceStore.speakingUsers, userId];
+      }
+    } else {
+      voiceStore.speakingUsers = voiceStore.speakingUsers.filter((id) => id !== userId);
+    }
   });
 
   voiceManager.onStateChange(syncVoiceState);
@@ -69,36 +62,32 @@ export async function connectToServer() {
 }
 
 async function _connectToServer() {
-  chatState.update((s) => {
-    Object.values(s.typingUsers).forEach((u) => clearTimeout(u.timeout));
-    return {
-      ...s,
-      messages: [],
-      selectedChannelId: '',
-      selectedChannelName: '',
-      hasMoreMessages: true,
-      loadingMore: false,
-      editingMessageId: null,
-      editMessageContent: '',
-      replyingTo: null,
-      typingUsers: {},
-      rateLimitWarning: false,
-      sendError: false,
-    };
-  });
-  serverState.set({
-    channels: [],
-    onlineUsers: [],
-    userAvatars: {},
-    userRolesMap: {},
-    serverName: '',
-    backendVersion: '',
-    customEmojis: [],
-  });
-  voiceStore.update((s) => ({ ...s, voiceStates: [], speakingUsers: [] }));
+  Object.values(chatState.typingUsers).forEach((u) => clearTimeout(u.timeout));
+  chatState.messages = [];
+  chatState.selectedChannelId = '';
+  chatState.selectedChannelName = '';
+  chatState.hasMoreMessages = true;
+  chatState.loadingMore = false;
+  chatState.editingMessageId = null;
+  chatState.editMessageContent = '';
+  chatState.replyingTo = null;
+  chatState.typingUsers = {};
+  chatState.rateLimitWarning = false;
+  chatState.sendError = false;
+
+  serverState.channels = [];
+  serverState.onlineUsers = [];
+  serverState.userAvatars = {};
+  serverState.userRolesMap = {};
+  serverState.serverName = '';
+  serverState.backendVersion = '';
+  serverState.customEmojis = [];
+
+  voiceStore.voiceStates = [];
+  voiceStore.speakingUsers = [];
 
   if (isTauri && !get(activeServer)) {
-    uiState.update((s) => ({ ...s, showAddServerDialog: true }));
+    uiState.showAddServerDialog = true;
     return;
   }
 
@@ -106,7 +95,7 @@ async function _connectToServer() {
 
   if (!get(user)) {
     if (isTauri) {
-      uiState.update((s) => ({ ...s, needsServerAuth: true }));
+      uiState.needsServerAuth = true;
       return;
     }
     goto('/auth');
@@ -126,23 +115,20 @@ async function _connectToServer() {
     const currentUser = get(user);
     if (currentUser?.avatar_url) avatarMap[currentUser.id] = API.getAvatarUrl(currentUser.id);
 
-    serverState.update((s) => ({
-      ...s,
-      channels: init.channels,
-      onlineUsers: init.online_users,
-      userAvatars: avatarMap,
-      userRolesMap: init.users
-        ? Object.fromEntries(init.users.map((u) => [u.id, u.role]))
-        : {},
-      serverName: init.server_name,
-      backendVersion: init.version,
-    }));
+    serverState.channels = init.channels;
+    serverState.onlineUsers = init.online_users;
+    serverState.userAvatars = avatarMap;
+    serverState.userRolesMap = init.users
+      ? Object.fromEntries(init.users.map((u) => [u.id, u.role]))
+      : {};
+    serverState.serverName = init.server_name;
+    serverState.backendVersion = init.version;
 
-    voiceStore.update((s) => ({ ...s, voiceStates: init.voice_states }));
+    voiceStore.voiceStates = init.voice_states;
 
     try {
       const emojis = await API.getCustomEmojis();
-      serverState.update((s) => ({ ...s, customEmojis: emojis }));
+      serverState.customEmojis = emojis;
     } catch {
       // Custom emojis may not be available
     }
@@ -160,7 +146,7 @@ async function _connectToServer() {
     await getWs().connect();
     syncVoiceState();
 
-    const { channels } = get(serverState);
+    const { channels } = serverState;
     const urlChannelId = get(page).params.channelId;
     const targetChannel = urlChannelId ? channels.find((c) => c.id === urlChannelId) : null;
     const channelToSelect = targetChannel ?? channels.find((c) => c.channel_type === 'text');
@@ -177,22 +163,29 @@ async function _connectToServer() {
 }
 
 export async function switchVoiceInputMode(mode: VoiceInputMode) {
-  const { pttKey } = get(voiceStore);
+  const { pttKey } = voiceStore;
   await pttSwitchInputMode(mode, pttKey);
-  voiceStore.update((s) => ({ ...s, voiceInputMode: mode }));
+  voiceStore.voiceInputMode = mode;
   syncVoiceState();
 }
 
 export async function changePTTKey(key: string) {
-  voiceStore.update((s) => ({ ...s, pttKey: key }));
+  voiceStore.pttKey = key;
   await pttChangePTTKey(key);
 }
 
 export async function initPTTSettings() {
   const pttSettings = await initPTT();
-  voiceStore.update((s) => ({
-    ...s,
-    voiceInputMode: pttSettings.inputMode,
-    pttKey: pttSettings.pttKey,
-  }));
+  voiceStore.voiceInputMode = pttSettings.inputMode;
+  voiceStore.pttKey = pttSettings.pttKey;
+}
+
+export async function uploadCustomEmoji(name: string, file: File): Promise<void> {
+  const emoji = await API.uploadCustomEmoji(name, file);
+  serverState.customEmojis = [...serverState.customEmojis, emoji];
+}
+
+export async function deleteCustomEmoji(id: string): Promise<void> {
+  await API.deleteCustomEmoji(id);
+  serverState.customEmojis = serverState.customEmojis.filter((e) => e.id !== id);
 }

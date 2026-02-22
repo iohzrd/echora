@@ -1,5 +1,3 @@
-import { writable } from 'svelte/store';
-
 export interface UiStateStore {
   showAdminPanel: boolean;
   showPasskeySettings: boolean;
@@ -12,7 +10,7 @@ export interface UiStateStore {
   tauriVersion: string;
 }
 
-export const uiState = writable<UiStateStore>({
+export const uiState = $state<UiStateStore>({
   showAdminPanel: false,
   showPasskeySettings: false,
   showProfileModal: false,

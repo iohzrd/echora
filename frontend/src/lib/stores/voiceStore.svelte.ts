@@ -1,4 +1,3 @@
-import { writable } from 'svelte/store';
 import type { VoiceState } from '../api';
 import type { VoiceInputMode } from '../voice';
 
@@ -19,7 +18,7 @@ export interface VoiceStoreState {
   watchingCameraUsername: string;
 }
 
-export const voiceStore = writable<VoiceStoreState>({
+export const voiceStore = $state<VoiceStoreState>({
   currentVoiceChannel: null,
   isMuted: false,
   isDeafened: false,

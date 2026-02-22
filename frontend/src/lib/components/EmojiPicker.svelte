@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { API, type CustomEmoji } from "$lib/api";
-  import { serverState } from "$lib/stores/serverState";
-  import { closeEmojiPicker } from "$lib/stores/emojiPickerState";
+  import { closeEmojiPicker } from "$lib/stores/emojiPickerState.svelte";
+  import { uploadCustomEmoji, deleteCustomEmoji } from "$lib/actions/server";
   import { EMOJI_CATEGORIES, type EmojiEntry } from "$lib/emoji-data";
 
   let {
@@ -23,9 +23,9 @@
   let uploading = $state(false);
   let uploadError = $state("");
 
-  let fileInput: HTMLInputElement;
-  let pickerEl: HTMLDivElement;
-  let searchInput: HTMLInputElement;
+  let fileInput: HTMLInputElement = $state()!;
+  let pickerEl: HTMLDivElement = $state()!;
+  let searchInput: HTMLInputElement = $state()!;
 
   const PICKER_WIDTH = 320;
 
@@ -98,11 +98,7 @@
 
   async function handleDelete(emoji: CustomEmoji) {
     try {
-      await API.deleteCustomEmoji(emoji.id);
-      serverState.update((s) => ({
-        ...s,
-        customEmojis: s.customEmojis.filter((e) => e.id !== emoji.id),
-      }));
+      await deleteCustomEmoji(emoji.id);
     } catch (e: unknown) {
       uploadError = e instanceof Error ? e.message : "Delete failed";
     }
@@ -113,8 +109,7 @@
     uploading = true;
     uploadError = "";
     try {
-      const emoji = await API.uploadCustomEmoji(uploadName.trim(), uploadFile);
-      serverState.update((s) => ({ ...s, customEmojis: [...s.customEmojis, emoji] }));
+      await uploadCustomEmoji(uploadName.trim(), uploadFile);
       uploadName = "";
       uploadFile = null;
       if (fileInput) fileInput.value = "";

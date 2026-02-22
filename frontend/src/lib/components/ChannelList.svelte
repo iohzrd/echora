@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { Channel } from '../api';
   import { user, isAdminRole } from '../auth';
-  import { voiceStore } from '../stores/voiceStore';
-  import { serverState } from '../stores/serverState';
-  import { chatState } from '../stores/chatState';
+  import { voiceStore } from '../stores/voiceStore.svelte';
+  import { serverState } from '../stores/serverState.svelte';
+  import { chatState } from '../stores/chatState.svelte';
   import { viewUserProfile } from '../actions/ui';
   import { selectChannel, createChannel, updateChannel, deleteChannel } from '../actions/chat';
   import { joinVoice, watchScreen, watchCamera, getUserVolume } from '../actions/voice';
@@ -88,8 +88,8 @@
 
   let isAdmin = $derived(isAdminRole($user?.role));
   let currentUserId = $derived($user?.id ?? '');
-  let textChannels = $derived($serverState.channels.filter((c) => c.channel_type === 'text'));
-  let voiceChannels = $derived($serverState.channels.filter((c) => c.channel_type === 'voice'));
+  let textChannels = $derived(serverState.channels.filter((c) => c.channel_type === 'text'));
+  let voiceChannels = $derived(serverState.channels.filter((c) => c.channel_type === 'voice'));
 </script>
 
 <div class="channel-category">
@@ -115,44 +115,43 @@
   </div>
 {/if}
 {#each textChannels as channel}
-  <div
-    class="channel-item {$chatState.selectedChannelId === channel.id ? 'selected' : ''}"
-    onclick={() => {
-      if (editingChannelId !== channel.id)
-        selectChannel(channel.id, channel.name);
-    }}
-    role="button"
-    tabindex="0"
-    onkeydown={(e) => e.key === 'Enter' && selectChannel(channel.id, channel.name)}
-  >
-    <div class="channel-icon">#</div>
-    {#if editingChannelId === channel.id}
-      <input
-        type="text"
-        class="edit-channel-input"
-        bind:value={editChannelName}
-        onkeydown={handleEditKeydown}
-        onclick={(e) => e.stopPropagation()}
-        maxlength="50"
-      />
-    {:else}
-      <span class="channel-name-text">{channel.name}</span>
-      {#if isAdmin}
-        <div class="channel-actions">
-          <button
-            class="channel-action-btn"
-            onclick={(e) => { e.stopPropagation(); startEdit(channel); }}
-            title="Edit">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-          </button>
-          <button
-            class="channel-action-btn delete"
-            onclick={(e) => { e.stopPropagation(); deleteChannel(channel.id); }}
-            title="Delete">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-          </button>
-        </div>
+  <div class="channel-item {chatState.selectedChannelId === channel.id ? 'selected' : ''}">
+    <button
+      class="channel-item-btn"
+      onclick={() => {
+        if (editingChannelId !== channel.id)
+          selectChannel(channel.id, channel.name);
+      }}
+    >
+      <div class="channel-icon">#</div>
+      {#if editingChannelId === channel.id}
+        <input
+          type="text"
+          class="edit-channel-input"
+          bind:value={editChannelName}
+          onkeydown={handleEditKeydown}
+          onclick={(e) => e.stopPropagation()}
+          maxlength="50"
+        />
+      {:else}
+        <span class="channel-name-text">{channel.name}</span>
       {/if}
+    </button>
+    {#if isAdmin && editingChannelId !== channel.id}
+      <div class="channel-actions">
+        <button
+          class="channel-action-btn"
+          onclick={() => startEdit(channel)}
+          title="Edit">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        </button>
+        <button
+          class="channel-action-btn delete"
+          onclick={() => deleteChannel(channel.id)}
+          title="Delete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        </button>
+      </div>
     {/if}
   </div>
 {/each}
@@ -180,7 +179,7 @@
   </div>
 {/if}
 {#each voiceChannels as channel}
-  <div class="channel-item voice-channel" role="button" tabindex="0">
+  <div class="channel-item voice-channel">
     <div class="channel-header">
       <div class="channel-icon">#</div>
       <span class="channel-name">{channel.name}</span>
@@ -188,19 +187,19 @@
         <div class="channel-actions voice-actions">
           <button
             class="channel-action-btn"
-            onclick={(e) => { e.stopPropagation(); startEdit(channel); }}
+            onclick={() => startEdit(channel)}
             title="Edit">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
           </button>
           <button
             class="channel-action-btn delete"
-            onclick={(e) => { e.stopPropagation(); deleteChannel(channel.id); }}
+            onclick={() => deleteChannel(channel.id)}
             title="Delete">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
           </button>
         </div>
       {/if}
-      {#if $voiceStore.currentVoiceChannel !== channel.id}
+      {#if voiceStore.currentVoiceChannel !== channel.id}
         <button
           class="voice-btn join"
           onclick={() => joinVoice(channel.id)}
@@ -218,52 +217,52 @@
           class="edit-channel-input"
           bind:value={editChannelName}
           onkeydown={handleEditKeydown}
-          onclick={(e) => e.stopPropagation()}
           maxlength="50"
         />
       </div>
     {/if}
 
-    {#if $voiceStore.voiceStates.some((vs) => vs.channel_id === channel.id)}
+    {#if voiceStore.voiceStates.some((vs) => vs.channel_id === channel.id)}
       <div class="voice-users">
-        {#each $voiceStore.voiceStates.filter((vs) => vs.channel_id === channel.id) as voiceState}
+        {#each voiceStore.voiceStates.filter((vs) => vs.channel_id === channel.id) as voiceState}
           <div
-            class="voice-user {$voiceStore.speakingUsers.includes(voiceState.user_id)
+            class="voice-user-row {voiceStore.speakingUsers.includes(voiceState.user_id)
               ? 'speaking'
               : ''} {voiceState.is_screen_sharing
               ? 'screen-sharing'
               : ''} {voiceState.is_camera_sharing ? 'camera-sharing' : ''}"
-            onclick={() => viewUserProfile(voiceState.user_id)}
-            oncontextmenu={(e) => {
-              e.preventDefault();
-              if (voiceState.user_id !== currentUserId) {
-                openUserVolumeMenu(e, voiceState.user_id, voiceState.display_name || voiceState.username);
-              }
-            }}
-            role="button"
-            tabindex="0"
-            onkeydown={(e) => e.key === 'Enter' && viewUserProfile(voiceState.user_id)}
           >
-            <Avatar
-              username={voiceState.username}
-              avatarUrl={$serverState.userAvatars[voiceState.user_id]}
-              size="xs"
-            />
-            <span class="username">{voiceState.display_name || voiceState.username}</span>
-            {#if voiceState.is_muted}
-              <span class="mute-indicator" title="Muted">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12A4.5 4.5 0 0 0 12 7.5v2.77l4.43 4.43c.04-.23.07-.46.07-.7zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A9.9 9.9 0 0 0 21 12c0-5.52-3.88-10.12-9-11.29V3a8 8 0 0 1 7 9zm-8.61-9.1L8 5.29 5.27 2.55 4 3.83l3 3V9a3 3 0 0 0 3 3h.29l1.5 1.5A4.5 4.5 0 0 1 7.5 12H5.57A8 8 0 0 0 11 20.71v2.29h2v-2.29A8 8 0 0 0 19.17 15l1.66 1.66 1.27-1.27L4 3.83z"/></svg>
-              </span>
-            {/if}
-            {#if voiceState.is_deafened}
-              <span class="deafen-indicator" title="Deafened">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.86 1 6.35 3.25 6.04 6.17L12 12.13V7a2 2 0 1 1 4 0v.13l2.39 2.39A6 6 0 0 0 18 7V7C18 3.69 15.31 1 12 1zm-1 20v-2H9v-2h2v-2H9v-2h1.13L2.39 5.26 1.13 6.53l9 9A4.98 4.98 0 0 0 7 20v2h4zm2-2h4v-2h-4v2z"/></svg>
-              </span>
-            {/if}
+            <button
+              class="voice-user"
+              onclick={() => viewUserProfile(voiceState.user_id)}
+              oncontextmenu={(e) => {
+                e.preventDefault();
+                if (voiceState.user_id !== currentUserId) {
+                  openUserVolumeMenu(e, voiceState.user_id, voiceState.display_name || voiceState.username);
+                }
+              }}
+            >
+              <Avatar
+                username={voiceState.username}
+                avatarUrl={serverState.userAvatars[voiceState.user_id]}
+                size="xs"
+              />
+              <span class="username">{voiceState.display_name || voiceState.username}</span>
+              {#if voiceState.is_muted}
+                <span class="mute-indicator" title="Muted">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12A4.5 4.5 0 0 0 12 7.5v2.77l4.43 4.43c.04-.23.07-.46.07-.7zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A9.9 9.9 0 0 0 21 12c0-5.52-3.88-10.12-9-11.29V3a8 8 0 0 1 7 9zm-8.61-9.1L8 5.29 5.27 2.55 4 3.83l3 3V9a3 3 0 0 0 3 3h.29l1.5 1.5A4.5 4.5 0 0 1 7.5 12H5.57A8 8 0 0 0 11 20.71v2.29h2v-2.29A8 8 0 0 0 19.17 15l1.66 1.66 1.27-1.27L4 3.83z"/></svg>
+                </span>
+              {/if}
+              {#if voiceState.is_deafened}
+                <span class="deafen-indicator" title="Deafened">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.86 1 6.35 3.25 6.04 6.17L12 12.13V7a2 2 0 1 1 4 0v.13l2.39 2.39A6 6 0 0 0 18 7V7C18 3.69 15.31 1 12 1zm-1 20v-2H9v-2h2v-2H9v-2h1.13L2.39 5.26 1.13 6.53l9 9A4.98 4.98 0 0 0 7 20v2h4zm2-2h4v-2h-4v2z"/></svg>
+                </span>
+              {/if}
+            </button>
             {#if voiceState.is_screen_sharing}
               <button
                 class="screen-indicator"
-                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchScreen(voiceState.user_id, voiceState.display_name || voiceState.username); }}
+                onclick={() => { if (voiceState.user_id !== currentUserId) watchScreen(voiceState.user_id, voiceState.display_name || voiceState.username); }}
                 title="Watch screen">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
               </button>
@@ -271,7 +270,7 @@
             {#if voiceState.is_camera_sharing}
               <button
                 class="camera-indicator"
-                onclick={(e) => { e.stopPropagation(); if (voiceState.user_id !== currentUserId) watchCamera(voiceState.user_id, voiceState.display_name || voiceState.username); }}
+                onclick={() => { if (voiceState.user_id !== currentUserId) watchCamera(voiceState.user_id, voiceState.display_name || voiceState.username); }}
                 title="Watch camera">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
               </button>

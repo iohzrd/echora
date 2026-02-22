@@ -1,5 +1,4 @@
-import { get } from 'svelte/store';
-import { audioSettingsStore } from './stores/audioSettingsStore';
+import { audioSettingsStore } from './stores/audioSettingsStore.svelte';
 
 type SoundName = 'connect' | 'disconnect';
 
@@ -60,7 +59,7 @@ async function getBuffer(name: SoundName): Promise<AudioBuffer> {
 
 export async function playSound(name: SoundName): Promise<void> {
   try {
-    const settings = get(audioSettingsStore);
+    const settings = audioSettingsStore;
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
       await ctx.resume();

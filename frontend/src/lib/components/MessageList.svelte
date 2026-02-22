@@ -8,8 +8,8 @@
     resolveUrl,
   } from "../utils";
   import { user, canDeleteMessage } from "../auth";
-  import { chatState } from "../stores/chatState";
-  import { serverState } from "../stores/serverState";
+  import { chatState } from "../stores/chatState.svelte";
+  import { serverState } from "../stores/serverState.svelte";
   import { viewUserProfile } from "../actions/ui";
   import {
     loadOlderMessages,
@@ -26,7 +26,7 @@
     emojiPickerState,
     openEmojiPicker,
     closeEmojiPicker,
-  } from "../stores/emojiPickerState";
+  } from "../stores/emojiPickerState.svelte";
 
   let messagesArea: HTMLDivElement;
 
@@ -82,8 +82,8 @@
   }
 
   $effect(() => {
-    const channelId = $chatState.selectedChannelId;
-    const count = $chatState.messages.length;
+    const channelId = chatState.selectedChannelId;
+    const count = chatState.messages.length;
     if (channelId !== prevChannelId) {
       // Channel switched — clear stale overflow tracking and scroll once messages load
       prevChannelId = channelId;
@@ -128,7 +128,7 @@
   let suppressOpenForMessageId: string | null = null;
 
   function handleEmojiButtonPointerDown(messageId: string) {
-    if ($emojiPickerState.messageId === messageId) {
+    if (emojiPickerState.messageId === messageId) {
       suppressOpenForMessageId = messageId;
     }
   }
@@ -166,7 +166,7 @@
 
   function getCustomEmojiData(emoji: string): CustomEmoji | undefined {
     const name = emoji.slice(1, -1);
-    return $serverState.customEmojis.find((e) => e.name === name);
+    return serverState.customEmojis.find((e) => e.name === name);
   }
 
   function getCustomEmojiImageUrl(emoji: string): string | null {
@@ -224,15 +224,15 @@
 <svelte:window onkeydown={handleLightboxKeydown} />
 
 <div class="messages-area" bind:this={messagesArea} onscroll={handleScroll}>
-  {#if $chatState.loadingMore}
+  {#if chatState.loadingMore}
     <div class="loading-more">Loading older messages...</div>
   {/if}
-  {#each $chatState.messages as message}
+  {#each chatState.messages as message}
     <div class="message">
       <div class="message-avatar-wrapper">
         <Avatar
           username={message.author}
-          avatarUrl={$serverState.userAvatars[message.author_id]}
+          avatarUrl={serverState.userAvatars[message.author_id]}
           size="medium"
         />
       </div>
@@ -262,11 +262,11 @@
             <span class="reply-content">(original message deleted)</span>
           </div>
         {/if}
-        {#if $chatState.editingMessageId === message.id}
+        {#if chatState.editingMessageId === message.id}
           <div class="edit-message-form">
             <textarea
               class="edit-message-input"
-              value={$chatState.editMessageContent}
+              value={chatState.editMessageContent}
               oninput={(e) => updateEditMessageContent(e.currentTarget.value)}
               onkeydown={handleEditKeydown}
             ></textarea>
@@ -441,7 +441,7 @@
           </div>
         {/if}
       </div>
-      {#if $chatState.editingMessageId !== message.id}
+      {#if chatState.editingMessageId !== message.id}
         <div class="message-actions">
           <button
             class="msg-action-btn"
@@ -521,6 +521,7 @@
         e.stopPropagation();
         closeLightbox();
       }}
+      title="Close"
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"
         ><path

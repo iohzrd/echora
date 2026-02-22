@@ -1,6 +1,5 @@
-import { get } from "svelte/store";
 import { voiceManager } from "../voice";
-import { voiceStore } from "../stores/voiceStore";
+import { voiceStore } from "../stores/voiceStore.svelte";
 import { getChannelProducers } from "../mediasoup";
 
 export function joinVoice(channelId: string) {
@@ -32,8 +31,7 @@ export async function toggleScreenShare() {
   if (_togglingScreen) return;
   _togglingScreen = true;
   try {
-    const { isScreenSharing } = get(voiceStore);
-    if (isScreenSharing) {
+    if (voiceStore.isScreenSharing) {
       await voiceManager.stopScreenShare();
     } else {
       await voiceManager.startScreenShare();
@@ -51,8 +49,7 @@ export async function toggleCamera() {
   if (_togglingCamera) return;
   _togglingCamera = true;
   try {
-    const { isCameraSharing } = get(voiceStore);
-    if (isCameraSharing) {
+    if (voiceStore.isCameraSharing) {
       await voiceManager.stopCamera();
     } else {
       await voiceManager.startCamera();
@@ -66,16 +63,13 @@ export async function toggleCamera() {
 }
 
 export async function watchScreen(userId: string, username: string) {
-  const { currentVoiceChannel } = get(voiceStore);
+  const { currentVoiceChannel } = voiceStore;
   if (!currentVoiceChannel) return;
-  voiceStore.update((s) => ({
-    ...s,
-    watchingScreenUserId: userId,
-    watchingScreenUsername: username,
-  }));
+  voiceStore.watchingScreenUserId = userId;
+  voiceStore.watchingScreenUsername = username;
   try {
     const producers = await getChannelProducers(currentVoiceChannel);
-    if (get(voiceStore).currentVoiceChannel !== currentVoiceChannel) return;
+    if (voiceStore.currentVoiceChannel !== currentVoiceChannel) return;
     for (const producer of producers) {
       if (producer.user_id === userId && producer.label === "screen") {
         await voiceManager.consumeProducer(
@@ -91,24 +85,18 @@ export async function watchScreen(userId: string, username: string) {
 }
 
 export function stopWatching() {
-  voiceStore.update((s) => ({
-    ...s,
-    watchingScreenUserId: null,
-    watchingScreenUsername: "",
-  }));
+  voiceStore.watchingScreenUserId = null;
+  voiceStore.watchingScreenUsername = "";
 }
 
 export async function watchCamera(userId: string, username: string) {
-  const { currentVoiceChannel } = get(voiceStore);
+  const { currentVoiceChannel } = voiceStore;
   if (!currentVoiceChannel) return;
-  voiceStore.update((s) => ({
-    ...s,
-    watchingCameraUserId: userId,
-    watchingCameraUsername: username,
-  }));
+  voiceStore.watchingCameraUserId = userId;
+  voiceStore.watchingCameraUsername = username;
   try {
     const producers = await getChannelProducers(currentVoiceChannel);
-    if (get(voiceStore).currentVoiceChannel !== currentVoiceChannel) return;
+    if (voiceStore.currentVoiceChannel !== currentVoiceChannel) return;
     for (const producer of producers) {
       if (producer.user_id === userId && producer.label === "camera") {
         await voiceManager.consumeProducer(
@@ -124,11 +112,8 @@ export async function watchCamera(userId: string, username: string) {
 }
 
 export function stopWatchingCamera() {
-  voiceStore.update((s) => ({
-    ...s,
-    watchingCameraUserId: null,
-    watchingCameraUsername: "",
-  }));
+  voiceStore.watchingCameraUserId = null;
+  voiceStore.watchingCameraUsername = "";
 }
 
 export function getUserVolume(userId: string): number {

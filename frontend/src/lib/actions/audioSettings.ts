@@ -1,6 +1,5 @@
-import { get } from "svelte/store";
 import { voiceManager } from "../voice";
-import { audioSettingsStore } from "../stores/audioSettingsStore";
+import { audioSettingsStore } from "../stores/audioSettingsStore.svelte";
 import {
   loadAudioSettings,
   saveAudioSettings,
@@ -12,16 +11,14 @@ import {
 
 export async function initAudioSettings(): Promise<() => void> {
   const settings = loadAudioSettings();
-  audioSettingsStore.set({
-    inputDeviceId: settings.inputDeviceId,
-    outputDeviceId: settings.outputDeviceId,
-    inputGain: settings.inputGain,
-    outputVolume: settings.outputVolume,
-    vadSensitivity: settings.vadSensitivity,
-    noiseSuppression: settings.noiseSuppression,
-    inputDevices: [],
-    outputDevices: [],
-  });
+  audioSettingsStore.inputDeviceId = settings.inputDeviceId;
+  audioSettingsStore.outputDeviceId = settings.outputDeviceId;
+  audioSettingsStore.inputGain = settings.inputGain;
+  audioSettingsStore.outputVolume = settings.outputVolume;
+  audioSettingsStore.vadSensitivity = settings.vadSensitivity;
+  audioSettingsStore.noiseSuppression = settings.noiseSuppression;
+  audioSettingsStore.inputDevices = [];
+  audioSettingsStore.outputDevices = [];
 
   voiceManager.setInputGain(settings.inputGain);
   voiceManager.setOutputVolume(settings.outputVolume);
@@ -43,60 +40,56 @@ export async function initAudioSettings(): Promise<() => void> {
 export async function refreshDeviceList() {
   try {
     const devices = await enumerateAudioDevices();
-    audioSettingsStore.update((s) => ({
-      ...s,
-      inputDevices: devices.inputs,
-      outputDevices: devices.outputs,
-    }));
+    audioSettingsStore.inputDevices = devices.inputs;
+    audioSettingsStore.outputDevices = devices.outputs;
   } catch (e) {
     console.warn("Failed to enumerate audio devices:", e);
   }
 }
 
 function saveCurrentSettings() {
-  const s = get(audioSettingsStore);
   saveAudioSettings({
-    inputDeviceId: s.inputDeviceId,
-    outputDeviceId: s.outputDeviceId,
-    inputGain: s.inputGain,
-    outputVolume: s.outputVolume,
-    vadSensitivity: s.vadSensitivity,
-    noiseSuppression: s.noiseSuppression,
+    inputDeviceId: audioSettingsStore.inputDeviceId,
+    outputDeviceId: audioSettingsStore.outputDeviceId,
+    inputGain: audioSettingsStore.inputGain,
+    outputVolume: audioSettingsStore.outputVolume,
+    vadSensitivity: audioSettingsStore.vadSensitivity,
+    noiseSuppression: audioSettingsStore.noiseSuppression,
   });
 }
 
 export function changeInputDevice(deviceId: string) {
-  audioSettingsStore.update((s) => ({ ...s, inputDeviceId: deviceId }));
+  audioSettingsStore.inputDeviceId = deviceId;
   voiceManager.setInputDevice(deviceId);
   saveCurrentSettings();
 }
 
 export function changeOutputDevice(deviceId: string) {
-  audioSettingsStore.update((s) => ({ ...s, outputDeviceId: deviceId }));
+  audioSettingsStore.outputDeviceId = deviceId;
   voiceManager.setOutputDevice(deviceId);
   saveCurrentSettings();
 }
 
 export function changeInputGain(gain: number) {
-  audioSettingsStore.update((s) => ({ ...s, inputGain: gain }));
+  audioSettingsStore.inputGain = gain;
   voiceManager.setInputGain(gain);
   saveCurrentSettings();
 }
 
 export function changeOutputVolume(volume: number) {
-  audioSettingsStore.update((s) => ({ ...s, outputVolume: volume }));
+  audioSettingsStore.outputVolume = volume;
   voiceManager.setOutputVolume(volume);
   saveCurrentSettings();
 }
 
 export function changeVadSensitivity(sensitivity: number) {
-  audioSettingsStore.update((s) => ({ ...s, vadSensitivity: sensitivity }));
+  audioSettingsStore.vadSensitivity = sensitivity;
   voiceManager.setSpeakingThreshold(sensitivity);
   saveCurrentSettings();
 }
 
 export function toggleNoiseSuppression(enabled: boolean) {
-  audioSettingsStore.update((s) => ({ ...s, noiseSuppression: enabled }));
+  audioSettingsStore.noiseSuppression = enabled;
   voiceManager.setNoiseSuppression(enabled);
   saveCurrentSettings();
 }

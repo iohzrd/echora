@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { serverState } from '../stores/serverState';
+  import { serverState } from '../stores/serverState.svelte';
   import { viewUserProfile } from '../actions/ui';
   import Avatar from './Avatar.svelte';
 
@@ -9,9 +9,9 @@
     moderator: { badge: 'MOD', cls: 'role-mod' },
   };
 
-  let usersWithRole = $derived($serverState.onlineUsers.map((u) => ({
+  let usersWithRole = $derived(serverState.onlineUsers.map((u) => ({
     ...u,
-    role: ROLE_INFO[$serverState.userRolesMap[u.user_id]] ?? null,
+    role: ROLE_INFO[serverState.userRolesMap[u.user_id]] ?? null,
   })));
 </script>
 
@@ -30,7 +30,7 @@
       <div class="online-dot"></div>
       <Avatar
         username={u.username}
-        avatarUrl={$serverState.userAvatars[u.user_id]}
+        avatarUrl={serverState.userAvatars[u.user_id]}
         size="xs"
       />
       <span class="online-username">{u.display_name || u.username}</span>

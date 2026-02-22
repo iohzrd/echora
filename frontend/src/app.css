@@ -196,6 +196,20 @@ body {
 	transition: background-color 0.15s ease;
 }
 
+.channel-item-btn {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	background: none;
+	border: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	padding: 0;
+	text-align: left;
+}
+
 .channel-item:hover {
 	background-color: var(--bg-hover);
 	color: var(--text-normal);
@@ -661,6 +675,12 @@ body {
 	margin: 4px 0 8px 16px;
 }
 
+.voice-user-row {
+	display: flex;
+	align-items: center;
+	position: relative;
+}
+
 .voice-user {
 	display: flex;
 	align-items: center;
@@ -668,20 +688,25 @@ body {
 	padding: 2px 4px;
 	font-size: 12px;
 	color: var(--text-secondary);
-	position: relative;
 	cursor: pointer;
 	border-radius: var(--radius-sm);
+	background: none;
+	border: none;
+	flex: 1;
+	min-width: 0;
+	text-align: left;
+	font: inherit;
 }
 
 .voice-user:hover {
 	background: var(--bg-hover);
 }
 
-.voice-user.speaking {
+.voice-user-row.speaking .voice-user {
 	color: var(--status-positive);
 }
 
-.voice-user.speaking .avatar {
+.voice-user-row.speaking .avatar {
 	box-shadow: 0 0 0 2px var(--status-positive);
 	animation: speaking-pulse 1.2s ease-in-out infinite;
 }
@@ -723,13 +748,13 @@ body {
 	text-decoration: underline;
 }
 
-.voice-user.screen-sharing,
-.voice-user.camera-sharing {
+.voice-user-row.screen-sharing,
+.voice-user-row.camera-sharing {
 	cursor: pointer;
 }
 
-.voice-user.screen-sharing:hover,
-.voice-user.camera-sharing:hover {
+.voice-user-row.screen-sharing:hover .voice-user,
+.voice-user-row.camera-sharing:hover .voice-user {
 	background-color: var(--bg-input);
 	border-radius: var(--radius-md);
 }
