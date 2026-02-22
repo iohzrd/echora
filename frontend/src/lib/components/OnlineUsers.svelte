@@ -1,6 +1,6 @@
 <script lang="ts">
   import { serverState } from '../stores/serverState';
-  import { uiState } from '../stores/uiState';
+  import { viewUserProfile } from '../actions/ui';
   import Avatar from './Avatar.svelte';
 
   const ROLE_INFO: Record<string, { badge: string; cls: string }> = {
@@ -22,10 +22,10 @@
   {#each usersWithRole as u}
     <div
       class="online-user"
-      on:click={() => uiState.update((s) => ({ ...s, profileViewUserId: u.user_id }))}
+      on:click={() => viewUserProfile(u.user_id)}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && uiState.update((s) => ({ ...s, profileViewUserId: u.user_id }))}
+      on:keydown={(e) => e.key === 'Enter' && viewUserProfile(u.user_id)}
     >
       <div class="online-dot"></div>
       <Avatar

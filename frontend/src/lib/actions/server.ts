@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { goto } from '$app/navigation';
-import { API } from '../api';
+import { API, ApiError } from '../api';
 import AuthService, { user } from '../auth';
 import { voiceManager } from '../voice';
 import { isTauri, activeServer } from '../serverManager';
@@ -9,8 +9,8 @@ import { voiceStore } from '../stores/voiceStore';
 import { serverState } from '../stores/serverState';
 import { chatState } from '../stores/chatState';
 import { uiState } from '../stores/uiState';
-import { selectChannel } from './chat';
-import { setupWsHandlers } from './wsHandlers';
+import { selectChannel, resetChatActionState } from './chat';
+import { setupWsHandlers, teardownWsHandlers } from './wsHandlers';
 import { initPTT, switchInputMode as pttSwitchInputMode, changePTTKey as pttChangePTTKey } from '../ptt';
 import type { VoiceInputMode } from '../voice';
 
@@ -82,6 +82,7 @@ async function _connectToServer() {
       replyingTo: null,
       typingUsers: {},
       rateLimitWarning: false,
+      sendError: false,
     };
   });
   serverState.set({
@@ -145,6 +146,8 @@ async function _connectToServer() {
       // Custom emojis may not be available
     }
 
+    teardownWsHandlers();
+    resetChatActionState();
     resetWs();
     setupWsHandlers();
     setupVoiceStateHandlers();
@@ -159,7 +162,7 @@ async function _connectToServer() {
     }
   } catch (error) {
     console.error('Failed to load initial data:', error);
-    if (error instanceof Error && error.message.includes('401')) {
+    if (error instanceof ApiError && error.status === 401) {
       AuthService.logout();
       goto('/auth');
     }

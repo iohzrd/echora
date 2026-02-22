@@ -18,6 +18,17 @@
   import { uiState } from '../lib/stores/uiState';
   import { connectToServer, initPTTSettings } from '../lib/actions/server';
   import { initAudioSettings } from '../lib/actions/audioSettings';
+  import {
+    openAddServerDialog,
+    closeAddServerDialog,
+    closeAdminPanel,
+    closePasskeySettings,
+    closeProfileModal,
+    closeProfileView,
+    closeSidebar,
+    setNeedsServerAuth,
+    setTauriAuthIsLogin,
+  } from '../lib/actions/ui';
 
   import ServerSidebar from '../lib/components/ServerSidebar.svelte';
   import AddServerDialog from '../lib/components/AddServerDialog.svelte';
@@ -65,13 +76,14 @@
 
   function handleAddServer(url: string, name: string) {
     const server = addServer(url, name);
-    uiState.update((s) => ({ ...s, showAddServerDialog: false }));
+    closeAddServerDialog();
     setActiveServer(server.id);
     connectToServer();
   }
 
   function handleTauriAuthSuccess() {
-    uiState.update((s) => ({ ...s, needsServerAuth: false, tauriAuthIsLogin: true }));
+    setNeedsServerAuth(false);
+    setTauriAuthIsLogin(true);
     connectToServer();
   }
 
@@ -89,7 +101,7 @@
   {#if $uiState.sidebarOpen}
     <div
       class="sidebar-overlay"
-      on:click={() => uiState.update((s) => ({ ...s, sidebarOpen: false }))}
+      on:click={closeSidebar}
       role="presentation"
     ></div>
   {/if}
@@ -97,7 +109,7 @@
   {#if isTauri}
     <ServerSidebar
       onSelectServer={handleSelectServer}
-      onAddServer={() => uiState.update((s) => ({ ...s, showAddServerDialog: true }))}
+      onAddServer={openAddServerDialog}
       onRemoveServer={handleRemoveServer}
     />
   {/if}
@@ -109,7 +121,7 @@
         <p>Add a server to get started.</p>
         <button
           class="submit-btn"
-          on:click={() => uiState.update((s) => ({ ...s, showAddServerDialog: true }))}
+          on:click={openAddServerDialog}
         >
           Add Server
         </button>
@@ -135,13 +147,13 @@
             {#if $uiState.tauriAuthIsLogin}
               <span>Need an account?</span>
               <button
-                on:click={() => uiState.update((s) => ({ ...s, tauriAuthIsLogin: false }))}
+                on:click={() => setTauriAuthIsLogin(false)}
                 class="toggle-btn">Register</button
               >
             {:else}
               <span>Already have an account?</span>
               <button
-                on:click={() => uiState.update((s) => ({ ...s, tauriAuthIsLogin: true }))}
+                on:click={() => setTauriAuthIsLogin(true)}
                 class="toggle-btn">Login</button
               >
             {/if}
@@ -158,25 +170,25 @@
 {#if $uiState.showAddServerDialog}
   <AddServerDialog
     onAdd={handleAddServer}
-    onCancel={() => uiState.update((s) => ({ ...s, showAddServerDialog: false }))}
+    onCancel={closeAddServerDialog}
   />
 {/if}
 
 {#if $uiState.showAdminPanel}
-  <AdminPanel onClose={() => uiState.update((s) => ({ ...s, showAdminPanel: false }))} />
+  <AdminPanel onClose={closeAdminPanel} />
 {/if}
 
 {#if $uiState.showPasskeySettings}
-  <PasskeySettings onClose={() => uiState.update((s) => ({ ...s, showPasskeySettings: false }))} />
+  <PasskeySettings onClose={closePasskeySettings} />
 {/if}
 
 {#if $uiState.showProfileModal}
-  <ProfileModal onClose={() => uiState.update((s) => ({ ...s, showProfileModal: false }))} />
+  <ProfileModal onClose={closeProfileModal} />
 {/if}
 
 {#if $uiState.profileViewUserId}
   <ProfileModal
     viewUserId={$uiState.profileViewUserId}
-    onClose={() => uiState.update((s) => ({ ...s, profileViewUserId: null }))}
+    onClose={closeProfileView}
   />
 {/if}

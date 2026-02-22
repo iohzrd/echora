@@ -4,37 +4,41 @@
   import AuthService, { user } from "../auth";
   import Avatar from "./Avatar.svelte";
 
-  export let onClose: () => void = () => {};
-  export let viewUserId: string | undefined = undefined;
+  let { onClose = () => {}, viewUserId = undefined }: {
+    onClose?: () => void;
+    viewUserId?: string;
+  } = $props();
 
   // Self-edit state
-  let username = "";
-  let displayName = "";
-  let saving = false;
-  let uploading = false;
-  let error = "";
-  let success = "";
+  let username = $state("");
+  let displayName = $state("");
+  let saving = $state(false);
+  let uploading = $state(false);
+  let error = $state("");
+  let success = $state("");
   let fileInput: HTMLInputElement;
 
   // Password change state
-  let showPasswordSection = false;
-  let currentPassword = "";
-  let newPassword = "";
-  let confirmPassword = "";
-  let passwordSaving = false;
-  let passwordError = "";
-  let passwordSuccess = "";
+  let showPasswordSection = $state(false);
+  let currentPassword = $state("");
+  let newPassword = $state("");
+  let confirmPassword = $state("");
+  let passwordSaving = $state(false);
+  let passwordError = $state("");
+  let passwordSuccess = $state("");
 
   // View-other state
-  let profile: PublicProfile | null = null;
-  let loading = false;
+  let profile: PublicProfile | null = $state(null);
+  let loading = $state(false);
 
-  $: isViewMode = !!viewUserId && viewUserId !== $user?.id;
+  let isViewMode = $derived(!!viewUserId && viewUserId !== $user?.id);
 
-  $: if (!isViewMode && $user) {
-    username = $user.username;
-    displayName = $user.display_name || "";
-  }
+  $effect(() => {
+    if (!isViewMode && $user) {
+      username = $user.username;
+      displayName = $user.display_name || "";
+    }
+  });
 
   onMount(async () => {
     if (isViewMode && viewUserId) {
@@ -200,7 +204,9 @@
           Profile Settings
         {/if}
       </h2>
-      <button class="close-btn" on:click={onClose}>X</button>
+      <button class="close-btn" on:click={onClose}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
     </div>
 
     <div class="profile-content">

@@ -15,6 +15,17 @@ const TYPING_DISPLAY_MS = 5000;
 let _rateLimitTimeout: ReturnType<typeof setTimeout> | null = null;
 let _activeHandler: ((data: WsIncomingMessage) => void) | null = null;
 
+export function teardownWsHandlers() {
+  if (_rateLimitTimeout) {
+    clearTimeout(_rateLimitTimeout);
+    _rateLimitTimeout = null;
+  }
+  if (_activeHandler) {
+    getWs().offMessage(_activeHandler);
+    _activeHandler = null;
+  }
+}
+
 function updateMessageReaction(msgId: string, emoji: string, userId: string, add: boolean) {
   const currentUser = get(user);
   chatState.update((s) => ({
@@ -52,35 +63,41 @@ export function setupWsHandlers() {
     const ss = get(serverState);
     const currentUser = get(user);
 
-    if (data.type === 'message' && data.data.channel_id === cs.selectedChannelId) {
-      populateAvatarsFromMessages([data.data]);
-      chatState.update((s) => {
-        const authorId = data.data.author_id;
-        if (authorId && s.typingUsers[authorId]) {
-          clearTimeout(s.typingUsers[authorId].timeout);
-          const { [authorId]: _, ...typingUsers } = s.typingUsers;
-          return { ...s, messages: [...s.messages, data.data], typingUsers };
-        }
-        return { ...s, messages: [...s.messages, data.data] };
-      });
+    if (data.type === 'message') {
+      const msg = data.data;
+      if (msg.channel_id === cs.selectedChannelId) {
+        populateAvatarsFromMessages([msg]);
+        chatState.update((s) => {
+          const authorId = msg.author_id;
+          if (authorId && s.typingUsers[authorId]) {
+            clearTimeout(s.typingUsers[authorId].timeout);
+            const { [authorId]: _, ...typingUsers } = s.typingUsers;
+            return { ...s, messages: [...s.messages, msg], typingUsers };
+          }
+          return { ...s, messages: [...s.messages, msg] };
+        });
+      }
     }
 
     if (data.type === 'channel_created') {
-      serverState.update((s) => ({ ...s, channels: [...s.channels, data.data] }));
+      const ch = data.data;
+      serverState.update((s) => ({ ...s, channels: [...s.channels, ch] }));
     }
     if (data.type === 'channel_updated') {
+      const ch = data.data;
       serverState.update((s) => ({
         ...s,
-        channels: s.channels.map((c) => (c.id === data.data.id ? data.data : c)),
+        channels: s.channels.map((c) => (c.id === ch.id ? ch : c)),
       }));
-      if (cs.selectedChannelId === data.data.id) {
-        chatState.update((s) => ({ ...s, selectedChannelName: data.data.name }));
+      if (cs.selectedChannelId === ch.id) {
+        chatState.update((s) => ({ ...s, selectedChannelName: ch.name }));
       }
     }
     if (data.type === 'channel_deleted') {
-      const updatedChannels = ss.channels.filter((c) => c.id !== data.data.id);
+      const { id } = data.data;
+      const updatedChannels = ss.channels.filter((c) => c.id !== id);
       serverState.update((s) => ({ ...s, channels: updatedChannels }));
-      if (cs.selectedChannelId === data.data.id) {
+      if (cs.selectedChannelId === id) {
         const firstText = updatedChannels.find((c) => c.channel_type === 'text');
         if (firstText) {
           selectChannel(firstText.id, firstText.name);
@@ -96,19 +113,21 @@ export function setupWsHandlers() {
     }
 
     if (data.type === 'user_online') {
+      const presence = data.data;
       serverState.update((s) => {
-        const exists = s.onlineUsers.find((u) => u.user_id === data.data.user_id);
-        const onlineUsers = exists ? s.onlineUsers : [...s.onlineUsers, data.data];
-        const userAvatars = data.data.avatar_url
-          ? { ...s.userAvatars, [data.data.user_id]: API.getAvatarUrl(data.data.user_id) }
+        const exists = s.onlineUsers.find((u) => u.user_id === presence.user_id);
+        const onlineUsers = exists ? s.onlineUsers : [...s.onlineUsers, presence];
+        const userAvatars = presence.avatar_url
+          ? { ...s.userAvatars, [presence.user_id]: API.getAvatarUrl(presence.user_id) }
           : s.userAvatars;
         return { ...s, onlineUsers, userAvatars };
       });
     }
     if (data.type === 'user_offline') {
+      const { user_id } = data.data;
       serverState.update((s) => ({
         ...s,
-        onlineUsers: s.onlineUsers.filter((u) => u.user_id !== data.data.user_id),
+        onlineUsers: s.onlineUsers.filter((u) => u.user_id !== user_id),
       }));
     }
 
@@ -148,159 +167,179 @@ export function setupWsHandlers() {
       }));
     }
 
-    if (data.type === 'message_edited' && data.data.channel_id === cs.selectedChannelId) {
-      chatState.update((s) => ({
-        ...s,
-        messages: s.messages.map((m) => (m.id === data.data.id ? data.data : m)),
-      }));
+    if (data.type === 'message_edited') {
+      const msg = data.data;
+      if (msg.channel_id === cs.selectedChannelId) {
+        chatState.update((s) => ({
+          ...s,
+          messages: s.messages.map((m) => (m.id === msg.id ? msg : m)),
+        }));
+      }
     }
-    if (data.type === 'message_deleted' && data.data.channel_id === cs.selectedChannelId) {
-      chatState.update((s) => ({
-        ...s,
-        messages: s.messages.filter((m) => m.id !== data.data.id),
-      }));
+    if (data.type === 'message_deleted') {
+      const { id, channel_id } = data.data;
+      if (channel_id === cs.selectedChannelId) {
+        chatState.update((s) => ({
+          ...s,
+          messages: s.messages.filter((m) => m.id !== id),
+        }));
+      }
     }
 
     if (data.type === 'reaction_added' && cs.selectedChannelId) {
-      updateMessageReaction(data.data.message_id, data.data.emoji, data.data.user_id, true);
+      const { message_id, emoji, user_id } = data.data;
+      updateMessageReaction(message_id, emoji, user_id, true);
     }
     if (data.type === 'reaction_removed' && cs.selectedChannelId) {
-      updateMessageReaction(data.data.message_id, data.data.emoji, data.data.user_id, false);
+      const { message_id, emoji, user_id } = data.data;
+      updateMessageReaction(message_id, emoji, user_id, false);
     }
 
-    if (data.type === 'link_preview_ready' && data.data.channel_id === cs.selectedChannelId) {
-      const { message_id, link_previews } = data.data;
-      chatState.update((s) => ({
-        ...s,
-        messages: s.messages.map((m) =>
-          m.id === message_id ? { ...m, link_previews } : m,
-        ),
-      }));
+    if (data.type === 'link_preview_ready') {
+      const { channel_id, message_id, link_previews } = data.data;
+      if (channel_id === cs.selectedChannelId) {
+        chatState.update((s) => ({
+          ...s,
+          messages: s.messages.map((m) =>
+            m.id === message_id ? { ...m, link_previews } : m,
+          ),
+        }));
+      }
     }
 
     if (data.type === 'voice_user_joined') {
+      const vs_data = data.data;
       voiceStore.update((s) => ({
         ...s,
         voiceStates: [
-          ...s.voiceStates.filter((v) => v.user_id !== data.data.user_id),
-          data.data,
+          ...s.voiceStates.filter((v) => v.user_id !== vs_data.user_id),
+          vs_data,
         ],
       }));
       if (
-        data.data.channel_id === vs.currentVoiceChannel ||
-        data.data.user_id === currentUser?.id
+        vs_data.channel_id === vs.currentVoiceChannel ||
+        vs_data.user_id === currentUser?.id
       ) {
         playSound('connect');
       }
     }
 
-    if (
-      data.type === 'new_producer' &&
-      data.data.channel_id === vs.currentVoiceChannel &&
-      data.data.user_id !== currentUser?.id
-    ) {
-      if (data.data.label !== 'screen' && data.data.label !== 'camera') {
-        voiceManager.consumeProducer(data.data.producer_id, data.data.user_id, data.data.label);
-      } else if (data.data.label === 'screen' && vs.watchingScreenUserId === data.data.user_id) {
-        voiceManager.consumeProducer(data.data.producer_id, data.data.user_id, data.data.label);
-      } else if (data.data.label === 'camera' && vs.watchingCameraUserId === data.data.user_id) {
-        voiceManager.consumeProducer(data.data.producer_id, data.data.user_id, data.data.label);
+    if (data.type === 'new_producer') {
+      const prod = data.data;
+      if (prod.channel_id === vs.currentVoiceChannel && prod.user_id !== currentUser?.id) {
+        if (prod.label !== 'screen' && prod.label !== 'camera') {
+          voiceManager.consumeProducer(prod.producer_id, prod.user_id, prod.label);
+        } else if (prod.label === 'screen' && vs.watchingScreenUserId === prod.user_id) {
+          voiceManager.consumeProducer(prod.producer_id, prod.user_id, prod.label);
+        } else if (prod.label === 'camera' && vs.watchingCameraUserId === prod.user_id) {
+          voiceManager.consumeProducer(prod.producer_id, prod.user_id, prod.label);
+        }
       }
     }
 
     if (data.type === 'voice_user_left') {
-      if (data.data.channel_id === vs.currentVoiceChannel) {
+      const { user_id, channel_id } = data.data;
+      if (channel_id === vs.currentVoiceChannel) {
         playSound('disconnect');
       }
       voiceStore.update((s) => ({
         ...s,
         voiceStates: s.voiceStates.filter(
-          (v) => !(v.user_id === data.data.user_id && v.channel_id === data.data.channel_id),
+          (v) => !(v.user_id === user_id && v.channel_id === channel_id),
         ),
       }));
-      voiceManager.removeUserAudio(data.data.user_id);
+      voiceManager.removeUserAudio(user_id);
     }
 
     if (data.type === 'voice_state_updated') {
+      const vs_data = data.data;
       voiceStore.update((s) => ({
         ...s,
         voiceStates: s.voiceStates.map((v) =>
-          v.user_id === data.data.user_id && v.channel_id === data.data.channel_id
-            ? data.data
+          v.user_id === vs_data.user_id && v.channel_id === vs_data.channel_id
+            ? vs_data
             : v,
         ),
       }));
     }
 
     if (data.type === 'voice_speaking') {
+      const { user_id, is_speaking } = data.data;
       voiceStore.update((s) => {
-        const speakingUsers = data.data.is_speaking
-          ? s.speakingUsers.includes(data.data.user_id)
+        const speakingUsers = is_speaking
+          ? s.speakingUsers.includes(user_id)
             ? s.speakingUsers
-            : [...s.speakingUsers, data.data.user_id]
-          : s.speakingUsers.filter((id) => id !== data.data.user_id);
+            : [...s.speakingUsers, user_id]
+          : s.speakingUsers.filter((id) => id !== user_id);
         return { ...s, speakingUsers };
       });
     }
 
     if (data.type === 'screen_share_updated') {
+      const { user_id, channel_id, is_screen_sharing } = data.data;
       voiceStore.update((s) => ({
         ...s,
         voiceStates: s.voiceStates.map((v) =>
-          v.user_id === data.data.user_id && v.channel_id === data.data.channel_id
-            ? { ...v, is_screen_sharing: data.data.is_screen_sharing }
+          v.user_id === user_id && v.channel_id === channel_id
+            ? { ...v, is_screen_sharing }
             : v,
         ),
         watchingScreenUserId:
-          !data.data.is_screen_sharing && s.watchingScreenUserId === data.data.user_id
+          !is_screen_sharing && s.watchingScreenUserId === user_id
             ? null
             : s.watchingScreenUserId,
         watchingScreenUsername:
-          !data.data.is_screen_sharing && s.watchingScreenUserId === data.data.user_id
+          !is_screen_sharing && s.watchingScreenUserId === user_id
             ? ''
             : s.watchingScreenUsername,
       }));
     }
 
     if (data.type === 'camera_updated') {
+      const { user_id, channel_id, is_camera_sharing } = data.data;
       voiceStore.update((s) => ({
         ...s,
         voiceStates: s.voiceStates.map((v) =>
-          v.user_id === data.data.user_id && v.channel_id === data.data.channel_id
-            ? { ...v, is_camera_sharing: data.data.is_camera_sharing }
+          v.user_id === user_id && v.channel_id === channel_id
+            ? { ...v, is_camera_sharing }
             : v,
         ),
         watchingCameraUserId:
-          !data.data.is_camera_sharing && s.watchingCameraUserId === data.data.user_id
+          !is_camera_sharing && s.watchingCameraUserId === user_id
             ? null
             : s.watchingCameraUserId,
         watchingCameraUsername:
-          !data.data.is_camera_sharing && s.watchingCameraUserId === data.data.user_id
+          !is_camera_sharing && s.watchingCameraUserId === user_id
             ? ''
             : s.watchingCameraUsername,
       }));
     }
 
-    if (data.type === 'user_kicked' && data.data.user_id === currentUser?.id) {
-      alert('You have been kicked from the server.');
-      AuthService.logout();
-      goto('/auth');
-      return;
+    if (data.type === 'user_kicked') {
+      if (data.data.user_id === currentUser?.id) {
+        alert('You have been kicked from the server.');
+        AuthService.logout();
+        goto('/auth');
+        return;
+      }
     }
-    if (data.type === 'user_banned' && data.data.user_id === currentUser?.id) {
-      alert('You have been banned from the server.');
-      AuthService.logout();
-      goto('/auth');
-      return;
+    if (data.type === 'user_banned') {
+      if (data.data.user_id === currentUser?.id) {
+        alert('You have been banned from the server.');
+        AuthService.logout();
+        goto('/auth');
+        return;
+      }
     }
 
     if (data.type === 'user_role_changed') {
-      if (data.data.user_id === currentUser?.id && currentUser) {
-        user.set({ ...currentUser, role: data.data.new_role });
+      const { user_id, new_role } = data.data;
+      if (user_id === currentUser?.id && currentUser) {
+        user.set({ ...currentUser, role: new_role });
       }
       serverState.update((s) => ({
         ...s,
-        userRolesMap: { ...s.userRolesMap, [data.data.user_id]: data.data.new_role },
+        userRolesMap: { ...s.userRolesMap, [user_id]: new_role },
       }));
     }
 
@@ -329,19 +368,21 @@ export function setupWsHandlers() {
       }, 3000);
     }
 
-    if (data.type === 'typing' && data.data.channel_id === cs.selectedChannelId) {
-      const userId = data.data.user_id;
-      if (userId === currentUser?.id) return;
-      chatState.update((s) => {
-        if (s.typingUsers[userId]) clearTimeout(s.typingUsers[userId].timeout);
-        const timeout = setTimeout(() => {
-          chatState.update((inner) => {
-            const { [userId]: _, ...typingUsers } = inner.typingUsers;
-            return { ...inner, typingUsers };
-          });
-        }, TYPING_DISPLAY_MS);
-        return { ...s, typingUsers: { ...s.typingUsers, [userId]: { username: data.data.username, timeout } } };
-      });
+    if (data.type === 'typing') {
+      const { user_id: userId, channel_id, username } = data.data;
+      if (channel_id === cs.selectedChannelId) {
+        if (userId === currentUser?.id) return;
+        chatState.update((s) => {
+          if (s.typingUsers[userId]) clearTimeout(s.typingUsers[userId].timeout);
+          const timeout = setTimeout(() => {
+            chatState.update((inner) => {
+              const { [userId]: _, ...typingUsers } = inner.typingUsers;
+              return { ...inner, typingUsers };
+            });
+          }, TYPING_DISPLAY_MS);
+          return { ...s, typingUsers: { ...s.typingUsers, [userId]: { username, timeout } } };
+        });
+      }
     }
   };
   getWs().onMessage(_activeHandler);

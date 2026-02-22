@@ -19,10 +19,15 @@ function detachAudioElement(audio: HTMLAudioElement): void {
 
 export type VoiceInputMode = 'voice-activity' | 'push-to-talk';
 
+function getAudioContainer(): HTMLElement {
+  return document.getElementById('audio-container') ?? document.body;
+}
+
 export class VoiceManager {
   private mediasoup: MediasoupManager | null = null;
   private remoteAudioElements: Map<string, HTMLAudioElement> = new Map();
   private localStream: MediaStream | null = null;
+  private localSourceNode: MediaStreamAudioSourceNode | null = null;
   private screenStream: MediaStream | null = null;
   private cameraStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -215,7 +220,7 @@ export class VoiceManager {
     if (!remoteAudio) {
       remoteAudio = document.createElement('audio');
       remoteAudio.autoplay = true;
-      document.body.appendChild(remoteAudio);
+      getAudioContainer().appendChild(remoteAudio);
       this.remoteAudioElements.set(userId, remoteAudio);
     }
 
@@ -256,10 +261,10 @@ export class VoiceManager {
     // Setup Web Audio pipeline: Source -> GainNode -> AnalyserNode (VAD)
     //                                             \-> DestinationNode (producer track)
     this.audioContext = new AudioContext();
-    const source = this.audioContext.createMediaStreamSource(this.localStream);
+    this.localSourceNode = this.audioContext.createMediaStreamSource(this.localStream);
 
     this.gainNode = this.audioContext.createGain();
-    source.connect(this.gainNode);
+    this.localSourceNode.connect(this.gainNode);
 
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 512;
@@ -291,8 +296,9 @@ export class VoiceManager {
 
     // Reconnect Web Audio pipeline (GainNode, AnalyserNode, DestinationNode already exist)
     if (this.audioContext && this.gainNode) {
-      const source = this.audioContext.createMediaStreamSource(this.localStream);
-      source.connect(this.gainNode);
+      this.localSourceNode?.disconnect();
+      this.localSourceNode = this.audioContext.createMediaStreamSource(this.localStream);
+      this.localSourceNode.connect(this.gainNode);
     }
 
     // Replace the track on the mediasoup producer
@@ -599,6 +605,8 @@ export class VoiceManager {
     this.cameraStream = stopStream(this.cameraStream);
 
     // Close audio context
+    this.localSourceNode?.disconnect();
+    this.localSourceNode = null;
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
