@@ -14,7 +14,11 @@
     if (!isTauri) return;
 
     let currentZoom = 1;
-    let webview: Awaited<ReturnType<typeof import("@tauri-apps/api/webview")["getCurrentWebview"]>>;
+    let webview: Awaited<
+      ReturnType<
+        (typeof import("@tauri-apps/api/webview"))["getCurrentWebview"]
+      >
+    >;
 
     async function init() {
       const { getCurrentWebview } = await import("@tauri-apps/api/webview");
@@ -36,9 +40,15 @@
       if (!webview || !(e.ctrlKey || e.metaKey)) return;
       let next: number | null = null;
       if (e.key === "=" || e.key === "+") {
-        next = Math.min(ZOOM_MAX, Math.round((currentZoom + ZOOM_STEP) * 10) / 10);
+        next = Math.min(
+          ZOOM_MAX,
+          Math.round((currentZoom + ZOOM_STEP) * 10) / 10,
+        );
       } else if (e.key === "-") {
-        next = Math.max(ZOOM_MIN, Math.round((currentZoom - ZOOM_STEP) * 10) / 10);
+        next = Math.max(
+          ZOOM_MIN,
+          Math.round((currentZoom - ZOOM_STEP) * 10) / 10,
+        );
       } else if (e.key === "0") {
         next = 1;
       }

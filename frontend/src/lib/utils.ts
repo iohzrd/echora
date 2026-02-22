@@ -1,9 +1,9 @@
-import { isTauri } from './serverManager';
-import { getApiBase } from './config';
+import { isTauri } from "./serverManager";
+import { getApiBase } from "./config";
 
 export function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 export function getInitial(name: string): string {
@@ -12,7 +12,7 @@ export function getInitial(name: string): string {
 
 export function truncateContent(content: string, maxLen = 100): string {
   if (content.length <= maxLen) return content;
-  return content.substring(0, maxLen) + '...';
+  return content.substring(0, maxLen) + "...";
 }
 
 export function formatFileSize(bytes: number): string {
@@ -22,8 +22,8 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function resolveUrl(url: string): string {
-  if (isTauri && url.startsWith('/')) {
-    return getApiBase().replace(/\/api$/, '') + url;
+  if (isTauri && url.startsWith("/")) {
+    return getApiBase().replace(/\/api$/, "") + url;
   }
   return url;
 }

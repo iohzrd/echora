@@ -1,4 +1,4 @@
-import type { Message } from '../api';
+import type { Message } from "../api";
 
 export interface TypingUser {
   username: string;
@@ -21,12 +21,12 @@ export interface ChatStateStore {
 
 export const chatState = $state<ChatStateStore>({
   messages: [],
-  selectedChannelId: '',
-  selectedChannelName: '',
+  selectedChannelId: "",
+  selectedChannelName: "",
   hasMoreMessages: true,
   loadingMore: false,
   editingMessageId: null,
-  editMessageContent: '',
+  editMessageContent: "",
   replyingTo: null,
   typingUsers: {},
   rateLimitWarning: false,

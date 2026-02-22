@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { API, type PublicProfile } from "../api";
-  import AuthService, { user } from "../auth";
+  import AuthService from "../auth";
+  import { authState } from "../stores/authState.svelte";
   import Avatar from "./Avatar.svelte";
 
   let {
@@ -33,11 +34,11 @@
   let profile: PublicProfile | null = $state(null);
   let loading = $state(false);
 
-  let isViewMode = $derived(!!viewUserId && viewUserId !== $user?.id);
+  let isViewMode = $derived(!!viewUserId && viewUserId !== authState.user?.id);
 
   onMount(async () => {
-    if (!isViewMode && $user) {
-      displayName = $user.display_name || "";
+    if (!isViewMode && authState.user) {
+      displayName = authState.user.display_name || "";
     }
     if (isViewMode && viewUserId) {
       loading = true;
@@ -52,12 +53,12 @@
   });
 
   async function handleSave() {
-    if (!$user) return;
+    if (!authState.user) return;
     saving = true;
     error = "";
     success = "";
     try {
-      const currentDisplayName = $user.display_name || "";
+      const currentDisplayName = authState.user.display_name || "";
       if (displayName === currentDisplayName) {
         success = "No changes to save.";
         saving = false;
@@ -111,7 +112,7 @@
   }
 
   async function handleDeleteAvatar() {
-    if (!$user?.avatar_url) return;
+    if (!authState.user?.avatar_url) return;
     uploading = true;
     error = "";
     success = "";
@@ -262,9 +263,9 @@
             title="Upload avatar"
           >
             <Avatar
-              username={$user?.username || ""}
-              avatarUrl={$user?.avatar_url
-                ? API.getAvatarUrl($user.id)
+              username={authState.user?.username || ""}
+              avatarUrl={authState.user?.avatar_url
+                ? API.getAvatarUrl(authState.user.id)
                 : undefined}
               size="large"
             />
@@ -283,7 +284,7 @@
             onchange={handleAvatarUpload}
             class="hidden-input"
           />
-          {#if $user?.avatar_url}
+          {#if authState.user?.avatar_url}
             <button
               class="remove-avatar-btn"
               onclick={handleDeleteAvatar}
@@ -296,7 +297,7 @@
 
         <div class="field">
           <span class="field-label">Username</span>
-          <div class="field-value">{$user?.username || ""}</div>
+          <div class="field-value">{authState.user?.username || ""}</div>
         </div>
 
         <div class="field">

@@ -1,4 +1,3 @@
-import { writable } from "svelte/store";
 import { getApiBase } from "./config";
 import {
   getActiveServer,
@@ -6,15 +5,9 @@ import {
   isTauri,
   appFetch,
 } from "./serverManager";
-
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  role: string;
-  avatar_url?: string;
-  display_name?: string;
-}
+import { authState } from "./stores/authState.svelte";
+import type { User } from "./stores/authState.svelte";
+export type { User };
 
 export interface AuthResponse {
   token: string;
@@ -33,16 +26,13 @@ export interface LoginRequest {
   password: string;
 }
 
-export const user = writable<User | null>(null);
-export const token = writable<string | null>(null);
-
 const TOKEN_KEY = "echora_token";
 
 class AuthService {
   static async init(): Promise<void> {
     const savedToken = this.getToken();
     if (savedToken) {
-      token.set(savedToken);
+      authState.token = savedToken;
       await this.getCurrentUser();
     }
   }
@@ -102,7 +92,7 @@ class AuthService {
       }
 
       const userData: User = await response.json();
-      user.set(userData);
+      authState.user = userData;
       return userData;
     } catch {
       // Network error -- do NOT logout; the token may still be valid.
@@ -123,8 +113,8 @@ class AuthService {
     } else {
       localStorage.removeItem(TOKEN_KEY);
     }
-    token.set(null);
-    user.set(null);
+    authState.token = null;
+    authState.user = null;
   }
 
   static getToken(): string | null {
@@ -153,12 +143,12 @@ class AuthService {
     } else {
       localStorage.setItem(TOKEN_KEY, authResponse.token);
     }
-    token.set(authResponse.token);
-    user.set(authResponse.user);
+    authState.token = authResponse.token;
+    authState.user = authResponse.user;
   }
 
   static setUser(updatedUser: User) {
-    user.set(updatedUser);
+    authState.user = updatedUser;
   }
 }
 

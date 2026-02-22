@@ -1,19 +1,24 @@
-import { get } from 'svelte/store';
-import { goto } from '$app/navigation';
-import { page } from '$app/state';
-import { API, ApiError } from '../api';
-import AuthService, { user } from '../auth';
-import { voiceManager } from '../voice';
-import { isTauri, activeServer } from '../serverManager';
-import { getWs, resetWs } from '../ws';
-import { voiceStore } from '../stores/voiceStore.svelte';
-import { serverState } from '../stores/serverState.svelte';
-import { chatState } from '../stores/chatState.svelte';
-import { uiState } from '../stores/uiState.svelte';
-import { selectChannel, resetChatActionState } from './chat';
-import { setupWsHandlers, teardownWsHandlers } from './wsHandlers';
-import { initPTT, switchInputMode as pttSwitchInputMode, changePTTKey as pttChangePTTKey } from '../ptt';
-import type { VoiceInputMode } from '../voice';
+import { get } from "svelte/store";
+import { goto } from "$app/navigation";
+import { page } from "$app/state";
+import { API, ApiError } from "../api";
+import AuthService from "../auth";
+import { voiceManager } from "../voice";
+import { isTauri, activeServer } from "../serverManager";
+import { getWs, resetWs } from "../ws";
+import { voiceStore } from "../stores/voiceStore.svelte";
+import { serverState } from "../stores/serverState.svelte";
+import { chatState } from "../stores/chatState.svelte";
+import { uiState } from "../stores/uiState.svelte";
+import { authState } from "../stores/authState.svelte";
+import { selectChannel, resetChatActionState } from "./chat";
+import { setupWsHandlers, teardownWsHandlers } from "./wsHandlers";
+import {
+  initPTT,
+  switchInputMode as pttSwitchInputMode,
+  changePTTKey as pttChangePTTKey,
+} from "../ptt";
+import type { VoiceInputMode } from "../voice";
 
 export function syncVoiceState() {
   voiceStore.currentVoiceChannel = voiceManager.currentChannel;
@@ -42,7 +47,9 @@ function setupVoiceStateHandlers() {
         voiceStore.speakingUsers = [...voiceStore.speakingUsers, userId];
       }
     } else {
-      voiceStore.speakingUsers = voiceStore.speakingUsers.filter((id) => id !== userId);
+      voiceStore.speakingUsers = voiceStore.speakingUsers.filter(
+        (id) => id !== userId,
+      );
     }
   });
 
@@ -64,12 +71,12 @@ export async function connectToServer() {
 async function _connectToServer() {
   Object.values(chatState.typingUsers).forEach((u) => clearTimeout(u.timeout));
   chatState.messages = [];
-  chatState.selectedChannelId = '';
-  chatState.selectedChannelName = '';
+  chatState.selectedChannelId = "";
+  chatState.selectedChannelName = "";
   chatState.hasMoreMessages = true;
   chatState.loadingMore = false;
   chatState.editingMessageId = null;
-  chatState.editMessageContent = '';
+  chatState.editMessageContent = "";
   chatState.replyingTo = null;
   chatState.typingUsers = {};
   chatState.rateLimitWarning = false;
@@ -79,8 +86,8 @@ async function _connectToServer() {
   serverState.onlineUsers = [];
   serverState.userAvatars = {};
   serverState.userRolesMap = {};
-  serverState.serverName = '';
-  serverState.backendVersion = '';
+  serverState.serverName = "";
+  serverState.backendVersion = "";
   serverState.customEmojis = [];
 
   voiceStore.voiceStates = [];
@@ -93,12 +100,12 @@ async function _connectToServer() {
 
   await AuthService.init();
 
-  if (!get(user)) {
+  if (!authState.user) {
     if (isTauri) {
       uiState.needsServerAuth = true;
       return;
     }
-    goto('/auth');
+    goto("/auth");
     return;
   }
 
@@ -112,8 +119,9 @@ async function _connectToServer() {
     for (const vs of init.voice_states) {
       if (vs.avatar_url) avatarMap[vs.user_id] = API.getAvatarUrl(vs.user_id);
     }
-    const currentUser = get(user);
-    if (currentUser?.avatar_url) avatarMap[currentUser.id] = API.getAvatarUrl(currentUser.id);
+    const currentUser = authState.user;
+    if (currentUser?.avatar_url)
+      avatarMap[currentUser.id] = API.getAvatarUrl(currentUser.id);
 
     serverState.channels = init.channels;
     serverState.onlineUsers = init.online_users;
@@ -148,16 +156,19 @@ async function _connectToServer() {
 
     const { channels } = serverState;
     const urlChannelId = page.params.channelId;
-    const targetChannel = urlChannelId ? channels.find((c) => c.id === urlChannelId) : null;
-    const channelToSelect = targetChannel ?? channels.find((c) => c.channel_type === 'text');
+    const targetChannel = urlChannelId
+      ? channels.find((c) => c.id === urlChannelId)
+      : null;
+    const channelToSelect =
+      targetChannel ?? channels.find((c) => c.channel_type === "text");
     if (channelToSelect) {
       await selectChannel(channelToSelect.id, channelToSelect.name);
     }
   } catch (error) {
-    console.error('Failed to load initial data:', error);
+    console.error("Failed to load initial data:", error);
     if (error instanceof ApiError && error.status === 401) {
       AuthService.logout();
-      goto('/auth');
+      goto("/auth");
     }
   }
 }
@@ -180,12 +191,17 @@ export async function initPTTSettings() {
   voiceStore.pttKey = pttSettings.pttKey;
 }
 
-export async function uploadCustomEmoji(name: string, file: File): Promise<void> {
+export async function uploadCustomEmoji(
+  name: string,
+  file: File,
+): Promise<void> {
   const emoji = await API.uploadCustomEmoji(name, file);
   serverState.customEmojis = [...serverState.customEmojis, emoji];
 }
 
 export async function deleteCustomEmoji(id: string): Promise<void> {
   await API.deleteCustomEmoji(id);
-  serverState.customEmojis = serverState.customEmojis.filter((e) => e.id !== id);
+  serverState.customEmojis = serverState.customEmojis.filter(
+    (e) => e.id !== id,
+  );
 }

@@ -1,12 +1,11 @@
 import { goto } from "$app/navigation";
 import { browser } from "$app/environment";
 import { API } from "../api";
-import { user } from "../auth";
 import { getWs } from "../ws";
 import { chatState } from "../stores/chatState.svelte";
 import { serverState } from "../stores/serverState.svelte";
+import { authState } from "../stores/authState.svelte";
 import type { Message } from "../api";
-import { get } from "svelte/store";
 
 const TYPING_DEBOUNCE_MS = 3000;
 let lastTypingSent = 0;
@@ -107,7 +106,7 @@ export async function loadOlderMessages(scrollToPreserve: () => () => void) {
 
 export function sendMessage(text: string, attachmentIds?: string[]) {
   const { selectedChannelId, replyingTo } = chatState;
-  const currentUser = get(user);
+  const currentUser = authState.user;
   if (selectedChannelId && currentUser) {
     const sent = getWs().sendMessage(
       selectedChannelId,
@@ -153,7 +152,11 @@ export async function saveEditMessage() {
   if (!editingMessageId || !editMessageContent.trim() || !selectedChannelId)
     return;
   try {
-    await API.editMessage(selectedChannelId, editingMessageId, editMessageContent.trim());
+    await API.editMessage(
+      selectedChannelId,
+      editingMessageId,
+      editMessageContent.trim(),
+    );
     chatState.editingMessageId = null;
     chatState.editMessageContent = "";
   } catch (error) {

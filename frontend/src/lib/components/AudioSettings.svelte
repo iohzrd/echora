@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { audioSettingsStore } from '../stores/audioSettingsStore.svelte';
+  import { audioSettingsStore } from "../stores/audioSettingsStore.svelte";
   import {
     changeInputDevice,
     changeOutputDevice,
@@ -7,7 +7,7 @@
     changeOutputVolume,
     changeVadSensitivity,
     toggleNoiseSuppression,
-  } from '../actions/audioSettings';
+  } from "../actions/audioSettings";
 
   let { showSensitivity = true }: { showSensitivity?: boolean } = $props();
 </script>
@@ -54,7 +54,9 @@
       value={Math.round(audioSettingsStore.inputGain * 100)}
       oninput={(e) => changeInputGain(parseInt(e.currentTarget.value) / 100)}
     />
-    <span class="audio-value">{Math.round(audioSettingsStore.inputGain * 100)}%</span>
+    <span class="audio-value"
+      >{Math.round(audioSettingsStore.inputGain * 100)}%</span
+    >
   </div>
 
   <div class="audio-setting-row">
@@ -68,12 +70,15 @@
       value={Math.round(audioSettingsStore.outputVolume * 100)}
       oninput={(e) => changeOutputVolume(parseInt(e.currentTarget.value) / 100)}
     />
-    <span class="audio-value">{Math.round(audioSettingsStore.outputVolume * 100)}%</span>
+    <span class="audio-value"
+      >{Math.round(audioSettingsStore.outputVolume * 100)}%</span
+    >
   </div>
 
   {#if showSensitivity}
     <div class="audio-setting-row">
-      <label class="audio-setting-label" for="audio-vad-sensitivity">SENS</label>
+      <label class="audio-setting-label" for="audio-vad-sensitivity">SENS</label
+      >
       <input
         id="audio-vad-sensitivity"
         type="range"
@@ -91,9 +96,10 @@
     <span class="audio-setting-label">NOISE</span>
     <button
       class="mode-btn {audioSettingsStore.noiseSuppression ? 'active' : ''}"
-      onclick={() => toggleNoiseSuppression(!audioSettingsStore.noiseSuppression)}
+      onclick={() =>
+        toggleNoiseSuppression(!audioSettingsStore.noiseSuppression)}
     >
-      {audioSettingsStore.noiseSuppression ? 'ON' : 'OFF'}
+      {audioSettingsStore.noiseSuppression ? "ON" : "OFF"}
     </button>
   </div>
 </div>

@@ -2,12 +2,12 @@
   import { goto } from "$app/navigation";
   import LoginForm from "../../lib/components/LoginForm.svelte";
   import RegisterForm from "../../lib/components/RegisterForm.svelte";
-  import { user } from "../../lib/auth";
+  import { authState } from "../../lib/stores/authState.svelte";
 
   let isLogin = $state(true);
 
   $effect(() => {
-    if ($user) {
+    if (authState.user) {
       goto("/");
     }
   });

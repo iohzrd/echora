@@ -7,7 +7,8 @@
     formatFileSize,
     resolveUrl,
   } from "../utils";
-  import { user, canDeleteMessage } from "../auth";
+  import { canDeleteMessage } from "../auth";
+  import { authState } from "../stores/authState.svelte";
   import { chatState } from "../stores/chatState.svelte";
   import { serverState } from "../stores/serverState.svelte";
   import { viewUserProfile } from "../actions/ui";
@@ -220,7 +221,7 @@
     }
   }
 
-  let currentUserId = $derived($user?.id ?? "");
+  let currentUserId = $derived(authState.user?.id ?? "");
 </script>
 
 <svelte:window onkeydown={handleLightboxKeydown} />
@@ -229,7 +230,7 @@
   {#if chatState.loadingMore}
     <div class="loading-more">Loading older messages...</div>
   {/if}
-  {#each chatState.messages as message}
+  {#each chatState.messages as message (message.id)}
     <div class="message">
       <div class="message-avatar-wrapper">
         <Avatar
@@ -485,7 +486,7 @@
               >
             </button>
           {/if}
-          {#if canDeleteMessage(message.author_id, currentUserId, $user?.role)}
+          {#if canDeleteMessage(message.author_id, currentUserId, authState.user?.role)}
             <button
               class="msg-action-btn delete"
               onclick={() => deleteMessage(message.id)}

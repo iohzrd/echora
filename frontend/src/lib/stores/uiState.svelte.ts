@@ -19,5 +19,5 @@ export const uiState = $state<UiStateStore>({
   showAddServerDialog: false,
   needsServerAuth: false,
   tauriAuthIsLogin: true,
-  tauriVersion: '',
+  tauriVersion: "",
 });

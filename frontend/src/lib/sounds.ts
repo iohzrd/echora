@@ -1,12 +1,12 @@
-import { audioSettingsStore } from './stores/audioSettingsStore.svelte';
+import { audioSettingsStore } from "./stores/audioSettingsStore.svelte";
 
-type SoundName = 'connect' | 'disconnect';
+type SoundName = "connect" | "disconnect";
 
 const bufferCache = new Map<SoundName, AudioBuffer>();
 let sharedCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
-  if (!sharedCtx || sharedCtx.state === 'closed') {
+  if (!sharedCtx || sharedCtx.state === "closed") {
     sharedCtx = new AudioContext();
   }
   return sharedCtx;
@@ -17,11 +17,11 @@ function generateTone(
   frequency: number,
   startTime: number,
   duration: number,
-  gain: number
+  gain: number,
 ): void {
   const osc = ctx.createOscillator();
   const gainNode = ctx.createGain();
-  osc.type = 'sine';
+  osc.type = "sine";
   osc.frequency.value = frequency;
   gainNode.gain.setValueAtTime(gain, startTime);
   gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
@@ -52,7 +52,10 @@ async function generateDisconnectBuffer(): Promise<AudioBuffer> {
 async function getBuffer(name: SoundName): Promise<AudioBuffer> {
   let buffer = bufferCache.get(name);
   if (buffer) return buffer;
-  buffer = name === 'connect' ? await generateConnectBuffer() : await generateDisconnectBuffer();
+  buffer =
+    name === "connect"
+      ? await generateConnectBuffer()
+      : await generateDisconnectBuffer();
   bufferCache.set(name, buffer);
   return buffer;
 }
@@ -61,15 +64,15 @@ export async function playSound(name: SoundName): Promise<void> {
   try {
     const settings = audioSettingsStore;
     const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
+    if (ctx.state === "suspended") {
       await ctx.resume();
     }
 
-    if (settings.outputDeviceId && 'setSinkId' in ctx) {
+    if (settings.outputDeviceId && "setSinkId" in ctx) {
       try {
-        await (ctx as unknown as { setSinkId: (id: string) => Promise<void> }).setSinkId(
-          settings.outputDeviceId
-        );
+        await (
+          ctx as unknown as { setSinkId: (id: string) => Promise<void> }
+        ).setSinkId(settings.outputDeviceId);
       } catch {
         // fall back to default device
       }
