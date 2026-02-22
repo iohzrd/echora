@@ -23,14 +23,17 @@
   let pickerEl: HTMLDivElement;
   let searchInput: HTMLInputElement;
 
-  let posStyle = $state("");
+  // Start invisible; computePosition() will set real coords after mount
+  let posStyle = $state("visibility: hidden;");
 
   const PICKER_WIDTH = 320;
 
   onMount(() => {
-    computePosition();
-
-    if (searchInput) searchInput.focus();
+    // Use rAF so the portal node is fully laid out before measuring
+    requestAnimationFrame(() => {
+      computePosition();
+      if (searchInput) searchInput.focus();
+    });
 
     function handleClickOutside(e: MouseEvent) {
       if (pickerEl && !pickerEl.contains(e.target as Node)) {
@@ -52,7 +55,6 @@
     const rect = anchorEl.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // Use actual rendered height now that the node is in the DOM
     const pickerHeight = pickerEl?.offsetHeight ?? 370;
 
     let left = rect.left;
