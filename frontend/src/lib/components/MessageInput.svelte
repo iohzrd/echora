@@ -222,6 +222,7 @@
     display: flex;
     align-items: flex-end;
     gap: 6px;
+    min-width: 0;
   }
   .attach-btn {
     background: var(--bg-tertiary, #2b2d31);
