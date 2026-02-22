@@ -59,10 +59,20 @@
     }
   }
 
+  let prevChannelId = $state('');
   let prevMessageCount = $state(0);
   $effect(() => {
+    const channelId = $chatState.selectedChannelId;
     const count = $chatState.messages.length;
-    if (count > prevMessageCount) {
+    if (channelId !== prevChannelId) {
+      // Channel switched — always scroll to bottom once messages render
+      prevChannelId = channelId;
+      prevMessageCount = count;
+      requestAnimationFrame(() => {
+        if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+      });
+    } else if (count > prevMessageCount) {
+      // New message in same channel — only scroll if already near the bottom
       prevMessageCount = count;
       if (isNearBottom()) {
         requestAnimationFrame(() => {
