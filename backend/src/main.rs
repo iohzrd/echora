@@ -184,12 +184,6 @@ async fn main() {
             get(auth_routes::get_user_profile),
         )
         .route("/api/users/{user_id}/avatar", get(auth_routes::get_avatar))
-        .route(
-            "/api/auth/avatar",
-            post(auth_routes::upload_avatar)
-                .delete(auth_routes::delete_avatar)
-                .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024)), // 2MB for avatar uploads
-        )
         .route("/api/users/online", get(routes::get_online_users))
         .route(
             "/api/channels/{channel_id}/messages",
@@ -267,21 +261,39 @@ async fn main() {
         )
         .route("/api/invites/{invite_id}", delete(admin::revoke_invite))
         .route("/api/invites/{code}/validate", get(admin::validate_invite))
-        // Attachment routes
-        .route(
-            "/api/attachments",
-            post(routes::upload_attachment).layer(RequestBodyLimitLayer::new(25 * 1024 * 1024)), // 25MB for uploads
+        // Merge rate-limited auth routes
+        .merge(auth_routes)
+        .merge(
+            // Avatar upload needs a 2MB body limit.
+            Router::new()
+                .route(
+                    "/api/auth/avatar",
+                    post(auth_routes::upload_avatar).delete(auth_routes::delete_avatar),
+                )
+                .layer(RequestBodyLimitLayer::new(2 * 1024 * 1024))
+                .with_state(state.clone()),
+        )
+        .merge(
+            // Attachment upload needs a 25MB body limit; merge as a sub-router so
+            // the per-route limit layer is applied before the global 1MB layer.
+            Router::new()
+                .route("/api/attachments", post(routes::upload_attachment))
+                .layer(RequestBodyLimitLayer::new(250 * 1024 * 1024))
+                .with_state(state.clone()),
         )
         .route(
             "/api/attachments/{attachment_id}/{filename}",
             get(routes::download_attachment),
         )
-        // Custom emoji routes
-        .route(
-            "/api/custom-emojis",
-            get(routes::list_custom_emojis)
-                .post(routes::upload_custom_emoji)
-                .layer(RequestBodyLimitLayer::new(512 * 1024)), // 512KB for emoji uploads
+        .merge(
+            // Custom emoji upload needs a 512KB body limit.
+            Router::new()
+                .route(
+                    "/api/custom-emojis",
+                    get(routes::list_custom_emojis).post(routes::upload_custom_emoji),
+                )
+                .layer(RequestBodyLimitLayer::new(512 * 1024))
+                .with_state(state.clone()),
         )
         .route(
             "/api/custom-emojis/{emoji_id}",
@@ -291,8 +303,6 @@ async fn main() {
             "/api/custom-emojis/{emoji_id}/image",
             get(routes::get_custom_emoji_image),
         )
-        // Merge rate-limited auth routes
-        .merge(auth_routes)
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
         .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB global body limit
         .layer(build_cors_layer())
