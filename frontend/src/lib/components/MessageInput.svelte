@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { API } from '../api';
-  import { formatFileSize } from '../utils';
-  import { chatState } from '../stores/chatState';
-  import { sendMessage, sendTyping, cancelReply } from '../actions/chat';
+  import { onDestroy } from "svelte";
+  import { API } from "../api";
+  import { formatFileSize } from "../utils";
+  import { chatState } from "../stores/chatState";
+  import { sendMessage, sendTyping, cancelReply } from "../actions/chat";
 
   interface PendingFile {
     localId: number;
@@ -14,8 +15,12 @@
   }
 
   let nextLocalId = 0;
+  let destroyed = false;
+  onDestroy(() => {
+    destroyed = true;
+  });
 
-  let messageText = $state('');
+  let messageText = $state("");
   let pendingFiles: PendingFile[] = $state([]);
   let dragOver = $state(false);
   let fileInput: HTMLInputElement;
@@ -25,7 +30,10 @@
 
   async function uploadFile(localId: number, file: File) {
     const update = (patch: Partial<PendingFile>) => {
-      pendingFiles = pendingFiles.map((pf) => pf.localId === localId ? { ...pf, ...patch } : pf);
+      if (destroyed) return;
+      pendingFiles = pendingFiles.map((pf) =>
+        pf.localId === localId ? { ...pf, ...patch } : pf,
+      );
     };
 
     update({ uploading: true, progress: 0 });
@@ -34,7 +42,10 @@
       const attachment = await API.uploadAttachment(file);
       update({ id: attachment.id, progress: 100, uploading: false });
     } catch (e) {
-      update({ error: e instanceof Error ? e.message : 'Upload failed', uploading: false });
+      update({
+        error: e instanceof Error ? e.message : "Upload failed",
+        uploading: false,
+      });
     }
   }
 
@@ -43,17 +54,23 @@
     for (const file of fileArray) {
       if (pendingFiles.length >= MAX_FILES) break;
       if (file.size > MAX_FILE_SIZE) {
-        pendingFiles = [...pendingFiles, {
-          localId: nextLocalId++,
-          file,
-          progress: 0,
-          error: `File too large (max ${formatFileSize(MAX_FILE_SIZE)})`,
-          uploading: false,
-        }];
+        pendingFiles = [
+          ...pendingFiles,
+          {
+            localId: nextLocalId++,
+            file,
+            progress: 0,
+            error: `File too large (max ${formatFileSize(MAX_FILE_SIZE)})`,
+            uploading: false,
+          },
+        ];
         continue;
       }
       const localId = nextLocalId++;
-      pendingFiles = [...pendingFiles, { localId, file, progress: 0, uploading: false }];
+      pendingFiles = [
+        ...pendingFiles,
+        { localId, file, progress: 0, uploading: false },
+      ];
       uploadFile(localId, file);
     }
   }
@@ -66,7 +83,7 @@
     const input = event.target as HTMLInputElement;
     if (input.files) {
       addFiles(input.files);
-      input.value = '';
+      input.value = "";
     }
   }
 
@@ -92,7 +109,7 @@
     if (!items) return;
     const files: File[] = [];
     for (const item of items) {
-      if (item.kind === 'file') {
+      if (item.kind === "file") {
         const file = item.getAsFile();
         if (file) files.push(file);
       }
@@ -103,12 +120,12 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       doSend();
       return;
     }
-    if (event.key === 'Escape' && $chatState.replyingTo) {
+    if (event.key === "Escape" && $chatState.replyingTo) {
       cancelReply();
       return;
     }
@@ -127,7 +144,7 @@
     if (!hasText && !hasAttachments) return;
 
     sendMessage(messageText.trim(), hasAttachments ? uploadedIds : undefined);
-    messageText = '';
+    messageText = "";
     pendingFiles = [];
   }
 
@@ -150,8 +167,13 @@
       <button
         class="reply-bar-cancel"
         onclick={cancelReply}
-        title="Cancel reply">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        title="Cancel reply"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+          ><path
+            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+          /></svg
+        >
       </button>
     </div>
   {/if}
@@ -175,7 +197,11 @@
             onclick={() => removeFile(i)}
             title="Remove"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+              ><path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              /></svg
+            >
           </button>
         </div>
       {/each}
@@ -186,9 +212,14 @@
       class="attach-btn"
       onclick={() => fileInput.click()}
       title="Attach file"
-      disabled={!$chatState.selectedChannelId || pendingFiles.length >= MAX_FILES}
+      disabled={!$chatState.selectedChannelId ||
+        pendingFiles.length >= MAX_FILES}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+        ><path
+          d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"
+        /></svg
+      >
     </button>
     <textarea
       class="message-input"

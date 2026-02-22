@@ -1,6 +1,11 @@
-import { writable } from 'svelte/store';
-import { getApiBase } from './config';
-import { getActiveServer, updateServer, isTauri, appFetch } from './serverManager';
+import { writable } from "svelte/store";
+import { getApiBase } from "./config";
+import {
+  getActiveServer,
+  updateServer,
+  isTauri,
+  appFetch,
+} from "./serverManager";
 
 export interface User {
   id: string;
@@ -31,7 +36,7 @@ export interface LoginRequest {
 export const user = writable<User | null>(null);
 export const token = writable<string | null>(null);
 
-const TOKEN_KEY = 'echora_token';
+const TOKEN_KEY = "echora_token";
 
 class AuthService {
   static async init(): Promise<void> {
@@ -42,11 +47,15 @@ class AuthService {
     }
   }
 
-  private static async authRequest(endpoint: string, data: RegisterRequest | LoginRequest, fallbackError: string): Promise<AuthResponse> {
+  private static async authRequest(
+    endpoint: string,
+    data: RegisterRequest | LoginRequest,
+    fallbackError: string,
+  ): Promise<AuthResponse> {
     const apiBase = getApiBase();
     const response = await appFetch(`${apiBase}/auth/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
 
@@ -61,15 +70,15 @@ class AuthService {
   }
 
   static register(data: RegisterRequest): Promise<AuthResponse> {
-    return this.authRequest('register', data, 'Registration failed');
+    return this.authRequest("register", data, "Registration failed");
   }
 
   static login(data: LoginRequest): Promise<AuthResponse> {
-    return this.authRequest('login', data, 'Login failed');
+    return this.authRequest("login", data, "Login failed");
   }
 
   static async loginWithPasskey(username?: string): Promise<AuthResponse> {
-    const { PasskeyService } = await import('./passkey');
+    const { PasskeyService } = await import("./passkey");
     const authResponse = await PasskeyService.loginWithPasskey(username);
     this.setAuth(authResponse);
     return authResponse;
@@ -83,7 +92,7 @@ class AuthService {
       const apiBase = getApiBase();
       const response = await appFetch(`${apiBase}/auth/me`, {
         headers: {
-          'Authorization': `Bearer ${currentToken}`,
+          Authorization: `Bearer ${currentToken}`,
         },
       });
 
@@ -95,8 +104,8 @@ class AuthService {
       const userData: User = await response.json();
       user.set(userData);
       return userData;
-    } catch (error) {
-      this.logout();
+    } catch {
+      // Network error -- do NOT logout; the token may still be valid.
       return null;
     }
   }
@@ -105,7 +114,11 @@ class AuthService {
     if (isTauri) {
       const server = getActiveServer();
       if (server) {
-        updateServer(server.id, { token: undefined, userId: undefined, username: undefined });
+        updateServer(server.id, {
+          token: undefined,
+          userId: undefined,
+          username: undefined,
+        });
       }
     } else {
       localStorage.removeItem(TOKEN_KEY);
@@ -124,9 +137,7 @@ class AuthService {
 
   static getAuthHeaders(): Record<string, string> {
     const currentToken = this.getToken();
-    return currentToken
-      ? { 'Authorization': `Bearer ${currentToken}` }
-      : {};
+    return currentToken ? { Authorization: `Bearer ${currentToken}` } : {};
   }
 
   static setAuth(authResponse: AuthResponse) {
@@ -150,13 +161,17 @@ class AuthService {
 export default AuthService;
 
 export function isModerator(role: string | undefined): boolean {
-  return role === 'moderator' || role === 'admin' || role === 'owner';
+  return role === "moderator" || role === "admin" || role === "owner";
 }
 
 export function isAdminRole(role: string | undefined): boolean {
-  return role === 'admin' || role === 'owner';
+  return role === "admin" || role === "owner";
 }
 
-export function canDeleteMessage(authorId: string, currentUserId: string, role: string | undefined): boolean {
+export function canDeleteMessage(
+  authorId: string,
+  currentUserId: string,
+  role: string | undefined,
+): boolean {
   return authorId === currentUserId || isModerator(role);
 }

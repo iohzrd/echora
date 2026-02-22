@@ -1,11 +1,16 @@
 <script lang="ts">
-  import { API, type CustomEmoji } from '../api';
-  import { renderMarkdown } from '../markdown';
-  import { formatTimestamp, truncateContent, formatFileSize, resolveUrl } from '../utils';
-  import { user, canDeleteMessage } from '../auth';
-  import { chatState } from '../stores/chatState';
-  import { serverState } from '../stores/serverState';
-  import { viewUserProfile } from '../actions/ui';
+  import { API, type CustomEmoji } from "../api";
+  import { renderMarkdown } from "../markdown";
+  import {
+    formatTimestamp,
+    truncateContent,
+    formatFileSize,
+    resolveUrl,
+  } from "../utils";
+  import { user, canDeleteMessage } from "../auth";
+  import { chatState } from "../stores/chatState";
+  import { serverState } from "../stores/serverState";
+  import { viewUserProfile } from "../actions/ui";
   import {
     loadOlderMessages,
     startEditMessage,
@@ -15,9 +20,13 @@
     startReply,
     toggleReaction,
     updateEditMessageContent,
-  } from '../actions/chat';
-  import Avatar from './Avatar.svelte';
-  import { emojiPickerState, openEmojiPicker, closeEmojiPicker } from '../stores/emojiPickerState';
+  } from "../actions/chat";
+  import Avatar from "./Avatar.svelte";
+  import {
+    emojiPickerState,
+    openEmojiPicker,
+    closeEmojiPicker,
+  } from "../stores/emojiPickerState";
 
   let messagesArea: HTMLDivElement;
 
@@ -58,21 +67,26 @@
     }
   }
 
-  let prevChannelId = $state('');
+  let prevChannelId = $state("");
   let prevMessageCount = $state(0);
   let needsScrollToBottom = $state(false);
+  let scrollRafId: number | undefined;
   $effect(() => {
     const channelId = $chatState.selectedChannelId;
     const count = $chatState.messages.length;
     if (channelId !== prevChannelId) {
-      // Channel switched — mark that we need to scroll once messages load
+      // Channel switched — clear stale overflow tracking and scroll once messages load
       prevChannelId = channelId;
       prevMessageCount = count;
       needsScrollToBottom = true;
+      expandedMessages = {};
+      overflowingMessages = {};
       if (count > 0) {
-        requestAnimationFrame(() => {
+        if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
+        scrollRafId = requestAnimationFrame(() => {
           if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
           needsScrollToBottom = false;
+          scrollRafId = undefined;
         });
       }
     } else if (count > prevMessageCount) {
@@ -80,16 +94,26 @@
       if (needsScrollToBottom) {
         // Messages just loaded for this channel — scroll to bottom
         needsScrollToBottom = false;
-        requestAnimationFrame(() => {
+        if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
+        scrollRafId = requestAnimationFrame(() => {
           if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+          scrollRafId = undefined;
         });
       } else if (isNearBottom()) {
         // New message in same channel — only scroll if already near the bottom
-        requestAnimationFrame(() => {
+        if (scrollRafId !== undefined) cancelAnimationFrame(scrollRafId);
+        scrollRafId = requestAnimationFrame(() => {
           if (messagesArea) messagesArea.scrollTop = messagesArea.scrollHeight;
+          scrollRafId = undefined;
         });
       }
     }
+    return () => {
+      if (scrollRafId !== undefined) {
+        cancelAnimationFrame(scrollRafId);
+        scrollRafId = undefined;
+      }
+    };
   });
 
   function handleScroll() {
@@ -99,10 +123,10 @@
   }
 
   function handleEditKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       saveEditMessage();
-    } else if (event.key === 'Escape') {
+    } else if (event.key === "Escape") {
       cancelEditMessage();
     }
   }
@@ -129,15 +153,15 @@
   }
 
   function isImageType(contentType: string): boolean {
-    return contentType.startsWith('image/');
+    return contentType.startsWith("image/");
   }
 
   function isVideoType(contentType: string): boolean {
-    return contentType.startsWith('video/');
+    return contentType.startsWith("video/");
   }
 
   function isAudioType(contentType: string): boolean {
-    return contentType.startsWith('audio/');
+    return contentType.startsWith("audio/");
   }
 
   function getAttachmentUrl(attachmentId: string, filename: string): string {
@@ -169,13 +193,14 @@
 
   function checkOverflow(node: HTMLElement, messageId: string) {
     // Measure on next frame so the DOM has settled
-    requestAnimationFrame(() => {
+    const rafId = requestAnimationFrame(() => {
       if (node.scrollHeight > COLLAPSE_HEIGHT) {
         overflowingMessages[messageId] = true;
       }
     });
     return {
       destroy() {
+        cancelAnimationFrame(rafId);
         delete overflowingMessages[messageId];
         delete expandedMessages[messageId];
       },
@@ -183,7 +208,7 @@
   }
 
   let lightboxSrc: string | null = $state(null);
-  let lightboxAlt: string = $state('');
+  let lightboxAlt: string = $state("");
 
   function openLightbox(src: string, alt: string) {
     lightboxSrc = src;
@@ -192,16 +217,16 @@
 
   function closeLightbox() {
     lightboxSrc = null;
-    lightboxAlt = '';
+    lightboxAlt = "";
   }
 
   function handleLightboxKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
+    if (lightboxSrc && event.key === "Escape") {
       closeLightbox();
     }
   }
 
-  let currentUserId = $derived($user?.id ?? '');
+  let currentUserId = $derived($user?.id ?? "");
 </script>
 
 <svelte:window onkeydown={handleLightboxKeydown} />
@@ -224,7 +249,8 @@
           <button
             class="message-author"
             onclick={() => viewUserProfile(message.author_id)}
-          >{message.author}</button>
+            >{message.author}</button
+          >
           <span class="message-timestamp"
             >{formatTimestamp(message.timestamp)}</span
           >
@@ -261,23 +287,22 @@
               >
             </div>
           </div>
-        {:else}
-          {#if message.content}
-            <div
-              class="message-text"
-              class:collapsed={overflowingMessages[message.id] && !expandedMessages[message.id]}
-              use:checkOverflow={message.id}
+        {:else if message.content}
+          <div
+            class="message-text"
+            class:collapsed={overflowingMessages[message.id] &&
+              !expandedMessages[message.id]}
+            use:checkOverflow={message.id}
+          >
+            {@html renderMarkdown(message.content)}
+          </div>
+          {#if overflowingMessages[message.id]}
+            <button
+              class="message-expand-btn"
+              onclick={() => toggleExpand(message.id)}
             >
-              {@html renderMarkdown(message.content)}
-            </div>
-            {#if overflowingMessages[message.id]}
-              <button
-                class="message-expand-btn"
-                onclick={() => toggleExpand(message.id)}
-              >
-                {expandedMessages[message.id] ? 'Show less' : 'Show more'}
-              </button>
-            {/if}
+              {expandedMessages[message.id] ? "Show less" : "Show more"}
+            </button>
           {/if}
         {/if}
         {#if message.attachments && message.attachments.length > 0}
@@ -310,7 +335,9 @@
                 </video>
               {:else if isAudioType(attachment.content_type)}
                 <div class="attachment-audio">
-                  <span class="attachment-audio-name">{attachment.filename}</span>
+                  <span class="attachment-audio-name"
+                    >{attachment.filename}</span
+                  >
                   <audio
                     controls
                     preload="metadata"
@@ -327,8 +354,12 @@
                 >
                   <span class="attachment-file-icon">F</span>
                   <div class="attachment-file-info">
-                    <span class="attachment-file-name">{attachment.filename}</span>
-                    <span class="attachment-file-size">{formatFileSize(attachment.size)}</span>
+                    <span class="attachment-file-name"
+                      >{attachment.filename}</span
+                    >
+                    <span class="attachment-file-size"
+                      >{formatFileSize(attachment.size)}</span
+                    >
                   </div>
                 </a>
               {/if}
@@ -343,14 +374,14 @@
                   class="link-preview-image-btn"
                   onclick={() =>
                     openLightbox(
-                      resolveUrl(preview.image_url || ''),
-                      preview.title || '',
+                      resolveUrl(preview.image_url || ""),
+                      preview.title || "",
                     )}
                 >
                   <img
                     class="link-preview-image"
                     src={resolveUrl(preview.image_url)}
-                    alt={preview.title || ''}
+                    alt={preview.title || ""}
                     loading="lazy"
                   />
                 </button>
@@ -382,12 +413,16 @@
               <button
                 class="reaction-btn {reaction.reacted ? 'reacted' : ''}"
                 onclick={() => toggleReaction(message.id, reaction.emoji)}
-                title={reaction.users.join(', ')}
+                title={reaction.users.join(", ")}
               >
                 {#if isCustomEmoji(reaction.emoji)}
                   {@const imgUrl = getCustomEmojiImageUrl(reaction.emoji)}
                   {#if imgUrl}
-                    <img src={imgUrl} alt={reaction.emoji} class="custom-emoji-reaction" />
+                    <img
+                      src={imgUrl}
+                      alt={reaction.emoji}
+                      class="custom-emoji-reaction"
+                    />
                   {:else}
                     {reaction.emoji}
                   {/if}
@@ -401,8 +436,15 @@
               class="reaction-btn add-reaction"
               onpointerdown={() => handleEmojiButtonPointerDown(message.id)}
               onclick={(e) => toggleEmojiPicker(message.id, e)}
-              title="Add reaction">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              title="Add reaction"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                ><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg
+              >
             </button>
           </div>
         {/if}
@@ -412,30 +454,58 @@
           <button
             class="msg-action-btn"
             onclick={() => startReply(message)}
-            title="Reply">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+            title="Reply"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+              ><path
+                d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
+              /></svg
+            >
           </button>
           <button
             class="msg-action-btn"
             onpointerdown={() => handleEmojiButtonPointerDown(message.id)}
             onclick={(e) => toggleEmojiPicker(message.id, e)}
-            title="React">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-5H11v-1h2v1zm1 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM17 9H7V7h10v2z"/></svg>
+            title="React"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"
+              ><path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 13.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm3-5H11v-1h2v1zm1 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM17 9H7V7h10v2z"
+              /></svg
+            >
           </button>
           {#if message.author_id === currentUserId}
             <button
               class="msg-action-btn"
               onclick={() => startEditMessage(message)}
-              title="Edit">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+              title="Edit"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                ><path
+                  d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                /></svg
+              >
             </button>
           {/if}
           {#if canDeleteMessage(message.author_id, currentUserId, $user?.role)}
             <button
               class="msg-action-btn delete"
               onclick={() => deleteMessage(message.id)}
-              title="Delete">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              title="Delete"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                ><path
+                  d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                /></svg
+              >
             </button>
           {/if}
         </div>
@@ -453,15 +523,25 @@
     aria-label="Image preview"
     tabindex="-1"
   >
-    <button class="lightbox-close" onclick={(e) => { e.stopPropagation(); closeLightbox(); }}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    <button
+      class="lightbox-close"
+      onclick={(e) => {
+        e.stopPropagation();
+        closeLightbox();
+      }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"
+        ><path
+          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+        /></svg
+      >
     </button>
-    <div class="lightbox-image-container" onclick={(e) => e.stopPropagation()} role="presentation">
-      <img
-        class="lightbox-image"
-        src={lightboxSrc}
-        alt={lightboxAlt}
-      />
+    <div
+      class="lightbox-image-container"
+      onclick={(e) => e.stopPropagation()}
+      role="presentation"
+    >
+      <img class="lightbox-image" src={lightboxSrc} alt={lightboxAlt} />
     </div>
   </div>
 {/if}

@@ -16,6 +16,7 @@
   });
 
   async function handleSubmit() {
+    if (loading) return;
     if (!username.trim() || !password.trim()) {
       error = "Please fill in all fields";
       return;
@@ -36,6 +37,7 @@
   }
 
   async function handlePasskeyLogin() {
+    if (loading) return;
     if (!username.trim()) {
       error = "Enter your username first, then click Sign in with Passkey";
       return;
@@ -61,7 +63,12 @@
   <h2>Welcome back!</h2>
   <p class="subtitle">We're so excited to see you again!</p>
 
-  <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+  <form
+    onsubmit={(e) => {
+      e.preventDefault();
+      handleSubmit();
+    }}
+  >
     <div class="form-group">
       <label for="username">Username</label>
       <input

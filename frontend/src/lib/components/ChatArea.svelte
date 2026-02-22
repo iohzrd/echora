@@ -1,49 +1,51 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { voiceStore } from '../stores/voiceStore';
-  import { chatState } from '../stores/chatState';
-  import { voiceManager } from '../voice';
-  import { toggleSidebar } from '../actions/ui';
-  import { stopWatching, stopWatchingCamera } from '../actions/voice';
-  import MessageList from './MessageList.svelte';
-  import MessageInput from './MessageInput.svelte';
-  import ScreenShareViewer from './ScreenShareViewer.svelte';
+  import { onMount, onDestroy } from "svelte";
+  import { voiceStore } from "../stores/voiceStore";
+  import { chatState } from "../stores/chatState";
+  import { voiceManager } from "../voice";
+  import { toggleSidebar } from "../actions/ui";
+  import { stopWatching, stopWatchingCamera } from "../actions/voice";
+  import MessageList from "./MessageList.svelte";
+  import MessageInput from "./MessageInput.svelte";
+  import ScreenShareViewer from "./ScreenShareViewer.svelte";
 
-  let screenVideoElement: HTMLVideoElement = $state()!;
-  let cameraVideoElement: HTMLVideoElement = $state()!;
+  let screenVideoElement: HTMLVideoElement;
+  let cameraVideoElement: HTMLVideoElement;
   let screenAudioEl: HTMLAudioElement | null = null;
 
   onMount(() => {
     voiceManager.onScreenTrack((track) => {
-      if (track.kind === 'video') {
+      if (track.kind === "video") {
         if (screenVideoElement) {
           screenVideoElement.srcObject = new MediaStream([track]);
           screenVideoElement
             .play()
-            .catch((e) => console.warn('Screen video autoplay prevented:', e));
+            .catch((e) => console.warn("Screen video autoplay prevented:", e));
         }
-      } else if (track.kind === 'audio') {
+      } else if (track.kind === "audio") {
         if (screenAudioEl) {
           screenAudioEl.srcObject = null;
           screenAudioEl.remove();
         }
-        screenAudioEl = document.createElement('audio');
+        screenAudioEl = document.createElement("audio");
         screenAudioEl.autoplay = true;
         screenAudioEl.volume = 1.0;
         screenAudioEl.srcObject = new MediaStream([track]);
-        (document.getElementById('audio-container') ?? document.body).appendChild(screenAudioEl);
+        (
+          document.getElementById("audio-container") ?? document.body
+        ).appendChild(screenAudioEl);
         screenAudioEl
           .play()
-          .catch((e) => console.warn('Screen audio autoplay prevented:', e));
+          .catch((e) => console.warn("Screen audio autoplay prevented:", e));
       }
     });
 
     voiceManager.onCameraTrack((track) => {
-      if (track.kind === 'video' && cameraVideoElement) {
+      if (track.kind === "video" && cameraVideoElement) {
         cameraVideoElement.srcObject = new MediaStream([track]);
         cameraVideoElement
           .play()
-          .catch((e) => console.warn('Camera video autoplay prevented:', e));
+          .catch((e) => console.warn("Camera video autoplay prevented:", e));
       }
     });
   });
@@ -88,19 +90,16 @@
   function getTypingText(): string {
     const names = Object.values($chatState.typingUsers).map((u) => u.username);
     if (names.length === 1) return `${names[0]} is typing...`;
-    if (names.length <= 3) return `${names.join(', ')} are typing...`;
-    return 'Several people are typing...';
+    if (names.length <= 3) return `${names.join(", ")} are typing...`;
+    return "Several people are typing...";
   }
 </script>
 
 <div class="main-content">
   <div class="chat-header">
-    <button
-      class="hamburger-btn"
-      onclick={toggleSidebar}
-    >|||</button>
+    <button class="hamburger-btn" onclick={toggleSidebar}>|||</button>
     <div class="channel-name">
-      {$chatState.selectedChannelName || 'Select a channel'}
+      {$chatState.selectedChannelName || "Select a channel"}
     </div>
   </div>
 
@@ -143,59 +142,59 @@
 </div>
 
 <style>
-.main-content {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	background-color: var(--bg-primary);
-	min-height: 0;
-	min-width: 0;
-}
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+    min-height: 0;
+    min-width: 0;
+  }
 
-.chat-header {
-	height: 48px;
-	padding: 0 16px;
-	display: flex;
-	align-items: center;
-	border-bottom: 1px solid var(--border-input);
-	background-color: var(--bg-primary);
-	flex-shrink: 0;
-}
+  .chat-header {
+    height: 48px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-input);
+    background-color: var(--bg-primary);
+    flex-shrink: 0;
+  }
 
-.chat-header .channel-name {
-	font-weight: 600;
-	color: var(--text-white);
-}
+  .chat-header .channel-name {
+    font-weight: 600;
+    color: var(--text-white);
+  }
 
-.chat-header .channel-name::before {
-	content: '#';
-	color: var(--text-muted);
-	margin-right: 4px;
-}
+  .chat-header .channel-name::before {
+    content: "#";
+    color: var(--text-muted);
+    margin-right: 4px;
+  }
 
-.typing-indicator {
-	padding: 4px 16px;
-	font-size: 12px;
-	color: var(--text-tertiary);
-	background-color: var(--bg-primary);
-	flex-shrink: 0;
-}
+  .typing-indicator {
+    padding: 4px 16px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    background-color: var(--bg-primary);
+    flex-shrink: 0;
+  }
 
-.typing-text {
-	font-style: italic;
-}
+  .typing-text {
+    font-style: italic;
+  }
 
-.rate-limit-warning {
-	padding: 4px 16px;
-	font-size: 12px;
-	color: var(--status-error);
-	background-color: var(--bg-primary);
-	flex-shrink: 0;
-}
+  .rate-limit-warning {
+    padding: 4px 16px;
+    font-size: 12px;
+    color: var(--status-error);
+    background-color: var(--bg-primary);
+    flex-shrink: 0;
+  }
 
-@media (max-width: 480px) {
-	.chat-header {
-		padding: 0 8px;
-	}
-}
+  @media (max-width: 480px) {
+    .chat-header {
+      padding: 0 8px;
+    }
+  }
 </style>

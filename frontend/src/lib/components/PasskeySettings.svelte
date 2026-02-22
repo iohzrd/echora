@@ -31,6 +31,7 @@
   }
 
   async function registerPasskey() {
+    if (registering) return;
     registering = true;
     error = "";
     try {
@@ -41,7 +42,8 @@
       if (err instanceof Error && err.name === "NotAllowedError") {
         // User cancelled the browser prompt
       } else {
-        error = err instanceof Error ? err.message : "Failed to register passkey";
+        error =
+          err instanceof Error ? err.message : "Failed to register passkey";
       }
     } finally {
       registering = false;
@@ -49,7 +51,12 @@
   }
 
   async function deletePasskey(id: string, name: string) {
-    if (!confirm(`Remove passkey "${name}"? You will no longer be able to sign in with it.`)) return;
+    if (
+      !confirm(
+        `Remove passkey "${name}"? You will no longer be able to sign in with it.`,
+      )
+    )
+      return;
     error = "";
     try {
       await PasskeyService.deletePasskey(id);
@@ -68,7 +75,13 @@
   }
 </script>
 
-<div class="passkey-overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }} role="presentation">
+<div
+  class="passkey-overlay"
+  onclick={(e) => {
+    if (e.target === e.currentTarget) onClose();
+  }}
+  role="presentation"
+>
   <div class="passkey-panel">
     <div class="passkey-header">
       <h2>Passkeys</h2>
@@ -77,7 +90,9 @@
 
     <div class="passkey-content">
       {#if !passkeySupported}
-        <p class="unsupported-msg">Passkeys are not supported in this browser or environment.</p>
+        <p class="unsupported-msg">
+          Passkeys are not supported in this browser or environment.
+        </p>
       {:else}
         {#if error}
           <div class="error-message">{error}</div>
@@ -90,7 +105,9 @@
             bind:value={newPasskeyName}
             placeholder="Passkey name (optional)"
             disabled={registering}
-            onkeydown={(e) => { if (e.key === "Enter") registerPasskey(); }}
+            onkeydown={(e) => {
+              if (e.key === "Enter") registerPasskey();
+            }}
           />
           <button
             class="add-btn"
@@ -104,7 +121,9 @@
         {#if loading}
           <p class="loading-msg">Loading...</p>
         {:else if passkeys.length === 0}
-          <p class="empty-msg">No passkeys registered. Add one to enable passwordless login.</p>
+          <p class="empty-msg">
+            No passkeys registered. Add one to enable passwordless login.
+          </p>
         {:else}
           <div class="passkey-list">
             {#each passkeys as pk (pk.id)}
@@ -112,7 +131,9 @@
                 <div class="passkey-info">
                   <span class="passkey-name">{pk.name}</span>
                   <span class="passkey-meta">
-                    Added {formatDate(pk.created_at)}{pk.last_used_at ? ` -- Last used ${formatDate(pk.last_used_at)}` : " -- Never used"}
+                    Added {formatDate(pk.created_at)}{pk.last_used_at
+                      ? ` -- Last used ${formatDate(pk.last_used_at)}`
+                      : " -- Never used"}
                   </span>
                 </div>
                 <button
@@ -120,8 +141,15 @@
                   onclick={() => deletePasskey(pk.id, pk.name)}
                   title="Remove passkey"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                    />
                   </svg>
                 </button>
               </div>
@@ -240,7 +268,9 @@
     cursor: not-allowed;
   }
 
-  .loading-msg, .empty-msg, .unsupported-msg {
+  .loading-msg,
+  .empty-msg,
+  .unsupported-msg {
     color: var(--text-muted, #949ba4);
     font-size: 14px;
     text-align: center;

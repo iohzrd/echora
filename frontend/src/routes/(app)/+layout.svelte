@@ -1,7 +1,7 @@
 <script lang="ts">
-  import '../../app.css';
-  import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
+  import "../../app.css";
+  import { onMount, onDestroy } from "svelte";
+  import { get } from "svelte/store";
   import {
     isTauri,
     activeServer,
@@ -10,14 +10,14 @@
     removeServer,
     setActiveServer,
     type EchoraServer,
-  } from '../../lib/serverManager';
-  import { getWs } from '../../lib/ws';
-  import { voiceManager } from '../../lib/voice';
-  import { voiceStore } from '../../lib/stores/voiceStore';
-  import { serverState } from '../../lib/stores/serverState';
-  import { uiState } from '../../lib/stores/uiState';
-  import { connectToServer, initPTTSettings } from '../../lib/actions/server';
-  import { initAudioSettings } from '../../lib/actions/audioSettings';
+  } from "../../lib/serverManager";
+  import { getWs } from "../../lib/ws";
+  import { voiceManager } from "../../lib/voice";
+  import { voiceStore } from "../../lib/stores/voiceStore";
+  import { serverState } from "../../lib/stores/serverState";
+  import { uiState } from "../../lib/stores/uiState";
+  import { connectToServer, initPTTSettings } from "../../lib/actions/server";
+  import { initAudioSettings } from "../../lib/actions/audioSettings";
   import {
     openAddServerDialog,
     closeAddServerDialog,
@@ -28,23 +28,25 @@
     closeSidebar,
     setNeedsServerAuth,
     setTauriAuthIsLogin,
-  } from '../../lib/actions/ui';
+  } from "../../lib/actions/ui";
 
-  import ServerSidebar from '../../lib/components/ServerSidebar.svelte';
-  import AddServerDialog from '../../lib/components/AddServerDialog.svelte';
-  import LoginForm from '../../lib/components/LoginForm.svelte';
-  import RegisterForm from '../../lib/components/RegisterForm.svelte';
-  import AdminPanel from '../../lib/components/AdminPanel.svelte';
-  import PasskeySettings from '../../lib/components/PasskeySettings.svelte';
-  import ProfileModal from '../../lib/components/ProfileModal.svelte';
-  import AppSidebar from '../../lib/components/AppSidebar.svelte';
-  import ChatArea from '../../lib/components/ChatArea.svelte';
-  import EmojiPicker from '../../lib/components/EmojiPicker.svelte';
-  import { emojiPickerState } from '../../lib/stores/emojiPickerState';
+  import ServerSidebar from "../../lib/components/ServerSidebar.svelte";
+  import AddServerDialog from "../../lib/components/AddServerDialog.svelte";
+  import LoginForm from "../../lib/components/LoginForm.svelte";
+  import RegisterForm from "../../lib/components/RegisterForm.svelte";
+  import AdminPanel from "../../lib/components/AdminPanel.svelte";
+  import PasskeySettings from "../../lib/components/PasskeySettings.svelte";
+  import ProfileModal from "../../lib/components/ProfileModal.svelte";
+  import AppSidebar from "../../lib/components/AppSidebar.svelte";
+  import ChatArea from "../../lib/components/ChatArea.svelte";
+  import EmojiPicker from "../../lib/components/EmojiPicker.svelte";
+  import { emojiPickerState } from "../../lib/stores/emojiPickerState";
 
   let { children } = $props();
 
-  let activeServerName = $derived($serverState.serverName || $activeServer?.name || 'Echora');
+  let activeServerName = $derived(
+    $serverState.serverName || $activeServer?.name || "Echora",
+  );
 
   let _removeDeviceListener: (() => void) | null = null;
 
@@ -52,7 +54,7 @@
     await initPTTSettings();
 
     if (isTauri) {
-      import('@tauri-apps/api/app')
+      import("@tauri-apps/api/app")
         .then((m) => m.getVersion())
         .then((v) => uiState.update((s) => ({ ...s, tauriVersion: v })))
         .catch(() => {});
@@ -78,25 +80,25 @@
     await connectToServer();
   }
 
-  function handleAddServer(url: string, name: string) {
+  async function handleAddServer(url: string, name: string) {
     const server = addServer(url, name);
     closeAddServerDialog();
     setActiveServer(server.id);
-    connectToServer();
+    await connectToServer();
   }
 
-  function handleTauriAuthSuccess() {
+  async function handleTauriAuthSuccess() {
     setNeedsServerAuth(false);
     setTauriAuthIsLogin(true);
-    connectToServer();
+    await connectToServer();
   }
 
-  function handleRemoveServer(id: string) {
-    if (!confirm('Remove this server from your list?')) return;
+  async function handleRemoveServer(id: string) {
+    if (!confirm("Remove this server from your list?")) return;
     const wasActive = $activeServer?.id === id;
     removeServer(id);
     if (wasActive && $servers.length > 0) {
-      connectToServer();
+      await connectToServer();
     }
   }
 </script>
@@ -123,10 +125,7 @@
       <div class="empty-state-message">
         <h2>Welcome to Echora</h2>
         <p>Add a server to get started.</p>
-        <button
-          class="submit-btn"
-          onclick={openAddServerDialog}
-        >
+        <button class="submit-btn" onclick={openAddServerDialog}>
           Add Server
         </button>
       </div>
@@ -172,10 +171,7 @@
 </div>
 
 {#if $uiState.showAddServerDialog}
-  <AddServerDialog
-    onAdd={handleAddServer}
-    onCancel={closeAddServerDialog}
-  />
+  <AddServerDialog onAdd={handleAddServer} onCancel={closeAddServerDialog} />
 {/if}
 
 {#if $uiState.showAdminPanel}

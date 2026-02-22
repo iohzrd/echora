@@ -1,12 +1,12 @@
-import { get } from 'svelte/store';
-import { goto } from '$app/navigation';
-import { browser } from '$app/environment';
-import { API } from '../api';
-import { user } from '../auth';
-import { getWs } from '../ws';
-import { chatState } from '../stores/chatState';
-import { serverState } from '../stores/serverState';
-import type { Message } from '../api';
+import { get } from "svelte/store";
+import { goto } from "$app/navigation";
+import { browser } from "$app/environment";
+import { API } from "../api";
+import { user } from "../auth";
+import { getWs } from "../ws";
+import { chatState } from "../stores/chatState";
+import { serverState } from "../stores/serverState";
+import type { Message } from "../api";
 
 const TYPING_DEBOUNCE_MS = 3000;
 let lastTypingSent = 0;
@@ -48,7 +48,12 @@ export async function selectChannel(channelId: string, channelName: string) {
   });
   getWs().joinChannel(channelId);
 
-  if (browser) goto(`/channels/${channelId}`, { replaceState: false, noScroll: true, keepFocus: true });
+  if (browser)
+    goto(`/channels/${channelId}`, {
+      replaceState: false,
+      noScroll: true,
+      keepFocus: true,
+    });
 
   try {
     const msgs = await API.getMessages(channelId, 50);
@@ -61,7 +66,8 @@ export async function selectChannel(channelId: string, channelName: string) {
       const restIds = new Set(msgs.map((m) => m.id));
       const wsOnly = s.messages.filter((m) => !restIds.has(m.id));
       const merged = [...msgs, ...wsOnly].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
       );
       return {
         ...s,
@@ -71,15 +77,13 @@ export async function selectChannel(channelId: string, channelName: string) {
     });
     return true;
   } catch (error) {
-    console.error('Failed to load messages:', error);
+    console.error("Failed to load messages:", error);
     chatState.update((s) => ({ ...s, messages: [] }));
     return false;
   }
 }
 
-export async function loadOlderMessages(
-  scrollToPreserve: () => () => void,
-) {
+export async function loadOlderMessages(scrollToPreserve: () => () => void) {
   const cs = get(chatState);
   if (
     cs.loadingMore ||
@@ -105,10 +109,12 @@ export async function loadOlderMessages(
       chatState.update((s) => {
         // Guard: channel may have changed during the async fetch
         if (s.selectedChannelId !== cs.selectedChannelId) return s;
+        const existingIds = new Set(s.messages.map((m) => m.id));
+        const uniqueOlder = olderMessages.filter((m) => !existingIds.has(m.id));
         return {
           ...s,
           hasMoreMessages: olderMessages.length >= 50,
-          messages: [...olderMessages, ...s.messages],
+          messages: [...uniqueOlder, ...s.messages],
         };
       });
       restoreScroll();
@@ -119,7 +125,7 @@ export async function loadOlderMessages(
       });
     }
   } catch (error) {
-    console.error('Failed to load older messages:', error);
+    console.error("Failed to load older messages:", error);
   } finally {
     chatState.update((s) => ({ ...s, loadingMore: false }));
   }
@@ -129,7 +135,12 @@ export function sendMessage(text: string, attachmentIds?: string[]) {
   const { selectedChannelId, replyingTo } = get(chatState);
   const currentUser = get(user);
   if (selectedChannelId && currentUser) {
-    const sent = getWs().sendMessage(selectedChannelId, text, replyingTo?.id, attachmentIds);
+    const sent = getWs().sendMessage(
+      selectedChannelId,
+      text,
+      replyingTo?.id,
+      attachmentIds,
+    );
     if (sent) {
       chatState.update((s) => ({ ...s, replyingTo: null, sendError: false }));
     } else {
@@ -164,32 +175,39 @@ export function cancelEditMessage() {
   chatState.update((s) => ({
     ...s,
     editingMessageId: null,
-    editMessageContent: '',
+    editMessageContent: "",
   }));
 }
 
 export async function saveEditMessage() {
-  const { editingMessageId, editMessageContent, selectedChannelId } = get(chatState);
-  if (!editingMessageId || !editMessageContent.trim()) return;
+  const { editingMessageId, editMessageContent, selectedChannelId } =
+    get(chatState);
+  if (!editingMessageId || !editMessageContent.trim() || !selectedChannelId)
+    return;
   try {
-    await API.editMessage(selectedChannelId, editingMessageId, editMessageContent.trim());
+    await API.editMessage(
+      selectedChannelId,
+      editingMessageId,
+      editMessageContent.trim(),
+    );
     chatState.update((s) => ({
       ...s,
       editingMessageId: null,
-      editMessageContent: '',
+      editMessageContent: "",
     }));
   } catch (error) {
-    console.error('Failed to edit message:', error);
+    console.error("Failed to edit message:", error);
   }
 }
 
 export async function deleteMessage(messageId: string) {
-  if (!confirm('Delete this message?')) return;
+  if (!confirm("Delete this message?")) return;
   const { selectedChannelId } = get(chatState);
+  if (!selectedChannelId) return;
   try {
     await API.deleteMessage(selectedChannelId, messageId);
   } catch (error) {
-    console.error('Failed to delete message:', error);
+    console.error("Failed to delete message:", error);
   }
 }
 
@@ -213,15 +231,15 @@ export async function toggleReaction(messageId: string, emoji: string) {
       await API.addReaction(selectedChannelId, messageId, emoji);
     }
   } catch (error) {
-    console.error('Failed to toggle reaction:', error);
+    console.error("Failed to toggle reaction:", error);
   }
 }
 
-export async function createChannel(name: string, type: 'text' | 'voice') {
+export async function createChannel(name: string, type: "text" | "voice") {
   try {
     await API.createChannel(name, type);
   } catch (error) {
-    console.error('Failed to create channel:', error);
+    console.error("Failed to create channel:", error);
   }
 }
 
@@ -229,16 +247,16 @@ export async function updateChannel(channelId: string, name: string) {
   try {
     await API.updateChannel(channelId, name);
   } catch (error) {
-    console.error('Failed to update channel:', error);
+    console.error("Failed to update channel:", error);
   }
 }
 
 export async function deleteChannel(channelId: string) {
-  if (!confirm('Delete this channel and all its messages?')) return;
+  if (!confirm("Delete this channel and all its messages?")) return;
   try {
     await API.deleteChannel(channelId);
   } catch (error) {
-    console.error('Failed to delete channel:', error);
+    console.error("Failed to delete channel:", error);
   }
 }
 
