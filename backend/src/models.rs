@@ -267,6 +267,7 @@ pub enum ModAction {
     Mute,
     Unmute,
     RoleChange,
+    DeleteUser,
 }
 
 impl fmt::Display for ModAction {
@@ -278,6 +279,7 @@ impl fmt::Display for ModAction {
             Self::Mute => f.write_str("mute"),
             Self::Unmute => f.write_str("unmute"),
             Self::RoleChange => f.write_str("role_change"),
+            Self::DeleteUser => f.write_str("delete_user"),
         }
     }
 }

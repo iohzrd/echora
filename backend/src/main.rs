@@ -235,6 +235,7 @@ async fn main() {
             get(sfu::routes::get_router_capabilities),
         )
         .route("/api/admin/users", get(admin::get_all_users))
+        .route("/api/admin/users/{user_id}", delete(admin::delete_user))
         .route(
             "/api/admin/users/{user_id}/role",
             put(admin::change_user_role),

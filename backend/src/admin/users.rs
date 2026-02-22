@@ -71,3 +71,37 @@ pub async fn change_user_role(
 
     Ok(())
 }
+
+pub async fn delete_user(
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
+    Path(target_user_id): Path<Uuid>,
+) -> AppResult<()> {
+    let actor_id = auth_user.user_id();
+    let actor_role = database::get_user_role(&state.db, actor_id).await?;
+    permissions::require_role(actor_role, Role::Owner)?;
+
+    if target_user_id == actor_id {
+        return Err(AppError::bad_request("Cannot delete your own account"));
+    }
+
+    let target_role = database::get_user_role(&state.db, target_user_id).await?;
+    if target_role == Role::Owner {
+        return Err(AppError::forbidden("Cannot delete another owner"));
+    }
+
+    database::create_mod_log_entry(
+        &state.db,
+        &ModLogEntry::new(ModAction::DeleteUser, actor_id, target_user_id, None, None),
+    )
+    .await?;
+
+    database::delete_user(&state.db, target_user_id).await?;
+
+    state.broadcast_global(
+        "user_deleted",
+        serde_json::json!({ "user_id": target_user_id }),
+    );
+
+    Ok(())
+}

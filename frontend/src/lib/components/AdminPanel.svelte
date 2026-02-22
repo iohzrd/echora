@@ -193,6 +193,16 @@
     }
   }
 
+  async function handleDeleteUser(userId: string, username: string) {
+    if (!confirm(`Permanently delete user "${username}"? This cannot be undone.`)) return;
+    try {
+      await API.deleteUser(userId);
+      await loadTab("users");
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Failed to delete user";
+    }
+  }
+
   async function handleUpdateSetting(key: string, value: string) {
     try {
       await API.updateSetting(key, value);
@@ -271,7 +281,7 @@
                     <span class="role-badge role-{u.role}">{u.role}</span>
                   </td>
                   <td>{formatTimestamp(u.created_at)}</td>
-                  <td>
+                  <td class="user-actions-cell">
                     {#if isAdmin && canModerate(u.role) && u.id !== $user?.id}
                       <select
                         value={u.role}
@@ -285,6 +295,12 @@
                           >
                         {/each}
                       </select>
+                    {/if}
+                    {#if userRole === "owner" && u.role !== "owner" && u.id !== $user?.id}
+                      <button
+                        class="mod-action-btn delete-user"
+                        onclick={() => handleDeleteUser(u.id, u.username)}
+                      >Delete</button>
                     {/if}
                   </td>
                 </tr>
@@ -802,6 +818,14 @@
   }
   .mod-action-btn.revoke {
     background: var(--status-negative);
+  }
+  .mod-action-btn.delete-user {
+    background: #8b0000;
+  }
+  .user-actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .mod-list {
