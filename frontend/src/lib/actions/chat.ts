@@ -1,4 +1,6 @@
 import { get } from 'svelte/store';
+import { goto } from '$app/navigation';
+import { browser } from '$app/environment';
 import { API } from '../api';
 import { user } from '../auth';
 import { getWs } from '../ws';
@@ -45,6 +47,8 @@ export async function selectChannel(channelId: string, channelName: string) {
     };
   });
   getWs().joinChannel(channelId);
+
+  if (browser) goto(`/channels/${channelId}`, { replaceState: false, noScroll: true, keepFocus: true });
 
   try {
     const msgs = await API.getMessages(channelId, 50);

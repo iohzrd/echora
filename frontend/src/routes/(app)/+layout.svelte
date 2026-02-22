@@ -1,5 +1,5 @@
 <script lang="ts">
-  import '../app.css';
+  import '../../app.css';
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import {
@@ -10,14 +10,14 @@
     removeServer,
     setActiveServer,
     type EchoraServer,
-  } from '../lib/serverManager';
-  import { getWs } from '../lib/ws';
-  import { voiceManager } from '../lib/voice';
-  import { voiceStore } from '../lib/stores/voiceStore';
-  import { serverState } from '../lib/stores/serverState';
-  import { uiState } from '../lib/stores/uiState';
-  import { connectToServer, initPTTSettings } from '../lib/actions/server';
-  import { initAudioSettings } from '../lib/actions/audioSettings';
+  } from '../../lib/serverManager';
+  import { getWs } from '../../lib/ws';
+  import { voiceManager } from '../../lib/voice';
+  import { voiceStore } from '../../lib/stores/voiceStore';
+  import { serverState } from '../../lib/stores/serverState';
+  import { uiState } from '../../lib/stores/uiState';
+  import { connectToServer, initPTTSettings } from '../../lib/actions/server';
+  import { initAudioSettings } from '../../lib/actions/audioSettings';
   import {
     openAddServerDialog,
     closeAddServerDialog,
@@ -28,17 +28,19 @@
     closeSidebar,
     setNeedsServerAuth,
     setTauriAuthIsLogin,
-  } from '../lib/actions/ui';
+  } from '../../lib/actions/ui';
 
-  import ServerSidebar from '../lib/components/ServerSidebar.svelte';
-  import AddServerDialog from '../lib/components/AddServerDialog.svelte';
-  import LoginForm from '../lib/components/LoginForm.svelte';
-  import RegisterForm from '../lib/components/RegisterForm.svelte';
-  import AdminPanel from '../lib/components/AdminPanel.svelte';
-  import PasskeySettings from '../lib/components/PasskeySettings.svelte';
-  import ProfileModal from '../lib/components/ProfileModal.svelte';
-  import AppSidebar from '../lib/components/AppSidebar.svelte';
-  import ChatArea from '../lib/components/ChatArea.svelte';
+  import ServerSidebar from '../../lib/components/ServerSidebar.svelte';
+  import AddServerDialog from '../../lib/components/AddServerDialog.svelte';
+  import LoginForm from '../../lib/components/LoginForm.svelte';
+  import RegisterForm from '../../lib/components/RegisterForm.svelte';
+  import AdminPanel from '../../lib/components/AdminPanel.svelte';
+  import PasskeySettings from '../../lib/components/PasskeySettings.svelte';
+  import ProfileModal from '../../lib/components/ProfileModal.svelte';
+  import AppSidebar from '../../lib/components/AppSidebar.svelte';
+  import ChatArea from '../../lib/components/ChatArea.svelte';
+
+  let { children } = $props();
 
   let activeServerName = $derived($serverState.serverName || $activeServer?.name || 'Echora');
 
@@ -192,3 +194,5 @@
     onClose={closeProfileView}
   />
 {/if}
+
+{@render children?.()}
