@@ -68,7 +68,7 @@ pub struct LoginRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateProfileRequest {
-    pub display_name: Option<Option<String>>,
+    pub display_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
