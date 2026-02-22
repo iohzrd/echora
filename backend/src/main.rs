@@ -117,6 +117,7 @@ async fn main() {
             "/api/auth/me",
             get(auth_routes::me).put(auth_routes::update_profile),
         )
+        .route("/api/auth/password", post(auth_routes::change_password))
         .route(
             "/api/auth/passkey/register/start",
             post(passkey_routes::start_passkey_register),

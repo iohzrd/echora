@@ -72,6 +72,12 @@ pub struct UpdateProfileRequest {
     pub display_name: Option<Option<String>>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
     pub token: String,
