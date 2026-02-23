@@ -221,6 +221,18 @@ pub struct UserSummary {
     pub avatar_url: Option<String>,
 }
 
+/// Lightweight member info for the members sidebar (no email/admin fields).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemberInfo {
+    pub id: Uuid,
+    pub username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    pub role: Role,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+}
+
 pub fn avatar_url_from_path(user_id: Uuid, path: &Option<String>) -> Option<String> {
     path.as_ref()
         .map(|_| format!("/api/users/{}/avatar", user_id))

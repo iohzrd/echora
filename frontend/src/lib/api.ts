@@ -109,6 +109,14 @@ export interface UserSummary {
   avatar_url?: string;
 }
 
+export interface MemberInfo {
+  id: string;
+  username: string;
+  display_name?: string;
+  role: "owner" | "admin" | "moderator" | "member";
+  avatar_url?: string;
+}
+
 export interface PublicProfile {
   id: string;
   username: string;
@@ -236,6 +244,7 @@ export class API {
     channels: Channel[];
     online_users: UserPresence[];
     voice_states: VoiceState[];
+    members: MemberInfo[];
     users?: UserSummary[];
   }> {
     return this.request("/init", {}, "Failed to initialize");

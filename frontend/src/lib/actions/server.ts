@@ -84,6 +84,7 @@ async function _connectToServer() {
 
   serverState.channels = [];
   serverState.onlineUsers = [];
+  serverState.members = [];
   serverState.userAvatars = {};
   serverState.userRolesMap = {};
   serverState.serverName = "";
@@ -113,8 +114,8 @@ async function _connectToServer() {
     const init = await API.getInit();
 
     const avatarMap: Record<string, string | undefined> = {};
-    for (const u of init.online_users) {
-      if (u.avatar_url) avatarMap[u.user_id] = API.getAvatarUrl(u.user_id);
+    for (const m of init.members) {
+      if (m.avatar_url) avatarMap[m.id] = API.getAvatarUrl(m.id);
     }
     for (const vs of init.voice_states) {
       if (vs.avatar_url) avatarMap[vs.user_id] = API.getAvatarUrl(vs.user_id);
@@ -125,10 +126,11 @@ async function _connectToServer() {
 
     serverState.channels = init.channels;
     serverState.onlineUsers = init.online_users;
+    serverState.members = init.members;
     serverState.userAvatars = avatarMap;
-    serverState.userRolesMap = init.users
-      ? Object.fromEntries(init.users.map((u) => [u.id, u.role]))
-      : {};
+    serverState.userRolesMap = Object.fromEntries(
+      init.members.map((m) => [m.id, m.role]),
+    );
     serverState.serverName = init.server_name;
     serverState.backendVersion = init.version;
 

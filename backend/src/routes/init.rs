@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::auth::AuthUser;
 use crate::database;
-use crate::models::{AppState, Channel, UserPresence, UserSummary, VoiceState};
+use crate::models::{AppState, Channel, MemberInfo, UserPresence, UserSummary, VoiceState};
 use crate::permissions::Role;
 use crate::shared::AppResult;
 
@@ -15,6 +15,7 @@ pub struct InitResponse {
     pub channels: Vec<Channel>,
     pub online_users: Vec<UserPresence>,
     pub voice_states: Vec<VoiceState>,
+    pub members: Vec<MemberInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub users: Option<Vec<UserSummary>>,
 }
@@ -26,14 +27,16 @@ pub async fn get_init(
     let user_id = auth_user.user_id();
 
     // Run independent DB queries concurrently
-    let (server_name, channels, actor_role) = tokio::join!(
+    let (server_name, channels, actor_role, members) = tokio::join!(
         database::get_server_setting(&state.db, "server_name"),
         database::get_channels(&state.db),
         database::get_user_role(&state.db, user_id),
+        database::get_all_members(&state.db),
     );
     let server_name = server_name?;
     let channels = channels?;
     let actor_role = actor_role?;
+    let members = members?;
 
     let online_users: Vec<UserPresence> = state
         .online_users
@@ -43,7 +46,7 @@ pub async fn get_init(
 
     let voice_states: Vec<VoiceState> = state.all_voice_states();
 
-    // Include user list for moderators+ (needed for role badges)
+    // Include user list for moderators+ (needed for admin panel)
     let users = if actor_role >= Role::Moderator {
         Some(database::get_all_users(&state.db).await?)
     } else {
@@ -56,6 +59,7 @@ pub async fn get_init(
         channels,
         online_users,
         voice_states,
+        members,
         users,
     }))
 }

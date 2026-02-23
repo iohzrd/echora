@@ -6,8 +6,8 @@ use uuid::Uuid;
 use crate::auth::User;
 use crate::link_preview::LinkPreviewData;
 use crate::models::{
-    Attachment, Ban, Channel, ChannelType, Invite, LinkPreview, Message, ModLogEntry, Mute,
-    Reaction, ReplyPreview, UserSummary,
+    Attachment, Ban, Channel, ChannelType, Invite, LinkPreview, MemberInfo, Message, ModLogEntry,
+    Mute, Reaction, ReplyPreview, UserSummary,
 };
 use crate::permissions::Role;
 use crate::shared::AppError;
@@ -845,6 +845,27 @@ pub async fn get_all_users(pool: &PgPool) -> Result<Vec<UserSummary>, AppError> 
         .collect();
 
     Ok(users)
+}
+
+pub async fn get_all_members(pool: &PgPool) -> Result<Vec<MemberInfo>, AppError> {
+    let rows: Vec<(Uuid, String, Option<String>, Role, Option<String>)> = sqlx::query_as(
+        "SELECT id, username, display_name, role, avatar_path FROM users ORDER BY username ASC",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, username, display_name, role, avatar_path)| MemberInfo {
+                id,
+                username,
+                display_name,
+                role,
+                avatar_url: crate::models::avatar_url_from_path(id, &avatar_path),
+            },
+        )
+        .collect())
 }
 
 pub async fn update_user_avatar(

@@ -1,5 +1,5 @@
 import { goto } from "$app/navigation";
-import { API, type WsIncomingMessage } from "../api";
+import { API, type MemberInfo, type WsIncomingMessage } from "../api";
 import { playSound } from "../sounds";
 import AuthService from "../auth";
 import { voiceManager } from "../voice";
@@ -173,6 +173,11 @@ export function setupWsHandlers() {
         u.user_id === user_id
           ? { ...u, username, display_name: display_name ?? undefined }
           : u,
+      );
+      serverState.members = serverState.members.map((m) =>
+        m.id === user_id
+          ? { ...m, username, display_name: display_name ?? undefined }
+          : m,
       );
       if (avatar_url) {
         serverState.userAvatars[user_id] =
@@ -356,12 +361,18 @@ export function setupWsHandlers() {
         ...serverState.userRolesMap,
         [user_id]: new_role,
       };
+      serverState.members = serverState.members.map((m) =>
+        m.id === user_id ? { ...m, role: new_role as MemberInfo["role"] } : m,
+      );
     }
 
     if (data.type === "user_renamed") {
       const { user_id, new_username } = data.data;
       serverState.onlineUsers = serverState.onlineUsers.map((u) =>
         u.user_id === user_id ? { ...u, username: new_username } : u,
+      );
+      serverState.members = serverState.members.map((m) =>
+        m.id === user_id ? { ...m, username: new_username } : m,
       );
       voiceStore.voiceStates = voiceStore.voiceStates.map((v) =>
         v.user_id === user_id ? { ...v, username: new_username } : v,

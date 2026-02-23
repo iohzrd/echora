@@ -38,7 +38,7 @@
   import ProfileModal from "../../lib/components/ProfileModal.svelte";
   import AppSidebar from "../../lib/components/AppSidebar.svelte";
   import ChatArea from "../../lib/components/ChatArea.svelte";
-  import OnlineUsers from "../../lib/components/OnlineUsers.svelte";
+  import MembersSidebar from "../../lib/components/MembersSidebar.svelte";
   import EmojiPicker from "../../lib/components/EmojiPicker.svelte";
   import { emojiPickerState } from "../../lib/stores/emojiPickerState.svelte";
 
@@ -169,7 +169,7 @@
   {:else}
     <AppSidebar />
     <ChatArea />
-    <OnlineUsers />
+    <MembersSidebar />
     {@render children?.()}
   {/if}
 </div>

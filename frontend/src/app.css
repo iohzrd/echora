@@ -1174,8 +1174,16 @@ body {
   min-height: 0;
 }
 
-/* Online Users */
-.online-user {
+/* Members List */
+.members-section-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 12px 8px 4px;
+}
+
+.member-entry {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1190,19 +1198,27 @@ body {
   color: inherit;
 }
 
-.online-user:hover {
+.member-entry:hover {
   background: var(--bg-hover);
 }
 
-.online-dot {
+.member-entry.offline {
+  opacity: 0.5;
+}
+
+.status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--status-positive);
+  background-color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.online-username {
+.status-dot.online {
+  background-color: var(--status-positive);
+}
+
+.member-username {
   font-size: 13px;
   color: var(--text-muted);
   overflow: hidden;
