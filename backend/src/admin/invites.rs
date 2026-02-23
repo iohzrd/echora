@@ -3,7 +3,7 @@ use axum::{
     response::Json,
 };
 use chrono::{TimeDelta, Utc};
-use rand::Rng;
+use rand::RngExt;
 use std::sync::Arc;
 use uuid::Uuid;
 
