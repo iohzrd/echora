@@ -156,6 +156,24 @@ async function _connectToServer() {
     await getWs().connect();
     syncVoiceState();
 
+    // Ensure current user appears in onlineUsers (they miss their own
+    // user_online broadcast because the WS subscribe happens after it).
+    if (
+      currentUser &&
+      !serverState.onlineUsers.some((u) => u.user_id === currentUser.id)
+    ) {
+      serverState.onlineUsers = [
+        ...serverState.onlineUsers,
+        {
+          user_id: currentUser.id,
+          username: currentUser.username,
+          display_name: currentUser.display_name,
+          avatar_url: currentUser.avatar_url,
+          connected_at: new Date().toISOString(),
+        },
+      ];
+    }
+
     const { channels } = serverState;
     const urlChannelId = page.params.channelId;
     const targetChannel = urlChannelId
