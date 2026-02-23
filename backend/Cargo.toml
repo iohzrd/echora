@@ -5,8 +5,9 @@ edition = "2024"
 
 [dependencies]
 argon2 = "0.5"
-base64 = "0.22"
 axum = { version = "0.8", features = ["ws", "multipart"] }
+base64 = "0.22"
+bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
 dashmap = "6"
 dotenvy = "0.15"
@@ -17,13 +18,16 @@ jsonwebtoken = "9"
 linkify = "0.10"
 mediasoup = "0.20"
 mediasoup-types = "0.2"
-rand = "0.9"
+mime_guess = "2"
+object_store = { version = "0.13", features = ["aws", "fs"] }
+rand = "0.10.0"
 reqwest = { version = "0.13", features = ["json", "stream"] }
 scraper = "0.25"
 serde = { version = "1", features = ["derive"] }
-sha2 = "0.10"
 serde_json = "1"
+sha2 = "0.10"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+symphonia = { version = "0.5", features = ["mp3", "ogg", "wav", "pcm", "vorbis"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
@@ -34,6 +38,3 @@ url = "2"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 webauthn-rs-proto = "0.5"
-object_store = { version = "0.13", features = ["aws", "fs"] }
-bytes = "1"
-mime_guess = "2"

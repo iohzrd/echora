@@ -43,6 +43,14 @@ pub const ALLOWED_CONTENT_TYPES: &[&str] = &[
 pub const ALLOWED_EMOJI_CONTENT_TYPES: &[&str] =
     &["image/png", "image/gif", "image/webp", "image/jpeg"];
 
+pub const MAX_SOUNDBOARD_SOUND_SIZE: usize = 512 * 1024; // 512KB
+pub const MAX_SOUNDBOARD_SOUND_DURATION_MS: i32 = 5200; // 5.2 seconds
+pub const MAX_SOUNDBOARD_SOUND_NAME_LENGTH: usize = 32;
+pub const MIN_SOUNDBOARD_SOUND_NAME_LENGTH: usize = 2;
+pub const MAX_SOUNDBOARD_SOUNDS: usize = 48;
+
+pub const ALLOWED_SOUNDBOARD_CONTENT_TYPES: &[&str] = &["audio/mpeg", "audio/ogg", "audio/wav"];
+
 pub const MAX_AVATAR_SIZE: usize = 5 * 1024 * 1024; // 5MB
 pub const MAX_DISPLAY_NAME_LENGTH: usize = 64;
 pub const ALLOWED_AVATAR_CONTENT_TYPES: &[&str] =
@@ -220,6 +228,34 @@ pub fn validate_display_name(name: &str) -> Result<String, AppError> {
         ));
     }
     Ok(trimmed)
+}
+
+pub fn validate_soundboard_sound_name(name: &str) -> Result<String, AppError> {
+    let trimmed = name.trim().to_string();
+    if trimmed.len() < MIN_SOUNDBOARD_SOUND_NAME_LENGTH
+        || trimmed.len() > MAX_SOUNDBOARD_SOUND_NAME_LENGTH
+    {
+        return Err(AppError::bad_request(
+            "Sound name must be between 2 and 32 characters",
+        ));
+    }
+    Ok(trimmed)
+}
+
+pub fn validate_soundboard_content_type(content_type: &str) -> Result<(), AppError> {
+    if !ALLOWED_SOUNDBOARD_CONTENT_TYPES.contains(&content_type) {
+        return Err(AppError::bad_request(
+            "Audio type not allowed. Use MP3, OGG, or WAV.",
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_soundboard_volume(volume: f64) -> Result<(), AppError> {
+    if !(0.0..=1.0).contains(&volume) {
+        return Err(AppError::bad_request("Volume must be between 0.0 and 1.0"));
+    }
+    Ok(())
 }
 
 pub fn validate_channel_name(name: &str) -> Result<String, AppError> {

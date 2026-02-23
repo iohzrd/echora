@@ -174,6 +174,19 @@ export interface CustomEmoji {
   created_at: string;
 }
 
+export interface SoundboardSound {
+  id: string;
+  name: string;
+  volume: number;
+  file_size: number;
+  duration_ms: number;
+  content_type: string;
+  storage_path: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ServerSettings {
   [key: string]: string;
 }
@@ -649,6 +662,83 @@ export class API {
   static getCustomEmojiUrl(emojiId: string): string {
     return `${getApiBase()}/custom-emojis/${emojiId}/image`;
   }
+
+  // --- Soundboard ---
+
+  static async getSoundboardSounds(): Promise<SoundboardSound[]> {
+    return this.request("/soundboard", {}, "Failed to fetch sounds");
+  }
+
+  static async uploadSoundboardSound(
+    name: string,
+    file: File,
+    volume = 1.0,
+  ): Promise<SoundboardSound> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("volume", String(volume));
+    formData.append("file", file);
+    return this.multipartRequest(
+      "/soundboard",
+      formData,
+      "Failed to upload sound",
+    );
+  }
+
+  static async updateSoundboardSound(
+    soundId: string,
+    data: { name?: string; volume?: number },
+  ): Promise<SoundboardSound> {
+    return this.jsonRequest(
+      `/soundboard/${soundId}`,
+      "PATCH",
+      data,
+      "Failed to update sound",
+    );
+  }
+
+  static async deleteSoundboardSound(soundId: string): Promise<void> {
+    return this.request(
+      `/soundboard/${soundId}`,
+      { method: "DELETE" },
+      "Failed to delete sound",
+    );
+  }
+
+  static async playSoundboardSound(
+    soundId: string,
+    channelId: string,
+  ): Promise<void> {
+    return this.jsonRequest(
+      `/soundboard/${soundId}/play`,
+      "POST",
+      { channel_id: channelId },
+      "Failed to play sound",
+    );
+  }
+
+  static getSoundAudioUrl(soundId: string): string {
+    return `${getApiBase()}/soundboard/${soundId}/audio`;
+  }
+
+  static async getSoundboardFavorites(): Promise<string[]> {
+    return this.request(
+      "/soundboard/favorites",
+      {},
+      "Failed to fetch favorites",
+    );
+  }
+
+  static async toggleSoundboardFavorite(
+    soundId: string,
+  ): Promise<{ favorited: boolean }> {
+    return this.jsonRequest(
+      `/soundboard/${soundId}/favorite`,
+      "POST",
+      {},
+      "Failed to toggle favorite",
+    );
+  }
 }
 
 export type WsOutgoingMessage =
@@ -762,7 +852,19 @@ export type WsIncomingMessage =
     }
   | { type: "error"; data: { code: string; message?: string } }
   | { type: "pong"; data: Record<string, never> }
-  | { type: "sync_required"; data: { reason: string } };
+  | { type: "sync_required"; data: { reason: string } }
+  | { type: "soundboard_sound_created"; data: SoundboardSound }
+  | { type: "soundboard_sound_updated"; data: SoundboardSound }
+  | { type: "soundboard_sound_deleted"; data: { sound_id: string } }
+  | {
+      type: "soundboard_play";
+      data: {
+        channel_id: string;
+        user_id: string;
+        sound_id: string;
+        sound_volume: number;
+      };
+    };
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;

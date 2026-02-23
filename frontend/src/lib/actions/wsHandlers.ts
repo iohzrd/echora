@@ -1,6 +1,7 @@
 import { goto } from "$app/navigation";
 import { API, type MemberInfo, type WsIncomingMessage } from "../api";
 import { playSound } from "../sounds";
+import { playSoundboardAudio } from "../soundboardAudio";
 import AuthService from "../auth";
 import { voiceManager } from "../voice";
 import { getWs } from "../ws";
@@ -8,6 +9,7 @@ import { voiceStore } from "../stores/voiceStore.svelte";
 import { serverState } from "../stores/serverState.svelte";
 import { chatState } from "../stores/chatState.svelte";
 import { authState } from "../stores/authState.svelte";
+import { soundboardStore } from "../stores/soundboardStore.svelte";
 import { selectChannel, populateAvatarsFromMessages } from "./chat";
 
 const TYPING_DISPLAY_MS = 5000;
@@ -409,6 +411,38 @@ export function setupWsHandlers() {
           ...chatState.typingUsers,
           [userId]: { username, timeout },
         };
+      }
+    }
+
+    // --- Soundboard events ---
+
+    if (data.type === "soundboard_sound_created") {
+      soundboardStore.sounds = [...soundboardStore.sounds, data.data];
+    }
+
+    if (data.type === "soundboard_sound_updated") {
+      soundboardStore.sounds = soundboardStore.sounds.map((s) =>
+        s.id === data.data.id ? data.data : s,
+      );
+    }
+
+    if (data.type === "soundboard_sound_deleted") {
+      soundboardStore.sounds = soundboardStore.sounds.filter(
+        (s) => s.id !== data.data.sound_id,
+      );
+      soundboardStore.favorites = soundboardStore.favorites.filter(
+        (id) => id !== data.data.sound_id,
+      );
+    }
+
+    if (data.type === "soundboard_play") {
+      const { channel_id, sound_id, sound_volume } = data.data;
+      // Play only if user is in the same voice channel and not deafened
+      if (
+        channel_id === voiceStore.currentVoiceChannel &&
+        !voiceStore.isDeafened
+      ) {
+        playSoundboardAudio(sound_id, sound_volume);
       }
     }
   };

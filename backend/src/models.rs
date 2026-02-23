@@ -102,6 +102,31 @@ pub struct CustomEmoji {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SoundboardSound {
+    pub id: Uuid,
+    pub name: String,
+    pub volume: f64,
+    pub file_size: i32,
+    pub duration_ms: i32,
+    pub content_type: String,
+    pub storage_path: String,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSoundRequest {
+    pub name: Option<String>,
+    pub volume: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PlaySoundRequest {
+    pub channel_id: Uuid,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplyPreview {
     pub id: Uuid,

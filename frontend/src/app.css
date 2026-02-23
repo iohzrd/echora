@@ -952,6 +952,285 @@ body {
   }
 }
 
+/* Soundboard */
+.voice-control-btn.soundboard-toggle {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+}
+
+.voice-control-btn.soundboard-toggle:hover {
+  background: var(--bg-input);
+}
+
+.voice-control-btn.soundboard-toggle.active {
+  background: var(--brand-primary);
+  color: var(--text-white);
+  border-color: var(--brand-primary);
+}
+
+.soundboard-panel {
+  margin-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 6px;
+}
+
+.soundboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.soundboard-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.soundboard-tab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.soundboard-tab:hover {
+  color: var(--text-normal);
+}
+
+.soundboard-tab.active {
+  background: var(--brand-primary);
+  color: var(--text-white);
+}
+
+.soundboard-add-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s;
+}
+
+.soundboard-add-btn:hover {
+  color: var(--text-normal);
+}
+
+.soundboard-search {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-normal);
+  padding: 4px 8px;
+  font-size: 11px;
+  margin-bottom: 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.soundboard-search:focus {
+  border-color: var(--brand-primary);
+}
+
+.soundboard-search::placeholder {
+  color: var(--text-muted);
+}
+
+.soundboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.soundboard-sound {
+  display: flex;
+  align-items: center;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: background-color 0.15s;
+}
+
+.soundboard-sound:hover {
+  background: var(--bg-hover-strong);
+}
+
+.soundboard-sound.playing {
+  background: var(--brand-primary);
+}
+
+.soundboard-sound.playing .soundboard-play-btn {
+  color: var(--text-white);
+}
+
+.soundboard-play-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-normal);
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 11px;
+  text-align: left;
+  min-width: 0;
+}
+
+.soundboard-play-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.soundboard-sound-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soundboard-sound-actions {
+  display: flex;
+  gap: 1px;
+  padding-right: 2px;
+  flex-shrink: 0;
+}
+
+.soundboard-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.soundboard-action-btn:hover {
+  color: var(--text-normal);
+}
+
+.soundboard-action-btn.favorited {
+  color: var(--status-warning, #f0a020);
+}
+
+.soundboard-action-btn.delete:hover {
+  color: var(--status-negative);
+}
+
+.soundboard-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 12px 0;
+}
+
+.soundboard-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding: 6px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.soundboard-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-normal);
+  padding: 4px 8px;
+  font-size: 11px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.soundboard-input:focus {
+  border-color: var(--brand-primary);
+}
+
+.soundboard-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.soundboard-file-input {
+  font-size: 11px;
+  color: var(--text-secondary);
+  width: 100%;
+}
+
+.soundboard-file-input::file-selector-button {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-normal);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 10px;
+  margin-right: 6px;
+}
+
+.soundboard-volume-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.soundboard-volume-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--brand-primary);
+}
+
+.soundboard-upload-btn {
+  background: var(--brand-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-white);
+  cursor: pointer;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.soundboard-upload-btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.soundboard-upload-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.soundboard-error {
+  font-size: 11px;
+  color: var(--status-negative);
+  padding: 2px 0;
+}
+
 /* Audio Settings */
 .audio-settings {
   display: flex;

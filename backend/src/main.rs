@@ -270,6 +270,22 @@ async fn main() {
             "/api/custom-emojis/{emoji_id}/image",
             get(routes::get_custom_emoji_image),
         )
+        .route(
+            "/api/soundboard/{sound_id}",
+            get(routes::get_sound)
+                .patch(routes::update_sound)
+                .delete(routes::delete_sound),
+        )
+        .route(
+            "/api/soundboard/{sound_id}/audio",
+            get(routes::get_sound_audio),
+        )
+        .route("/api/soundboard/{sound_id}/play", post(routes::play_sound))
+        .route("/api/soundboard/favorites", get(routes::get_favorites))
+        .route(
+            "/api/soundboard/{sound_id}/favorite",
+            post(routes::toggle_favorite),
+        )
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB for all non-upload routes
         .with_state(state.clone());
 
@@ -297,11 +313,20 @@ async fn main() {
         .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB
         .with_state(state.clone());
 
+    let soundboard_upload_routes = Router::new()
+        .route(
+            "/api/soundboard",
+            get(routes::list_sounds).post(routes::upload_sound),
+        )
+        .layer(DefaultBodyLimit::max(1024 * 1024)) // 1MB (512KB limit enforced in handler)
+        .with_state(state.clone());
+
     let app = Router::new()
         .merge(general_routes)
         .merge(avatar_routes)
         .merge(attachment_routes)
         .merge(emoji_upload_routes)
+        .merge(soundboard_upload_routes)
         .fallback_service(ServeDir::new("static").fallback(ServeFile::new("static/index.html")))
         .layer(build_cors_layer());
 
