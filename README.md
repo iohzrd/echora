@@ -1,4 +1,4 @@
-# Echora
+# EchoCell
 
 A self-hosted real-time chat platform with text, voice, and screen sharing -- built with Svelte 5 and Rust.
 
@@ -77,7 +77,7 @@ Backend environment variables (set in `backend/.env`):
 
 | Variable       | Description                     | Default                                          |
 | -------------- | ------------------------------- | ------------------------------------------------ |
-| `DATABASE_URL` | PostgreSQL connection string    | `postgres://echora:echora@localhost:5432/echora` |
+| `DATABASE_URL` | PostgreSQL connection string    | `postgres://echocell:echocell@localhost:5432/echocell` |
 | `JWT_SECRET`   | Secret key for JWT signing      | (required)                                       |
 | `BIND_ADDR`    | Server bind address             | `127.0.0.1:3000`                                 |
 | `CORS_ORIGINS` | Comma-separated allowed origins | Permissive (all origins)                         |
@@ -139,7 +139,7 @@ Frontend environment (set in `frontend/.env` / `.env.production`):
 
 ### Voice (SFU)
 
-Echora uses a Selective Forwarding Unit architecture for voice chat. The server forwards WebRTC signaling (offers, answers, ICE candidates) between clients without decoding or re-encoding audio. Clients capture audio via `getUserMedia`, establish peer connections through the server, and mix received streams locally. This avoids P2P complexity while keeping server CPU usage low.
+EchoCell uses a Selective Forwarding Unit architecture for voice chat. The server forwards WebRTC signaling (offers, answers, ICE candidates) between clients without decoding or re-encoding audio. Clients capture audio via `getUserMedia`, establish peer connections through the server, and mix received streams locally. This avoids P2P complexity while keeping server CPU usage low.
 
 ### Authentication
 
@@ -165,7 +165,7 @@ The backend runs as a container behind a load balancer, the frontend is static f
 ### Deploy Backend
 
 ```bash
-docker build -t echora .
+docker build -t echocell .
 # Tag and push to your container registry, then trigger a redeployment
 ```
 
@@ -194,7 +194,7 @@ cd frontend && npm run build
 - [x] Passkeys (WebAuthn/FIDO2)
 - [x] Connect/disconnect sounds
 - [x] User profiles & avatars
-- [ ] Soundboard
+- [x] Soundboard
 - [ ] Channel groups
 - [ ] Message pinning
 - [ ] Search

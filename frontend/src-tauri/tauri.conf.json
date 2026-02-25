@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Echora",
+  "productName": "EchoCell",
   "version": "0.2.23",
-  "identifier": "com.echora.app",
+  "identifier": "com.echocell.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Echora",
+        "title": "EchoCell",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

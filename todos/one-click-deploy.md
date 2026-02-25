@@ -1,6 +1,6 @@
 # One-Click VPS Deployment
 
-Research notes for creating a self-hosted one-click deploy experience for Echora, similar to Vultr Marketplace apps or DigitalOcean 1-Click Apps.
+Research notes for creating a self-hosted one-click deploy experience for EchoCell, similar to Vultr Marketplace apps or DigitalOcean 1-Click Apps.
 
 ## Current State
 
@@ -12,14 +12,14 @@ Research notes for creating a self-hosted one-click deploy experience for Echora
 
 ## Goal
 
-Let anyone deploy their own Echora instance on a fresh VPS with minimal effort. Two approaches: a universal installer script and platform-specific marketplace images.
+Let anyone deploy their own EchoCell instance on a fresh VPS with minimal effort. Two approaches: a universal installer script and platform-specific marketplace images.
 
 ## Approach A: Universal Installer Script (Recommended starting point)
 
 A single shell script that works on any fresh Ubuntu/Debian VPS. No marketplace approval process needed.
 
 ```bash
-curl -sSL https://install.echora.example/install.sh | bash -s -- --domain chat.example.com --email admin@example.com
+curl -sSL https://install.echocell.example/install.sh | bash -s -- --domain chat.example.com --email admin@example.com
 ```
 
 ### What the script does
@@ -28,7 +28,7 @@ curl -sSL https://install.echora.example/install.sh | bash -s -- --domain chat.e
 2. **Generate secrets** -- JWT secret, Postgres password, admin credentials
 3. **Write config** -- generate `docker-compose.yml` and `.env` from templates
 4. **TLS** -- install and configure Caddy (automatic HTTPS via Let's Encrypt)
-5. **Pull images** -- pull pre-built Echora backend and frontend images from a public container registry (GHCR or Docker Hub)
+5. **Pull images** -- pull pre-built EchoCell backend and frontend images from a public container registry (GHCR or Docker Hub)
 6. **Database** -- start Postgres, run migrations
 7. **Start services** -- bring up the full stack
 8. **Systemd** -- install a systemd service for auto-start on boot
@@ -51,10 +51,10 @@ services:
       - ./frontend:/srv/frontend
 
   backend:
-    image: ghcr.io/echora/backend:latest
+    image: ghcr.io/echocell/backend:latest
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgres://echora:${POSTGRES_PASSWORD}@postgres:5432/echora
+      - DATABASE_URL=postgres://echocell:${POSTGRES_PASSWORD}@postgres:5432/echocell
       - JWT_SECRET=${JWT_SECRET}
       - CORS_ORIGINS=https://${DOMAIN}
       - RUST_LOG=info
@@ -66,13 +66,13 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      - POSTGRES_USER=echora
+      - POSTGRES_USER=echocell
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=echora
+      - POSTGRES_DB=echocell
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U echora"]
+      test: ["CMD-SHELL", "pg_isready -U echocell"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -162,7 +162,7 @@ Pre-baked VM snapshots with everything installed. Faster deploy (~60 seconds) bu
 
 1. Spin up a base VM (Ubuntu 22.04 LTS)
 2. Install all dependencies (Docker, Caddy, etc.)
-3. Pre-pull Echora Docker images
+3. Pre-pull EchoCell Docker images
 4. Install a first-boot script at `/var/lib/cloud/scripts/per-instance/setup.sh`
 5. Snapshot the VM
 6. Submit to marketplace for review
@@ -185,21 +185,21 @@ POSTGRES_PASSWORD=$(openssl rand -hex 16)
 ADMIN_PASSWORD=$(openssl rand -base64 12)
 
 # Write environment file
-cat > /opt/echora/.env <<EOF
+cat > /opt/echocell/.env <<EOF
 DOMAIN=${DOMAIN:-$PUBLIC_IP}
 JWT_SECRET=${JWT_SECRET}
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 EOF
 
 # Start services
-cd /opt/echora && docker compose up -d
+cd /opt/echocell && docker compose up -d
 
 # Run migrations
-docker compose exec backend echora-migrate
+docker compose exec backend echocell-migrate
 
 # Print credentials to console (visible in cloud provider's console output)
 echo "=============================="
-echo "Echora is ready!"
+echo "EchoCell is ready!"
 echo "URL: https://${DOMAIN:-$PUBLIC_IP}"
 echo "Admin password: ${ADMIN_PASSWORD}"
 echo "=============================="
@@ -217,7 +217,7 @@ echo "=============================="
 ### Image build automation with Packer
 
 ```hcl
-# echora.pkr.hcl
+# echocell.pkr.hcl
 packer {
   required_plugins {
     vultr  = { version = ">= 2.6.0", source = "github.com/vultr/vultr" }
@@ -225,21 +225,21 @@ packer {
   }
 }
 
-source "vultr" "echora" {
+source "vultr" "echocell" {
   api_key      = var.vultr_api_key
   os_id        = 2284  # Ubuntu 24.04
   plan_id      = "vc2-1c-1gb"
   region_id    = "ewr"  # New Jersey
-  snapshot_description = "Echora Chat ${var.version}"
+  snapshot_description = "EchoCell Chat ${var.version}"
 }
 
 build {
-  sources = ["source.vultr.echora"]
+  sources = ["source.vultr.echocell"]
 
   provisioner "shell" {
     scripts = [
       "packer/scripts/01-base.sh",       # apt update, install Docker
-      "packer/scripts/02-echora.sh",     # pull images, write compose file
+      "packer/scripts/02-echocell.sh",     # pull images, write compose file
       "packer/scripts/03-caddy.sh",       # install Caddy
       "packer/scripts/04-firstboot.sh",   # install first-boot script
       "packer/scripts/99-cleanup.sh",     # clean apt cache, zero free space
@@ -259,13 +259,13 @@ packages:
   - docker-compose-v2
 
 write_files:
-  - path: /opt/echora/docker-compose.yml
+  - path: /opt/echocell/docker-compose.yml
     content: |
       # ... same as Approach A ...
 
 runcmd:
   - systemctl enable --now docker
-  - cd /opt/echora && docker compose up -d
+  - cd /opt/echocell && docker compose up -d
 ```
 
 Less polished than marketplace but works everywhere and requires no infrastructure to maintain.
@@ -287,12 +287,12 @@ Regardless of approach, need a simple update path:
 
 ```bash
 # Pull latest images and restart
-cd /opt/echora
+cd /opt/echocell
 docker compose pull
 docker compose up -d
 
 # Or via the installer script
-curl -sSL https://install.echora.example/install.sh | bash -s -- --update
+curl -sSL https://install.echocell.example/install.sh | bash -s -- --update
 ```
 
 Could also add a webhook endpoint to the backend that triggers an update when a GitHub release is published (self-updating, opt-in).
@@ -303,10 +303,10 @@ The installer should include backup/restore utilities:
 
 ```bash
 # Backup -- dump Postgres + config
-echora-backup              # creates /opt/echora/backups/echora-YYYY-MM-DD.tar.gz
+echocell-backup              # creates /opt/echocell/backups/echocell-YYYY-MM-DD.tar.gz
 
 # Restore
-echora-restore /path/to/echora-YYYY-MM-DD.tar.gz
+echocell-restore /path/to/echocell-YYYY-MM-DD.tar.gz
 ```
 
 Backup contents:
@@ -325,7 +325,7 @@ Backup contents:
 
 ## Recommended VPS Providers for Self-Hosting
 
-Based on API access, pricing, and suitability for Echora's single-instance architecture:
+Based on API access, pricing, and suitability for EchoCell's single-instance architecture:
 
 | Provider | Minimum plan | Approx. cost/mo | Marketplace support | API quality | Notes |
 |---|---|---|---|---|---|
@@ -335,7 +335,7 @@ Based on API access, pricing, and suitability for Echora's single-instance archi
 | Linode (Akamai) | Nanode 1GB | ~$5 | StackScripts | Good | Managed DB available |
 | Oracle Cloud | ARM A1.Flex | Free | None | Decent | Always-free 4 OCPU / 24GB ARM instance |
 
-Any of these are well-suited for Echora's single-instance architecture at low cost.
+Any of these are well-suited for EchoCell's single-instance architecture at low cost.
 
 ## Implementation Plan
 

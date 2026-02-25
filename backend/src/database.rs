@@ -109,7 +109,7 @@ pub async fn seed_data(pool: &PgPool) -> Result<(), AppError> {
     // Seed default settings if not present
     sqlx::query(
         "INSERT INTO server_settings (key, value, updated_at)
-         VALUES ('server_name', 'Echora', NOW())
+         VALUES ('server_name', 'EchoCell', NOW())
          ON CONFLICT (key) DO NOTHING",
     )
     .execute(pool)

@@ -67,7 +67,7 @@ async fn main() {
     let webauthn = Arc::new(
         webauthn_rs::WebauthnBuilder::new(&rp_id, &rp_origin)
             .expect("Failed to create WebauthnBuilder")
-            .rp_name("Echora")
+            .rp_name("EchoCell")
             .build()
             .expect("Failed to build Webauthn"),
     );
@@ -333,7 +333,7 @@ async fn main() {
     let bind_addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".to_string());
     let listener = tokio::net::TcpListener::bind(&bind_addr).await.unwrap();
 
-    info!("Echora backend server starting on http://{bind_addr}");
+    info!("EchoCell backend server starting on http://{bind_addr}");
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())

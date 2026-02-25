@@ -63,7 +63,7 @@ jobs:
         with:
           projectPath: frontend
           tagName: v__VERSION__
-          releaseName: Echora v__VERSION__
+          releaseName: EchoCell v__VERSION__
           releaseBody: See the assets to download and install this version.
           releaseDraft: true
           prerelease: false

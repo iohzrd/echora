@@ -1,7 +1,7 @@
 import { writable, derived, get } from "svelte/store";
 import { browser } from "$app/environment";
 
-export interface EchoraServer {
+export interface EchoCellServer {
   id: string;
   name: string;
   url: string;
@@ -13,11 +13,11 @@ export interface EchoraServer {
 }
 
 export interface ServerStore {
-  servers: EchoraServer[];
+  servers: EchoCellServer[];
   activeServerId: string | null;
 }
 
-const STORAGE_KEY = "echora_servers";
+const STORAGE_KEY = "echocell_servers";
 
 export const isTauri = browser && "__TAURI__" in window;
 
@@ -72,15 +72,15 @@ export const activeServer = derived(
 
 export const servers = derived(serverStore, ($store) => $store.servers);
 
-export function getActiveServer(): EchoraServer | null {
+export function getActiveServer(): EchoCellServer | null {
   return get(activeServer);
 }
 
-export function addServer(url: string, name: string): EchoraServer {
+export function addServer(url: string, name: string): EchoCellServer {
   // Normalize URL: strip trailing slashes
   const normalizedUrl = url.replace(/\/+$/, "");
 
-  const server: EchoraServer = {
+  const server: EchoCellServer = {
     id: generateId(),
     name,
     url: normalizedUrl,
@@ -109,7 +109,10 @@ export function removeServer(id: string): void {
   });
 }
 
-export function updateServer(id: string, updates: Partial<EchoraServer>): void {
+export function updateServer(
+  id: string,
+  updates: Partial<EchoCellServer>,
+): void {
   serverStore.update((store) => ({
     ...store,
     servers: store.servers.map((s) => (s.id === id ? { ...s, ...updates } : s)),
@@ -155,7 +158,7 @@ async function checkHealth(
 }
 
 /**
- * Validate that a URL points to a running Echora instance.
+ * Validate that a URL points to a running EchoCell instance.
  * Tries the URL directly first, then falls back to `api.{hostname}` for
  * split-domain setups (e.g. echnaos.com -> api.echnaos.com).
  * Returns the resolved API base URL so the caller can store the correct one.

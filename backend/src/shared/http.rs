@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-const USER_AGENT: &str = "EchoraBot/1.0";
+const USER_AGENT: &str = "EchoCellBot/1.0";
 const MAX_REDIRECTS: usize = 3;
 
 pub fn create_http_client(timeout_secs: u64) -> Result<reqwest::Client, reqwest::Error> {

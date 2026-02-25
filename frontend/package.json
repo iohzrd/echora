@@ -1,7 +1,7 @@
 {
-  "name": "echora-app",
+  "name": "echocell-app",
   "version": "0.2.83",
-  "description": "Echora - Self-hosted chat platform",
+  "description": "EchoCell - Self-hosted chat platform",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

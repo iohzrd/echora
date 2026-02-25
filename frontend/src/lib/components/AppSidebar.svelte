@@ -17,7 +17,7 @@
   import Avatar from "./Avatar.svelte";
 
   let activeServerName = $derived(
-    serverState.serverName || $activeServer?.name || "Echora",
+    serverState.serverName || $activeServer?.name || "EchoCell",
   );
   let userAvatarUrl = $derived(
     authState.user?.avatar_url

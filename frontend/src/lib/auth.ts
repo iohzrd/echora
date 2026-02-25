@@ -26,7 +26,7 @@ export interface LoginRequest {
   password: string;
 }
 
-const TOKEN_KEY = "echora_token";
+const TOKEN_KEY = "echocell_token";
 
 class AuthService {
   static async init(): Promise<void> {

@@ -1,6 +1,6 @@
 # Tauri Native Audio Controls
 
-Research and implementation plan for Discord-style native audio controls in the Echora Tauri desktop app. This covers input/output device selection, per-user volume control, noise suppression, and audio processing -- features that go beyond what the browser WebRTC defaults provide.
+Research and implementation plan for Discord-style native audio controls in the EchoCell Tauri desktop app. This covers input/output device selection, per-user volume control, noise suppression, and audio processing -- features that go beyond what the browser WebRTC defaults provide.
 
 ## Current State
 

@@ -32,7 +32,7 @@ cd frontend && npm run build     # Production build
 docker compose up -d             # PostgreSQL on localhost:5432
 
 # Deploy backend (build + push container to registry, then trigger redeployment)
-docker build -t echora .
+docker build -t echocell .
 # Tag, push to your container registry, and trigger service redeployment
 # See deploy docs or infra-resources.md (local, gitignored) for specific commands
 

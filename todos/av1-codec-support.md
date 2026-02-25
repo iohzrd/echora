@@ -1,6 +1,6 @@
 # AV1 Codec Support
 
-Research notes for adding AV1 video codec to Echora's mediasoup SFU.
+Research notes for adding AV1 video codec to EchoCell's mediasoup SFU.
 
 ## Current State
 

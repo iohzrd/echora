@@ -3,9 +3,9 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_USER: echora
-      POSTGRES_PASSWORD: echora
-      POSTGRES_DB: echora
+      POSTGRES_USER: echocell
+      POSTGRES_PASSWORD: echocell
+      POSTGRES_DB: echocell
     ports:
       - "5432:5432"
     volumes:

@@ -8,7 +8,7 @@
     addServer,
     removeServer,
     setActiveServer,
-    type EchoraServer,
+    type EchoCellServer,
   } from "../../lib/serverManager";
   import { getWs } from "../../lib/ws";
   import { voiceManager } from "../../lib/voice";
@@ -45,7 +45,7 @@
   let { children } = $props();
 
   let activeServerName = $derived(
-    serverState.serverName || $activeServer?.name || "Echora",
+    serverState.serverName || $activeServer?.name || "EchoCell",
   );
 
   let _removeDeviceListener: (() => void) | null = null;
@@ -71,7 +71,7 @@
     _removeDeviceListener?.();
   });
 
-  async function handleSelectServer(server: EchoraServer) {
+  async function handleSelectServer(server: EchoCellServer) {
     if ($activeServer?.id === server.id) return;
     getWs().disconnect();
     const { currentVoiceChannel } = voiceStore;
@@ -125,7 +125,7 @@
   {#if isTauri && !$activeServer}
     <div class="main-content tauri-empty-state">
       <div class="empty-state-message">
-        <h2>Welcome to Echora</h2>
+        <h2>Welcome to EchoCell</h2>
         <p>Add a server to get started.</p>
         <button class="submit-btn" onclick={openAddServerDialog}>
           Add Server

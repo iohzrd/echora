@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { servers, activeServer, type EchoraServer } from "../serverManager";
+  import { servers, activeServer, type EchoCellServer } from "../serverManager";
   import { getInitial } from "../utils";
 
   let {
@@ -7,7 +7,7 @@
     onAddServer = () => {},
     onRemoveServer = () => {},
   }: {
-    onSelectServer?: (server: EchoraServer) => void;
+    onSelectServer?: (server: EchoCellServer) => void;
     onAddServer?: () => void;
     onRemoveServer?: (id: string) => void;
   } = $props();
@@ -32,7 +32,7 @@
     onRemoveServer(id);
   }
 
-  function handleCopyUrl(server: EchoraServer) {
+  function handleCopyUrl(server: EchoCellServer) {
     closeContextMenu();
     navigator.clipboard.writeText(server.url);
   }

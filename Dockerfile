@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /app/target/release/backend ./echora
+COPY --from=builder /app/target/release/backend ./echocell
 EXPOSE 3000
 ENV RUST_LOG=info
-CMD ["./echora"]
+CMD ["./echocell"]

@@ -22,7 +22,7 @@
 </script>
 
 <svelte:head>
-  <title>{isLogin ? "Login" : "Register"} - Echora</title>
+  <title>{isLogin ? "Login" : "Register"} - EchoCell</title>
 </svelte:head>
 
 <div class="auth-page">

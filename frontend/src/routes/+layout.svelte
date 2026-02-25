@@ -5,7 +5,7 @@
 
   let { children } = $props();
 
-  const ZOOM_KEY = "echora_zoom";
+  const ZOOM_KEY = "echocell_zoom";
   const ZOOM_STEP = 0.1;
   const ZOOM_MIN = 0.5;
   const ZOOM_MAX = 2.0;

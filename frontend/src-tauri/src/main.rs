@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    echora_app_lib::run()
+    echocell_app_lib::run()
 }

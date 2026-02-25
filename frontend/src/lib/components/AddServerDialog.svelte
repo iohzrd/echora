@@ -71,7 +71,7 @@
   >
     <h2>Add Server</h2>
     <p class="dialog-subtitle">
-      Enter the URL of an Echora instance to connect to it.
+      Enter the URL of an EchoCell instance to connect to it.
     </p>
 
     <div class="form-group">
@@ -79,7 +79,7 @@
       <input
         id="server-url"
         type="text"
-        placeholder="https://echora.example.com"
+        placeholder="https://echocell.example.com"
         bind:value={serverUrl}
         onkeydown={handleKeydown}
         disabled={validating}

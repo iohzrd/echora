@@ -1,4 +1,4 @@
--- Initial schema for Echora
+-- Initial schema for EchoCell
 -- Single-instance self-hosted chat platform
 
 CREATE TABLE users (
